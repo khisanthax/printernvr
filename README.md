@@ -32,7 +32,7 @@ static/         CSS/JS assets
 pip install -r requirements.txt
 ```
 
-3. Copy environment template:
+3. Optional: copy environment template:
 
 ```bash
 cp .env.example .env
@@ -54,24 +54,39 @@ Open `http://localhost:8787`.
 
 ## Docker Run Instructions
 
-1. Copy `.env.example` to `.env`.
-2. Ensure `config/cameras.json` exists.
+1. Ensure `config/cameras.json` exists.
+2. Choose one option:
+
+```bash
+# Option A (recommended)
+cp .env.example .env
+```
+
+```bash
+# Option B
+# Skip creating .env and use built-in defaults
+```
+
 3. Build and start:
 
 ```bash
-docker compose up --build
+docker compose up -d --build
 ```
 
-The app is available at `http://localhost:8787`.
+The app is available at `http://localhost:8787` by default.
+If `PORT` is set in `.env`, Docker Compose uses that host port.
 
 ## Environment Variables
 
-From `.env`:
+From `.env` (optional):
+
+- `PORT` default: `8787`
+- `LOG_LEVEL` default: `info`
 
 - `APP_CONFIG_PATH` default: `/app/config/cameras.json`
 - `APP_RECORDINGS_DIR` default: `/app/recordings`
 - `APP_LOGS_DIR` default: `/app/logs`
-- `APP_LOG_LEVEL` default: `INFO`
+- `APP_LOG_LEVEL` default: unset (falls back to `LOG_LEVEL`)
 
 ## Camera Configuration
 

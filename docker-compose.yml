@@ -5,9 +5,13 @@ services:
       dockerfile: Dockerfile
     container_name: printernvr
     ports:
-      - "8787:8787"
-    env_file:
-      - .env
+      - "${PORT:-8787}:8787"
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      APP_CONFIG_PATH: ${APP_CONFIG_PATH:-/app/config/cameras.json}
+      APP_RECORDINGS_DIR: ${APP_RECORDINGS_DIR:-/app/recordings}
+      APP_LOGS_DIR: ${APP_LOGS_DIR:-/app/logs}
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-}
     volumes:
       - ./config:/app/config
       - ./recordings:/app/recordings

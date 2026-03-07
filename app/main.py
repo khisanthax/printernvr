@@ -20,11 +20,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _settings() -> dict[str, str]:
+    log_level = os.getenv("APP_LOG_LEVEL") or os.getenv("LOG_LEVEL", "INFO")
     return {
         "config_path": os.getenv("APP_CONFIG_PATH", "config/cameras.json"),
         "recordings_dir": os.getenv("APP_RECORDINGS_DIR", "recordings"),
         "logs_dir": os.getenv("APP_LOGS_DIR", "logs"),
-        "log_level": os.getenv("APP_LOG_LEVEL", "INFO"),
+        "log_level": log_level,
     }
 
 
