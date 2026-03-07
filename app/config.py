@@ -4,10 +4,19 @@ import json
 from pathlib import Path
 from urllib.parse import quote_plus, urlparse
 
-from app.models import AppConfig, CameraConfigInput, ConfigFile, ResolvedCamera
+from app.models import (
+    AppConfig,
+    AppSettingsFile,
+    CameraConfigFile,
+    CameraConfigInput,
+    ResolvedCamera,
+)
 
 
-def generate_go2rtc_urls(go2rtc_base_url: str, stream_name: str | None = None) -> tuple[str, str]:
+def generate_go2rtc_urls(
+    go2rtc_base_url: str,
+    stream_name: str | None = None,
+) -> tuple[str, str]:
     raw_base = go2rtc_base_url.strip()
     if "://" not in raw_base:
         raw_base = f"http://{raw_base}"
@@ -59,7 +68,13 @@ def resolve_camera(camera: CameraConfigInput) -> ResolvedCamera:
     )
 
 
-def load_app_config(config_path: str) -> AppConfig:
+def load_app_config(camera_config_path: str, app_settings_path: str) -> AppConfig:
+    cameras = load_camera_config(camera_config_path)
+    settings = load_app_settings(app_settings_path)
+    return AppConfig(cameras=cameras, retention=settings.retention)
+
+
+def load_camera_config(config_path: str) -> list[ResolvedCamera]:
     path = Path(config_path)
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
@@ -70,19 +85,29 @@ def load_app_config(config_path: str) -> AppConfig:
     if isinstance(data, list):
         data = {"cameras": data}
     if not isinstance(data, dict):
-        raise ValueError("Config root must be an object with a 'cameras' array")
+        raise ValueError("Camera config root must be an object with a 'cameras' array")
 
-    parsed = ConfigFile.model_validate(data)
-
-    resolved: list[ResolvedCamera] = [resolve_camera(camera) for camera in parsed.cameras]
-
+    parsed = CameraConfigFile.model_validate(data)
+    resolved = [resolve_camera(camera) for camera in parsed.cameras]
     _validate_unique_camera_ids(resolved)
+    return resolved
 
-    return AppConfig(cameras=resolved)
+
+def load_app_settings(config_path: str) -> AppSettingsFile:
+    path = Path(config_path)
+    if not path.exists():
+        return AppSettingsFile()
+
+    with path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if not isinstance(data, dict):
+        raise ValueError("App config root must be an object")
+
+    return AppSettingsFile.model_validate(data)
 
 
 def _validate_unique_camera_ids(cameras: list[ResolvedCamera]) -> None:
     camera_ids = [camera.id for camera in cameras]
     if len(camera_ids) != len(set(camera_ids)):
         raise ValueError("Camera ids must be unique")
-

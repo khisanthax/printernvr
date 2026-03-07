@@ -1,0 +1,9 @@
+{
+  "retention": {
+    "enabled": false,
+    "cleanup_mode": "disabled",
+    "max_age_days": null,
+    "max_total_gb": null,
+    "minimum_free_gb": null
+  }
+}

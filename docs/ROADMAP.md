@@ -154,7 +154,7 @@ Deliverables:
 - Preview display
 - Placeholder controls
 
-### Phase 2 - Recording Engine [ ]
+### Phase 2 - Recording Engine [x]
 
 Goals:
 - Implement ffmpeg recording
@@ -173,7 +173,7 @@ Deliverables:
 - Timed recording
 - Local file storage
 
-### Phase 3 - UI Controls [ ]
+### Phase 3 - UI Controls [x]
 
 Goals:
 - Connect UI buttons to recording engine
@@ -215,26 +215,81 @@ Tasks:
 - Config validation
 - Deployment docs
 
+### Phase 6 - Retention and Storage Protection [x]
+
+Goals:
+- Prevent recorded clips from filling the recorder host storage
+- Provide visibility into recording storage usage
+- Support configurable warning thresholds
+- Support optional automatic cleanup of old recordings
+
+Requirements:
+- Add retention settings to app config
+- Support alert-only mode
+- Support optional automatic deletion mode
+- Support oldest-first cleanup
+- Never delete active recordings
+- Only delete completed local recordings
+- Log all cleanup actions
+- Expose storage status in the API
+- Show warnings in the UI when thresholds are exceeded
+
+Suggested config fields:
+- `retention.enabled`
+- `retention.cleanup_mode`
+- `retention.max_age_days`
+- `retention.max_total_gb`
+- `retention.minimum_free_gb`
+
+Cleanup modes:
+- `disabled`
+- `alert_only`
+- `delete_oldest`
+
+API and UI behavior:
+- Backend reports total recording storage usage
+- Backend reports free disk space
+- UI shows warning state if thresholds are exceeded
+- Manual cleanup endpoint is available when retention is enabled and cleanup mode is not `disabled`
+- Automatic cleanup occurs only when cleanup mode is explicitly `delete_oldest`
+
+Implementation notes:
+- Only the local recordings directory is managed
+- NAS archival is out of scope
+- Active recording output files are excluded from cleanup
+- Cleanup deletes oldest eligible files first
+
 ## Current Implementation State
 
 Completed:
 - Phase 0 foundation
 - Phase 1 dashboard and status API
+- Phase 2 recording engine and recording API
+- Phase 3 recording UI controls
+- Phase 6 retention and storage protection
+
+Note:
+- Phase 6 was implemented ahead of clip management to protect recorder-host storage early.
 
 Implemented highlights:
 - FastAPI app scaffold with startup validation and logging
 - JSON camera config loading with go2rtc helper mode and manual URL mode
+- Separate app config loading for retention settings
 - Resolution logic where manual URLs override generated URLs
-- Runtime camera state manager with initial `idle` status
-- Endpoints: `GET /health`, `GET /api/cameras`, `GET /api/status`, `GET /`
-- Dashboard camera cards with preview iframe, status badge, output directory, and placeholder controls
+- Runtime camera state manager with recording metadata and error tracking
+- ffmpeg recording manager with start, stop, timed capture, and one-recording-per-camera enforcement
+- Endpoints: `GET /health`, `GET /api/cameras`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /`
+- Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip
 - Empty dashboard state when no cameras are configured
 - Preview fallback rules: manual preview -> generated preview -> `no preview configured`
+- Storage usage and free disk reporting in the UI
+- Retention thresholds with alert-only and delete-oldest cleanup modes
+- Automatic retention checks on startup and after recording completion
 - Docker-first deployment with ffmpeg installed
 - Docker Compose defaults that work without `.env`
 
 Next phase:
-- Phase 2 recording engine (ffmpeg subprocess lifecycle and recording API)
+- Phase 4 clip management
 
 ## Deployment Model
 

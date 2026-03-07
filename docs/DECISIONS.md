@@ -67,3 +67,58 @@ Why:
 Impact:
 - Optional `.env` can override defaults later.
 - `LOG_LEVEL` and `PORT` remain configurable without breaking default startup.
+
+## 2026-03-07 - Use Separate App Config for Retention Settings
+
+Decision:
+- Keep camera config in `config/cameras.json`.
+- Store retention settings in `config/app.json`.
+
+Why:
+- Retention is an app-level concern, not a per-camera setting.
+- This matches the stated preference for app config plus camera config without introducing a database.
+
+Impact:
+- Startup now loads both camera config and app config.
+- Default app config can safely disable retention.
+
+## 2026-03-07 - Use ffmpeg Subprocesses with In-Memory Process Tracking
+
+Decision:
+- Implement recording with direct `ffmpeg` subprocesses managed by a `RecordingManager`.
+- Track one active process per camera in memory.
+
+Why:
+- Keeps the service single-process and easy to operate.
+- Fits the project rule set for using ffmpeg directly rather than adding workers or queues.
+
+Impact:
+- Timed recordings are implemented by passing `-t` to ffmpeg.
+- Runtime state is the source of truth for active outputs and UI status.
+
+## 2026-03-07 - Retention Must Exclude Active Recording Outputs
+
+Decision:
+- Cleanup logic excludes active recording output paths from deletion planning.
+- Cleanup only scans the local recordings root.
+
+Why:
+- Active output deletion would corrupt recordings and create hard-to-debug failures.
+- NAS or external archival remains explicitly out of scope.
+
+Impact:
+- Retention depends on runtime recording state.
+- Automatic and manual cleanup only affect completed local files.
+
+## 2026-03-07 - Alert-Only and Delete-Oldest Are Both Supported
+
+Decision:
+- Support three cleanup modes: `disabled`, `alert_only`, and `delete_oldest`.
+
+Why:
+- Some deployments need visibility without automatic deletion.
+- Other deployments need the recorder host protected automatically.
+
+Impact:
+- Warning status is exposed in API/UI even when automatic deletion is off.
+- Manual cleanup is available when retention is enabled and mode is not `disabled`.

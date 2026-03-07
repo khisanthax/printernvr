@@ -8,14 +8,43 @@
 </head>
 <body>
   <header class="page-header">
-    <h1>Printer NVR</h1>
-    <p>Phase 1 dashboard: previews and runtime status with recording controls placeholder.</p>
+    <div>
+      <h1>Printer NVR</h1>
+      <p>Recording dashboard for local 3D printer camera capture.</p>
+    </div>
+    <section class="storage-panel" aria-live="polite">
+      <div class="storage-panel__head">
+        <h2>Storage</h2>
+        <button type="button" id="manual-cleanup-button" class="control-button control-button--secondary" hidden>
+          Cleanup
+        </button>
+      </div>
+      <dl class="storage-stats">
+        <div>
+          <dt>Used</dt>
+          <dd id="storage-used">--</dd>
+        </div>
+        <div>
+          <dt>Free</dt>
+          <dd id="storage-free">--</dd>
+        </div>
+        <div>
+          <dt>Mode</dt>
+          <dd id="storage-mode">--</dd>
+        </div>
+      </dl>
+      <p id="storage-warning" class="storage-warning" hidden></p>
+      <p id="storage-cleanup-summary" class="storage-summary"></p>
+    </section>
   </header>
 
   <main class="camera-grid">
     {% if cameras %}
     {% for camera in cameras %}
-    <article class="camera-card {% if not camera.enabled %}camera-card--disabled{% endif %}">
+    <article
+      class="camera-card {% if not camera.enabled %}camera-card--disabled{% endif %}"
+      data-camera-card="{{ camera.id }}"
+      data-camera-enabled="{{ 'true' if camera.enabled else 'false' }}">
       <div class="camera-card__head">
         <div>
           <h2>{{ camera.name }}</h2>
@@ -23,7 +52,7 @@
           <p class="camera-description">{{ camera.description }}</p>
           {% endif %}
         </div>
-        <span class="status-badge status-idle" data-camera-status="{{ camera.id }}">idle</span>
+        <span class="status-badge status-idle" data-camera-status="{{ camera.id }}">Idle</span>
       </div>
 
       <div class="camera-preview-wrap">
@@ -54,16 +83,28 @@
         </div>
       </dl>
 
+      <div class="recording-info">
+        <p><strong>Started:</strong> <span data-started-at="{{ camera.id }}">--</span></p>
+        <p><strong>Expected end:</strong> <span data-expected-end="{{ camera.id }}">--</span></p>
+        <p><strong>Current output:</strong> <span data-output-file="{{ camera.id }}">--</span></p>
+        <p><strong>Last recorded clip:</strong> <span data-last-output="{{ camera.id }}">--</span></p>
+      </div>
+
+      <p class="camera-error" data-error-message="{{ camera.id }}" hidden></p>
+
       <div class="camera-controls" data-camera-id="{{ camera.id }}">
-        <button type="button" class="control-button">Start</button>
-        <button type="button" class="control-button">Stop</button>
-        <button type="button" class="control-button">30s</button>
-        <button type="button" class="control-button">60s</button>
-        <button type="button" class="control-button">120s</button>
-        <label>
-          Custom (seconds)
-          <input type="number" min="1" step="1" placeholder="90">
-        </label>
+        <button type="button" class="control-button" data-action="start" {% if not camera.enabled %}disabled{% endif %}>Start</button>
+        <button type="button" class="control-button" data-action="stop" {% if not camera.enabled %}disabled{% endif %}>Stop</button>
+        <button type="button" class="control-button" data-action="timed" data-duration="30" {% if not camera.enabled %}disabled{% endif %}>30s</button>
+        <button type="button" class="control-button" data-action="timed" data-duration="60" {% if not camera.enabled %}disabled{% endif %}>60s</button>
+        <button type="button" class="control-button" data-action="timed" data-duration="120" {% if not camera.enabled %}disabled{% endif %}>120s</button>
+        <div class="custom-duration">
+          <label for="duration-{{ camera.id }}">Custom duration (seconds)</label>
+          <div class="custom-duration__controls">
+            <input id="duration-{{ camera.id }}" type="number" min="1" step="1" placeholder="90" data-custom-duration="{{ camera.id }}" {% if not camera.enabled %}disabled{% endif %}>
+            <button type="button" class="control-button control-button--secondary" data-action="custom" {% if not camera.enabled %}disabled{% endif %}>Custom</button>
+          </div>
+        </div>
       </div>
     </article>
     {% endfor %}
@@ -75,38 +116,6 @@
     {% endif %}
   </main>
 
-  <script>
-    function setStatusBadge(cameraId, statusValue) {
-      const badge = document.querySelector(`[data-camera-status="${cameraId}"]`);
-      if (!badge) return;
-
-      const status = (statusValue || "idle").toLowerCase();
-      badge.textContent = status;
-      badge.classList.remove("status-idle", "status-starting", "status-recording", "status-stopping", "status-error");
-      badge.classList.add(`status-${status}`);
-    }
-
-    async function refreshStatuses() {
-      try {
-        const response = await fetch("/api/status");
-        if (!response.ok) throw new Error("status request failed");
-        const payload = await response.json();
-        (payload.cameras || []).forEach((cameraState) => {
-          setStatusBadge(cameraState.camera_id, cameraState.status);
-        });
-      } catch (error) {
-        console.error("Unable to load camera statuses:", error);
-      }
-    }
-
-    document.querySelectorAll(".control-button").forEach((button) => {
-      button.addEventListener("click", () => {
-        console.log("Recording controls are placeholders in Phase 1.");
-      });
-    });
-
-    refreshStatuses();
-    setInterval(refreshStatuses, 5000);
-  </script>
+  <script src="/static/app.js"></script>
 </body>
 </html>

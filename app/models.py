@@ -68,19 +68,64 @@ class ResolvedCamera(BaseModel):
     output_subdir: str
 
 
-class ConfigFile(BaseModel):
+class CameraConfigFile(BaseModel):
     cameras: list[CameraConfigInput] = Field(default_factory=list)
+
+
+class RetentionConfig(BaseModel):
+    enabled: bool = False
+    cleanup_mode: Literal["disabled", "alert_only", "delete_oldest"] = "disabled"
+    max_age_days: int | None = Field(default=None, ge=1)
+    max_total_gb: float | None = Field(default=None, gt=0)
+    minimum_free_gb: float | None = Field(default=None, gt=0)
+
+
+class AppSettingsFile(BaseModel):
+    retention: RetentionConfig = Field(default_factory=RetentionConfig)
 
 
 class AppConfig(BaseModel):
     cameras: list[ResolvedCamera]
+    retention: RetentionConfig = Field(default_factory=RetentionConfig)
 
 
 class CameraRuntimeState(BaseModel):
     camera_id: str
     status: Literal["idle", "starting", "recording", "stopping", "error"] = "idle"
+    recording: bool = False
     started_at: datetime | None = None
     expected_end_at: datetime | None = None
+    output_file: str | None = None
     output_path: str | None = None
     last_error: str | None = None
     last_completed_output: str | None = None
+
+
+class RecordStartRequest(BaseModel):
+    duration: int | None = Field(default=None, ge=1)
+
+
+class CleanupSummary(BaseModel):
+    timestamp: datetime
+    triggered_by: str
+    cleanup_mode: str
+    deleted_files: int = 0
+    deleted_bytes: int = 0
+    deleted_gb: float = 0.0
+    deleted_paths: list[str] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+
+
+class StorageStatus(BaseModel):
+    recordings_root: str
+    total_recordings_bytes: int
+    total_recordings_gb: float
+    free_disk_bytes: int
+    free_disk_gb: float
+    retention_enabled: bool
+    cleanup_mode: str
+    warning_state: bool
+    warnings: list[str] = Field(default_factory=list)
+    candidate_cleanup_file_count: int = 0
+    last_cleanup_summary: CleanupSummary | None = None

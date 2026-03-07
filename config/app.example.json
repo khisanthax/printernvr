@@ -1,0 +1,9 @@
+{
+  "retention": {
+    "enabled": true,
+    "cleanup_mode": "alert_only",
+    "max_age_days": 30,
+    "max_total_gb": 25,
+    "minimum_free_gb": 5
+  }
+}

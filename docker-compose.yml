@@ -9,6 +9,7 @@ services:
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       APP_CONFIG_PATH: ${APP_CONFIG_PATH:-/app/config/cameras.json}
+      APP_APP_CONFIG_PATH: ${APP_APP_CONFIG_PATH:-/app/config/app.json}
       APP_RECORDINGS_DIR: ${APP_RECORDINGS_DIR:-/app/recordings}
       APP_LOGS_DIR: ${APP_LOGS_DIR:-/app/logs}
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-}
