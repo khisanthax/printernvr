@@ -438,6 +438,25 @@ body {
   background: #fff;
 }
 
+.form-helper,
+.form-warning {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.form-helper {
+  color: var(--muted);
+}
+
+.form-warning {
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  background: rgba(179, 86, 18, 0.1);
+  color: var(--warning);
+}
+
 .form-grid__full {
   grid-column: 1 / -1;
 }

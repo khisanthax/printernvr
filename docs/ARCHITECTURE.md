@@ -49,6 +49,11 @@ Camera URL resolution:
 - `record_url`: manual value, else generated go2rtc URL
 - `preview_url`: manual value, else generated go2rtc preview URL, else unset
 
+Preview and recording URLs are intentionally different concerns:
+- `preview_url` should be browser-compatible and is used only for UI preview rendering
+- `record_url` should be ffmpeg/ffprobe-compatible and is used for recording and probing
+- the camera management UI warns when a `record_url` looks like a preview-style URL, but this is heuristic guidance only and does not block saving
+
 Retention config:
 - `enabled`
 - `cleanup_mode`
@@ -80,6 +85,7 @@ Retention config:
 - id auto-generation from name
 - mode-specific fields
 - preview URL derivation for live preview
+- heuristic warning when the effective recording URL looks like a browser preview stream
 3. Save and delete requests update `config/cameras.json` through `CameraConfigStore`.
 4. After each successful write, the running app refreshes:
 - `app.state.cameras`

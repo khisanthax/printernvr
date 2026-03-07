@@ -79,16 +79,24 @@
               Stream Name
               <input id="camera-stream-name" name="stream_name" type="text" placeholder="cam">
             </label>
+            <p class="form-helper form-grid__full">
+              For go2rtc streams, the recording URL is typically: <code>rtsp://&lt;host&gt;:8554/&lt;stream_name&gt;</code>
+            </p>
           </div>
 
           <div id="manual-fields" class="form-grid" hidden>
             <label class="form-grid__full">
               Preview URL
               <input id="camera-preview-url" name="preview_url" type="text" placeholder="http://printer.local:1984/stream.html?src=cam">
+              <span class="form-helper">Browser-compatible preview stream used in the iframe preview panel.</span>
             </label>
             <label class="form-grid__full">
               Record URL
               <input id="camera-record-url" name="record_url" type="text" placeholder="rtsp://printer.local:8554/cam">
+              <span class="form-helper">Recording URL (typically RTSP). This is the stream used by ffmpeg for recording. Example: <code>rtsp://camera-host:8554/stream</code></span>
+              <span id="record-url-warning" class="form-warning" hidden>
+                This URL appears to be a browser preview stream. Recording usually requires an RTSP stream such as <code>rtsp://host:8554/&lt;stream&gt;</code>.
+              </span>
             </label>
           </div>
 

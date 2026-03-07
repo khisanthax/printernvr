@@ -176,6 +176,25 @@ Behavior notes:
 - once the id field is edited manually, the UI stops auto-overwriting it
 - deleting a camera removes it from config only
 - actively recording cameras must be stopped before edit or delete
+- the form warns if the recording URL looks like a browser preview stream, but does not block saving
+
+### Preview URL vs Recording URL
+
+Use `preview_url` for the browser-facing preview stream and `record_url` for the media stream consumed by `ffmpeg` and `ffprobe`.
+
+Example preview URL:
+
+```text
+http://host:1984/stream.html?src=camera
+```
+
+Example recording URL:
+
+```text
+rtsp://host:8554/camera
+```
+
+In most go2rtc setups, the recording URL should be the RTSP stream or another ffmpeg-compatible media stream rather than the browser preview URL.
 
 ## App Configuration
 

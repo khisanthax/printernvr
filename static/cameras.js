@@ -13,6 +13,7 @@ const probeSummary = document.querySelector(".probe-result__summary");
 const previewNode = document.querySelector("#editor-preview");
 const resolvedPreviewNode = document.querySelector("#resolved-preview-url");
 const resolvedRecordNode = document.querySelector("#resolved-record-url");
+const recordUrlWarning = document.querySelector("#record-url-warning");
 
 const fields = {
   editingCameraId: document.querySelector("#editing-camera-id"),
@@ -70,6 +71,21 @@ function resolveUrls(draft) {
     preview_url: previewUrlManual || generatedPreview || "",
     record_url: recordUrlManual || generatedRecord || "",
   };
+}
+
+function looksLikePreviewStream(url) {
+  if (!url) {
+    return false;
+  }
+
+  const normalized = url.toLowerCase();
+  return [
+    "stream.html",
+    "mjpeg",
+    "snapshot",
+    "?src=",
+    "&src=",
+  ].some((pattern) => normalized.includes(pattern));
 }
 
 function cameraPayload() {
@@ -134,12 +150,23 @@ function updatePreviewPanel() {
   const resolved = resolveUrls(draft);
   resolvedPreviewNode.textContent = resolved.preview_url || "Preview unavailable";
   resolvedRecordNode.textContent = resolved.record_url || "--";
+  updateRecordUrlWarning(resolved.record_url);
 
   if (resolved.preview_url) {
     previewNode.innerHTML = `<iframe title="Camera preview" src="${resolved.preview_url}" loading="lazy" allowfullscreen></iframe>`;
   } else {
     previewNode.innerHTML = '<div class="no-preview">Preview unavailable</div>';
   }
+}
+
+function updateRecordUrlWarning(recordUrl) {
+  if (!recordUrlWarning) {
+    return false;
+  }
+
+  const showWarning = looksLikePreviewStream(recordUrl);
+  recordUrlWarning.hidden = !showWarning;
+  return showWarning;
 }
 
 function resetProbeResult() {
@@ -214,6 +241,7 @@ function beginNewCamera() {
   document.querySelector("#delete-camera-button").hidden = true;
   formError.hidden = true;
   formError.textContent = "";
+  updateRecordUrlWarning("");
   setModeVisibility();
   updatePreviewPanel();
   resetProbeResult();
@@ -268,6 +296,7 @@ async function saveCamera(event) {
   formError.textContent = "";
   const payload = cameraPayload();
   const expectedId = payload.id || slugifyCameraId(payload.name);
+  updateRecordUrlWarning(resolveUrls(payload).record_url);
 
   try {
     let response = null;
@@ -316,6 +345,7 @@ async function deleteCamera(cameraId) {
 
 async function probeCamera() {
   resetProbeResult();
+  updateRecordUrlWarning(resolveUrls(cameraPayload()).record_url);
   try {
     const payload = await fetchJson("/api/camera/probe", {
       method: "POST",
