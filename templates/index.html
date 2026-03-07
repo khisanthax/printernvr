@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Printer NVR</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="page-header">
+    <h1>Printer NVR</h1>
+    <p>Phase 1 dashboard: previews and runtime status with recording controls placeholder.</p>
+  </header>
+
+  <main class="camera-grid">
+    {% for camera in cameras %}
+    <article class="camera-card {% if not camera.enabled %}camera-card--disabled{% endif %}">
+      <div class="camera-card__head">
+        <div>
+          <h2>{{ camera.name }}</h2>
+          {% if camera.description %}
+          <p class="camera-description">{{ camera.description }}</p>
+          {% endif %}
+        </div>
+        <span class="status-badge status-idle" data-camera-status="{{ camera.id }}">idle</span>
+      </div>
+
+      <div class="camera-preview-wrap">
+        <iframe
+          title="{{ camera.name }} preview"
+          src="{{ camera.preview_url }}"
+          loading="lazy"
+          allowfullscreen>
+        </iframe>
+      </div>
+
+      <dl class="camera-meta">
+        <div>
+          <dt>Camera ID</dt>
+          <dd>{{ camera.id }}</dd>
+        </div>
+        <div>
+          <dt>Output directory</dt>
+          <dd>/app/recordings/{{ camera.output_subdir }}</dd>
+        </div>
+        <div>
+          <dt>Enabled</dt>
+          <dd>{{ "yes" if camera.enabled else "no" }}</dd>
+        </div>
+      </dl>
+
+      <div class="camera-controls" data-camera-id="{{ camera.id }}">
+        <button type="button" class="control-button">Start</button>
+        <button type="button" class="control-button">Stop</button>
+        <button type="button" class="control-button">30s</button>
+        <button type="button" class="control-button">60s</button>
+        <button type="button" class="control-button">120s</button>
+        <label>
+          Custom (seconds)
+          <input type="number" min="1" step="1" placeholder="90">
+        </label>
+      </div>
+    </article>
+    {% endfor %}
+  </main>
+
+  <script>
+    function setStatusBadge(cameraId, statusValue) {
+      const badge = document.querySelector(`[data-camera-status="${cameraId}"]`);
+      if (!badge) return;
+
+      const status = (statusValue || "idle").toLowerCase();
+      badge.textContent = status;
+      badge.classList.remove("status-idle", "status-starting", "status-recording", "status-stopping", "status-error");
+      badge.classList.add(`status-${status}`);
+    }
+
+    async function refreshStatuses() {
+      try {
+        const response = await fetch("/api/status");
+        if (!response.ok) throw new Error("status request failed");
+        const payload = await response.json();
+        (payload.cameras || []).forEach((cameraState) => {
+          setStatusBadge(cameraState.camera_id, cameraState.status);
+        });
+      } catch (error) {
+        console.error("Unable to load camera statuses:", error);
+      }
+    }
+
+    document.querySelectorAll(".control-button").forEach((button) => {
+      button.addEventListener("click", () => {
+        console.log("Recording controls are placeholders in Phase 1.");
+      });
+    });
+
+    refreshStatuses();
+    setInterval(refreshStatuses, 5000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "cameras": [
+    {
+      "id": "example_printer",
+      "name": "Example Printer",
+      "description": "Replace this with your real printer stream config.",
+      "go2rtc_base_url": "http://printer.local:1984",
+      "stream_name": "cam",
+      "enabled": true,
+      "output_subdir": "example_printer"
+    }
+  ]
+}

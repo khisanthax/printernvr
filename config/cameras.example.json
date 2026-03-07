@@ -1,0 +1,22 @@
+{
+  "cameras": [
+    {
+      "id": "sv08_left",
+      "name": "SV08 Left",
+      "description": "Left-side print head view",
+      "go2rtc_base_url": "http://printer-left.local:1984",
+      "stream_name": "cam",
+      "enabled": true,
+      "output_subdir": "sv08_left"
+    },
+    {
+      "id": "sv08_right",
+      "name": "SV08 Right",
+      "description": "Manual URL mode example",
+      "preview_url": "http://printer-right.local:1984/stream.html?src=cam",
+      "record_url": "rtsp://printer-right.local:8554/cam",
+      "enabled": true,
+      "output_subdir": "sv08_right"
+    }
+  ]
+}

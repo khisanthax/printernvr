@@ -1,0 +1,15 @@
+services:
+  printernvr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: printernvr
+    ports:
+      - "8787:8787"
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config
+      - ./recordings:/app/recordings
+      - ./logs:/app/logs
+    restart: unless-stopped
