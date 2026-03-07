@@ -126,9 +126,13 @@ Provide explicit URLs:
 ### Resolution Rules
 
 Final URL resolution order:
-1. Manual URLs (`preview_url`, `record_url`)
-2. go2rtc-generated URLs
-3. `preview_url` fallback to final `record_url` if needed
+1. Manual `preview_url`
+2. go2rtc-generated preview URL
+3. Dashboard shows `no preview configured`
+
+For recording URL:
+1. Manual `record_url`
+2. go2rtc-generated record URL
 
 Manual URLs always override generated values.
 
@@ -154,4 +158,4 @@ Manual URLs always override generated values.
 
 - ffmpeg is installed in the Docker image for Phase 2 recording.
 - NAS sync is intentionally out of scope for application logic.
-- Startup validates config structure and resolved camera URLs.
+- Startup validates config structure and resolved URLs while allowing zero cameras.

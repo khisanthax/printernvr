@@ -41,12 +41,10 @@ def resolve_camera(camera: CameraConfigInput) -> ResolvedCamera:
         )
 
     final_record_url = (camera.record_url or generated_record or "").strip() or None
-    final_preview_url = (camera.preview_url or generated_preview or final_record_url or "").strip() or None
+    final_preview_url = (camera.preview_url or generated_preview or "").strip() or None
 
     if not final_record_url:
         raise ValueError(f"Camera '{camera.id}' could not resolve final record_url")
-    if not final_preview_url:
-        raise ValueError(f"Camera '{camera.id}' could not resolve final preview_url")
 
     return ResolvedCamera(
         id=camera.id,
@@ -79,7 +77,6 @@ def load_app_config(config_path: str) -> AppConfig:
     resolved: list[ResolvedCamera] = [resolve_camera(camera) for camera in parsed.cameras]
 
     _validate_unique_camera_ids(resolved)
-    _validate_enabled_camera_count(resolved)
 
     return AppConfig(cameras=resolved)
 
@@ -89,8 +86,3 @@ def _validate_unique_camera_ids(cameras: list[ResolvedCamera]) -> None:
     if len(camera_ids) != len(set(camera_ids)):
         raise ValueError("Camera ids must be unique")
 
-
-def _validate_enabled_camera_count(cameras: list[ResolvedCamera]) -> None:
-    enabled_count = sum(1 for camera in cameras if camera.enabled)
-    if enabled_count < 1:
-        raise ValueError("At least one enabled camera is required")

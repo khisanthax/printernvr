@@ -63,20 +63,13 @@ class ResolvedCamera(BaseModel):
     go2rtc_base_url: str | None = None
     stream_name: str | None = None
 
-    preview_url: str
+    preview_url: str | None = None
     record_url: str
     output_subdir: str
 
 
 class ConfigFile(BaseModel):
     cameras: list[CameraConfigInput] = Field(default_factory=list)
-
-    @field_validator("cameras")
-    @classmethod
-    def validate_non_empty(cls, value: list[CameraConfigInput]) -> list[CameraConfigInput]:
-        if not value:
-            raise ValueError("Config must include at least one camera")
-        return value
 
 
 class AppConfig(BaseModel):

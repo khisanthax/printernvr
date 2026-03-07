@@ -121,6 +121,17 @@ body {
   border: 0;
 }
 
+.no-preview {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.92rem;
+  padding: 0.5rem;
+  text-align: center;
+}
+
 .camera-meta {
   margin: 0.8rem 0;
   display: grid;
@@ -176,6 +187,24 @@ body {
   border-radius: 8px;
   padding: 0.45rem;
   font-size: 0.95rem;
+}
+
+.empty-state {
+  grid-column: 1 / -1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.empty-state h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.empty-state p {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
 }
 
 @media (max-width: 640px) {

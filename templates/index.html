@@ -13,6 +13,7 @@
   </header>
 
   <main class="camera-grid">
+    {% if cameras %}
     {% for camera in cameras %}
     <article class="camera-card {% if not camera.enabled %}camera-card--disabled{% endif %}">
       <div class="camera-card__head">
@@ -26,12 +27,16 @@
       </div>
 
       <div class="camera-preview-wrap">
+        {% if camera.preview_url %}
         <iframe
           title="{{ camera.name }} preview"
           src="{{ camera.preview_url }}"
           loading="lazy"
           allowfullscreen>
         </iframe>
+        {% else %}
+        <div class="no-preview">no preview configured</div>
+        {% endif %}
       </div>
 
       <dl class="camera-meta">
@@ -62,6 +67,12 @@
       </div>
     </article>
     {% endfor %}
+    {% else %}
+    <section class="empty-state">
+      <h2>No cameras configured.</h2>
+      <p>Add cameras to <code>config/cameras.json</code> and refresh the page.</p>
+    </section>
+    {% endif %}
   </main>
 
   <script>
