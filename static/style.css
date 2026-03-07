@@ -254,6 +254,35 @@ body {
   font-size: 0.9rem;
 }
 
+.camera-error-details {
+  margin-top: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.68);
+  padding: 0.7rem 0.8rem;
+}
+
+.camera-error-details summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.camera-error-details__meta {
+  margin: 0.65rem 0 0;
+  font-size: 0.84rem;
+  color: var(--muted);
+  word-break: break-word;
+}
+
+.camera-error-details pre {
+  margin: 0.6rem 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.83rem;
+  color: var(--text);
+}
+
 .inline-link,
 .table-link {
   color: inherit;

@@ -10,10 +10,14 @@ const formTitle = document.querySelector("#camera-form-title");
 const formError = document.querySelector("#camera-form-error");
 const probeError = document.querySelector("#probe-error");
 const probeSummary = document.querySelector(".probe-result__summary");
+const probeStatus = document.querySelector("#probe-status");
 const previewNode = document.querySelector("#editor-preview");
 const resolvedPreviewNode = document.querySelector("#resolved-preview-url");
 const resolvedRecordNode = document.querySelector("#resolved-record-url");
 const recordUrlWarning = document.querySelector("#record-url-warning");
+const probeDetailsWrap = document.querySelector("#probe-details-wrap");
+const probeDetails = document.querySelector("#probe-details");
+const probeCommand = document.querySelector("#probe-command");
 
 const fields = {
   editingCameraId: document.querySelector("#editing-camera-id"),
@@ -171,29 +175,52 @@ function updateRecordUrlWarning(recordUrl) {
 
 function resetProbeResult() {
   probeSummary.textContent = "Use Test Stream to verify recording compatibility.";
+  probeStatus.textContent = "--";
   probeError.hidden = true;
   probeError.textContent = "";
   document.querySelector("#probe-reachable").textContent = "--";
   document.querySelector("#probe-codec").textContent = "--";
   document.querySelector("#probe-resolution").textContent = "--";
   document.querySelector("#probe-stream-type").textContent = "--";
+  probeDetailsWrap.hidden = true;
+  probeDetailsWrap.open = false;
+  probeDetails.textContent = "";
+  probeCommand.textContent = "";
 }
 
 function updateProbeResult(result) {
-  probeSummary.textContent = result.reachable
-    ? "ffprobe reached the stream."
-    : "ffprobe could not verify the stream.";
+  probeSummary.textContent = result.message || (
+    result.reachable ? "ffprobe reached the stream." : "ffprobe could not verify the stream."
+  );
+  probeStatus.textContent = result.diagnostic_status || "--";
   document.querySelector("#probe-reachable").textContent = result.reachable ? "yes" : "no";
   document.querySelector("#probe-codec").textContent = result.codec || "--";
   document.querySelector("#probe-resolution").textContent =
     result.width && result.height ? `${result.width}x${result.height}` : "--";
   document.querySelector("#probe-stream-type").textContent = result.stream_type || "--";
-  if (result.error) {
+  if (result.error && result.diagnostic_status !== "ok") {
     probeError.hidden = false;
     probeError.textContent = result.error;
   } else {
     probeError.hidden = true;
     probeError.textContent = "";
+  }
+
+  const metaParts = [];
+  if (result.command) {
+    metaParts.push(`Command: ${result.command}`);
+  }
+
+  const detailText = result.details || "";
+  const hasDetails = Boolean(detailText || metaParts.length);
+  probeDetailsWrap.hidden = !hasDetails;
+  if (hasDetails) {
+    probeCommand.textContent = metaParts.join(" | ");
+    probeDetails.textContent = detailText;
+  } else {
+    probeDetailsWrap.open = false;
+    probeCommand.textContent = "";
+    probeDetails.textContent = "";
   }
 }
 

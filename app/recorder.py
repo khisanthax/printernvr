@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+from subprocess import list2cmdline
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -18,6 +19,7 @@ LOGGER = logging.getLogger(__name__)
 class ManagedRecording:
     camera_id: str
     process: subprocess.Popen[str]
+    command: list[str]
     output_file: str
     output_path: str
     started_at: datetime
@@ -65,6 +67,11 @@ class RecordingManager:
         command = self._build_ffmpeg_command(camera.record_url, output_path, duration)
 
         LOGGER.info("Starting recording for %s -> %s", camera.id, output_path)
+        LOGGER.info(
+            "ffmpeg command for %s: %s",
+            camera.id,
+            list2cmdline(command),
+        )
 
         try:
             process = subprocess.Popen(
@@ -77,12 +84,18 @@ class RecordingManager:
                 errors="replace",
             )
         except OSError as exc:
-            self._runtime_state.mark_error(camera.id, f"ffmpeg start failed: {exc}")
+            self._runtime_state.mark_error(
+                camera.id,
+                f"ffmpeg start failed: {exc}",
+                details=str(exc),
+                ffmpeg_command=list2cmdline(command),
+            )
             raise RuntimeError(f"Unable to start ffmpeg for {camera.id}: {exc}") from exc
 
         managed = ManagedRecording(
             camera_id=camera.id,
             process=process,
+            command=command,
             output_file=output_file,
             output_path=output_path,
             started_at=started_at,
@@ -161,13 +174,20 @@ class RecordingManager:
         command = [
             "ffmpeg",
             "-y",
-            "-i",
-            record_url,
-            "-vcodec",
-            "copy",
-            "-acodec",
-            "copy",
         ]
+        if record_url.lower().startswith("rtsp://"):
+            command.extend(["-rtsp_transport", "tcp"])
+        command.extend(
+            [
+                "-i",
+                record_url,
+                "-map",
+                "0:v:0",
+                "-an",
+                "-c:v",
+                "copy",
+            ]
+        )
         if duration is not None:
             command.extend(["-t", str(duration)])
         command.append(output_path)
@@ -195,12 +215,19 @@ class RecordingManager:
             )
         else:
             error_message = self._extract_error_message(exit_code, managed.stderr_output)
-            self._runtime_state.mark_error(managed.camera_id, error_message)
+            self._runtime_state.mark_error(
+                managed.camera_id,
+                error_message,
+                details=managed.stderr_output or None,
+                ffmpeg_command=list2cmdline(managed.command),
+                exit_code=exit_code,
+            )
             LOGGER.error(
-                "Recording failed for %s (exit %s): %s",
+                "Recording failed for %s (exit %s)\ncommand: %s\nstderr:\n%s",
                 managed.camera_id,
                 exit_code,
-                error_message,
+                list2cmdline(managed.command),
+                managed.stderr_output or "<no stderr>",
             )
 
         if managed.stderr_output:
@@ -216,5 +243,5 @@ class RecordingManager:
         if stderr_output:
             lines = [line.strip() for line in stderr_output.splitlines() if line.strip()]
             if lines:
-                return lines[-1]
+                return f"ffmpeg failed (exit {exit_code}): {lines[-1]}"
         return f"ffmpeg exited with code {exit_code}"

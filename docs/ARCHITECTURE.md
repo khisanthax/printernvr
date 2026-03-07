@@ -70,7 +70,12 @@ Retention config:
 2. Backend validates camera existence, enabled state, and current recording state.
 3. `RecordingManager` creates `/app/recordings/<output_subdir>/<camera_id>_YYYYMMDD_HHMMSS.mp4`, where `output_subdir` defaults to the camera id.
 4. ffmpeg starts as a subprocess using the camera's resolved `record_url`.
-5. Runtime state stores:
+5. If the input is `rtsp://`, ffmpeg uses `-rtsp_transport tcp`.
+6. Recording maps only the primary video stream into MP4:
+- `-map 0:v:0`
+- `-an`
+- `-c:v copy`
+7. Runtime state stores:
 - `status`
 - `recording`
 - `started_at`
@@ -78,8 +83,15 @@ Retention config:
 - `output_file`
 - `output_path`
 - `last_error`
+- `last_error_details`
+- `last_ffmpeg_command`
+- `last_ffmpeg_exit_code`
 - `last_completed_output`
-6. A monitor thread captures ffmpeg stderr and updates final state on exit.
+8. A monitor thread captures full ffmpeg stderr and updates final state on exit.
+
+This recording profile is intentionally conservative for printer cameras:
+- RTSP over TCP improves compatibility with go2rtc and camera streams that are unreliable over default transport settings
+- video-only MP4 output avoids mux failures caused by audio or non-video side streams
 
 ## Camera Management Flow
 
@@ -95,6 +107,11 @@ Retention config:
 - `app.state.camera_index`
 - runtime camera state entries
 5. Stream probing uses `ffprobe` on the resolved `record_url` through `POST /api/camera/probe`.
+6. If the probe input is `rtsp://`, ffprobe also uses TCP transport by default.
+7. Probe results distinguish:
+- input/open failure
+- reachable stream with no video stream found
+- reachable stream with a usable video stream
 
 ## Clip Browser Flow
 

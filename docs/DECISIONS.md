@@ -163,3 +163,18 @@ Impact:
 - `/clips` reflects the current local recordings directory without extra synchronization.
 - Clip metadata is derived from filesystem state and timestamps.
 - Secure path resolution and active-file protection are required in the API layer.
+
+## 2026-03-07 - Use RTSP-over-TCP and Video-Only MP4 Recording by Default
+
+Decision:
+- For `rtsp://` recording and probe inputs, use TCP transport by default.
+- Record only the primary video stream into MP4 clips.
+
+Why:
+- Several camera and go2rtc streams open more reliably over RTSP/TCP.
+- Copying all streams into MP4 can fail when the input exposes audio or other side streams that do not mux cleanly.
+
+Impact:
+- Default ffmpeg recording uses `-rtsp_transport tcp`, `-map 0:v:0`, `-an`, and `-c:v copy` for RTSP printer streams.
+- Working cameras keep stream-copy performance while problematic cameras avoid common MP4 conversion failures.
+- Full ffmpeg stderr and command details are preserved in runtime state for troubleshooting.

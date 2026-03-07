@@ -101,6 +101,11 @@
       </div>
 
       <p class="camera-error" data-error-message="{{ camera.id }}" hidden></p>
+      <details class="camera-error-details" data-error-details-wrap="{{ camera.id }}" hidden>
+        <summary>Details</summary>
+        <p class="camera-error-details__meta" data-error-command-meta="{{ camera.id }}"></p>
+        <pre data-error-details="{{ camera.id }}"></pre>
+      </details>
 
       <div class="camera-controls" data-camera-id="{{ camera.id }}">
         <button type="button" class="control-button" data-action="start" {% if not camera.enabled %}disabled{% endif %}>Start</button>

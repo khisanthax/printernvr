@@ -62,6 +62,9 @@ class RuntimeStateManager:
             state.output_file = output_file
             state.output_path = output_path
             state.last_error = None
+            state.last_error_details = None
+            state.last_ffmpeg_command = None
+            state.last_ffmpeg_exit_code = None
             return state.model_copy(deep=True)
 
     def mark_stopping(self, camera_id: str) -> CameraRuntimeState:
@@ -83,11 +86,22 @@ class RuntimeStateManager:
             state.expected_end_at = None
             state.output_file = None
             state.output_path = None
+            state.last_error = None
+            state.last_error_details = None
+            state.last_ffmpeg_command = None
+            state.last_ffmpeg_exit_code = None
             if last_completed_output:
                 state.last_completed_output = last_completed_output
             return state.model_copy(deep=True)
 
-    def mark_error(self, camera_id: str, message: str) -> CameraRuntimeState:
+    def mark_error(
+        self,
+        camera_id: str,
+        message: str,
+        details: str | None = None,
+        ffmpeg_command: str | None = None,
+        exit_code: int | None = None,
+    ) -> CameraRuntimeState:
         with self._lock:
             state = self._require_state(camera_id)
             state.status = "error"
@@ -97,12 +111,18 @@ class RuntimeStateManager:
             state.output_file = None
             state.output_path = None
             state.last_error = message
+            state.last_error_details = details
+            state.last_ffmpeg_command = ffmpeg_command
+            state.last_ffmpeg_exit_code = exit_code
             return state.model_copy(deep=True)
 
     def clear_error(self, camera_id: str) -> CameraRuntimeState:
         with self._lock:
             state = self._require_state(camera_id)
             state.last_error = None
+            state.last_error_details = None
+            state.last_ffmpeg_command = None
+            state.last_ffmpeg_exit_code = None
             if not state.recording:
                 state.status = "idle"
             return state.model_copy(deep=True)

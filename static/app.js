@@ -106,6 +106,9 @@ function updateCameraState(state) {
   const outputFile = bySelector(`[data-output-file="${cameraId}"]`);
   const lastOutput = bySelector(`[data-last-output="${cameraId}"]`);
   const errorMessage = bySelector(`[data-error-message="${cameraId}"]`);
+  const errorDetailsWrap = bySelector(`[data-error-details-wrap="${cameraId}"]`);
+  const errorDetails = bySelector(`[data-error-details="${cameraId}"]`);
+  const errorCommandMeta = bySelector(`[data-error-command-meta="${cameraId}"]`);
 
   if (startedAt) {
     startedAt.textContent = formatTimestamp(state.started_at);
@@ -126,6 +129,26 @@ function updateCameraState(state) {
     } else {
       errorMessage.hidden = true;
       errorMessage.textContent = "";
+    }
+  }
+  if (errorDetailsWrap && errorDetails && errorCommandMeta) {
+    const metaParts = [];
+    if (state.last_ffmpeg_exit_code !== null && state.last_ffmpeg_exit_code !== undefined) {
+      metaParts.push(`Exit code: ${state.last_ffmpeg_exit_code}`);
+    }
+    if (state.last_ffmpeg_command) {
+      metaParts.push(`Command: ${state.last_ffmpeg_command}`);
+    }
+
+    const hasDetails = Boolean(state.last_error_details || metaParts.length);
+    errorDetailsWrap.hidden = !hasDetails;
+    if (hasDetails) {
+      errorCommandMeta.textContent = metaParts.join(" | ");
+      errorDetails.textContent = state.last_error_details || "";
+    } else {
+      errorCommandMeta.textContent = "";
+      errorDetails.textContent = "";
+      errorDetailsWrap.open = false;
     }
   }
 }

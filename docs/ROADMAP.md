@@ -230,7 +230,7 @@ Deliverables:
 - Download endpoint
 - Manual clip deletion with active-file protection
 
-### Phase 5 - Operational Hardening [ ]
+### Phase 5 - Operational Hardening [-]
 
 Goals:
 - Reliability
@@ -242,6 +242,12 @@ Tasks:
 - ffmpeg error handling
 - Config validation
 - Deployment docs
+
+Implemented so far:
+- RTSP recording inputs use TCP transport by default
+- Recording uses the primary video stream only for MP4 clips
+- Full ffmpeg stderr is preserved in runtime state and logs
+- Probe diagnostics distinguish input/open failure from missing video stream
 
 ### Phase 6 - Retention and Storage Protection [x]
 
@@ -298,6 +304,9 @@ Completed:
 - Phase 4 clip management
 - Phase 6 retention and storage protection
 
+In progress:
+- Phase 5 operational hardening
+
 Note:
 - Phase 6 was implemented ahead of Phase 5 operational hardening to protect recorder-host storage early.
 
@@ -308,7 +317,10 @@ Implemented highlights:
 - Resolution logic where manual URLs override generated URLs
 - Runtime camera state manager with recording metadata and error tracking
 - ffmpeg recording manager with start, stop, timed capture, and one-recording-per-camera enforcement
+- RTSP-over-TCP recording and probing defaults for `rtsp://` inputs
+- Video-only MP4 recording profile using `-map 0:v:0 -an -c:v copy`
 - Config-backed camera management UI with live preview and ffprobe testing
+- Expanded ffmpeg and ffprobe diagnostics surfaced in the dashboard and camera management UI
 - Filesystem-based clip browser with camera filter, download, and manual delete
 - Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /cameras`, `GET /clips`
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip

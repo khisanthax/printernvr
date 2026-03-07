@@ -134,6 +134,9 @@ class CameraRuntimeState(BaseModel):
     output_file: str | None = None
     output_path: str | None = None
     last_error: str | None = None
+    last_error_details: str | None = None
+    last_ffmpeg_command: str | None = None
+    last_ffmpeg_exit_code: int | None = None
     last_completed_output: str | None = None
 
 
@@ -144,11 +147,16 @@ class RecordStartRequest(BaseModel):
 class CameraProbeResult(BaseModel):
     reachable: bool
     record_url: str
+    diagnostic_status: Literal["ok", "no_video_stream", "input_open_failure"] = "ok"
+    message: str | None = None
     codec: str | None = None
     width: int | None = None
     height: int | None = None
     stream_type: str | None = None
+    video_stream_found: bool = False
     error: str | None = None
+    details: str | None = None
+    command: str | None = None
     streams: list[dict] = Field(default_factory=list)
 
 

@@ -13,6 +13,7 @@ This repository currently includes:
 - Phase 3 recording controls UI
 - Phase 3A camera management UI
 - Phase 4 clip browser
+- Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
 ## Project Structure
@@ -238,6 +239,13 @@ Safety rules:
 Recordings use the resolved `record_url` for the camera and are written locally beneath the configured recordings root in the camera `output_subdir`.
 If `output_subdir` is not specified, it defaults to the camera id.
 
+Recording compatibility defaults:
+- RTSP inputs are opened with TCP transport by default
+- MP4 clips record only the primary video stream
+- audio and other side streams are not copied into printer clips by default
+
+These defaults improve compatibility with go2rtc and camera streams that fail when ffmpeg tries to mux every stream into MP4.
+
 Filename format:
 
 ```text
@@ -305,4 +313,5 @@ The dashboard also shows storage usage, warning state, cleanup mode, and a manua
 - The app starts even when zero cameras exist.
 - Camera saves update the running app state without requiring a restart.
 - Storage warnings are shown in the dashboard when retention thresholds are exceeded.
+- Recording and probe failures now surface fuller ffmpeg and ffprobe diagnostics in the UI.
 - No database, queue, NAS sync logic, or external scheduler is included.

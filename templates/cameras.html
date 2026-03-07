@@ -132,6 +132,10 @@
           <p class="probe-result__summary">Use Test Stream to verify recording compatibility.</p>
           <dl class="camera-meta camera-meta--stacked">
             <div>
+              <dt>Status</dt>
+              <dd id="probe-status">--</dd>
+            </div>
+            <div>
               <dt>Reachable</dt>
               <dd id="probe-reachable">--</dd>
             </div>
@@ -149,6 +153,11 @@
             </div>
           </dl>
           <p id="probe-error" class="camera-error" hidden></p>
+          <details id="probe-details-wrap" class="camera-error-details" hidden>
+            <summary>Probe details</summary>
+            <p id="probe-command" class="camera-error-details__meta"></p>
+            <pre id="probe-details"></pre>
+          </details>
         </div>
       </aside>
     </section>
