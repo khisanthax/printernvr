@@ -15,19 +15,22 @@ Printers are stream providers only. Recording and retention enforcement run on t
 - In-memory runtime camera state manager
 - ffmpeg subprocess recording manager
 - Local recordings retention manager
+- Config-backed camera management UI
 
 ## Current Module Layout
 
 - `app/main.py`: app startup, settings, lifespan wiring, router registration
 - `app/config.py`: camera config loading, app config loading, URL resolution
+- `app/camera_store.py`: safe camera config CRUD and config file writes
 - `app/models.py`: Pydantic models for config, runtime state, and storage status
 - `app/state.py`: runtime state manager for camera recording state
 - `app/recorder.py`: ffmpeg command building, process lifecycle, monitor threads
 - `app/retention.py`: storage scanning, threshold evaluation, cleanup planning and deletion
+- `app/probe.py`: ffprobe stream testing
 - `app/util.py`: logging and directory helpers
 - `app/api/health.py`: health endpoint
 - `app/api/dashboard.py`: dashboard page
-- `app/api/cameras.py`: resolved camera list API
+- `app/api/cameras.py`: camera CRUD and probe API
 - `app/api/status.py`: legacy runtime status API
 - `app/api/record.py`: recording start, stop, and status API
 - `app/api/storage.py`: storage status and manual cleanup API
@@ -38,6 +41,9 @@ Two JSON files are used:
 
 - `config/cameras.json`: camera definitions
 - `config/app.json`: app-level settings such as retention
+
+Camera definitions remain the source of truth even when edited through the web UI.
+The `/cameras` page writes back to `config/cameras.json` rather than introducing a database.
 
 Camera URL resolution:
 - `record_url`: manual value, else generated go2rtc URL
@@ -66,6 +72,20 @@ Retention config:
 - `last_error`
 - `last_completed_output`
 6. A monitor thread captures ffmpeg stderr and updates final state on exit.
+
+## Camera Management Flow
+
+1. `/cameras` loads the current camera list from `GET /api/cameras`.
+2. Browser-side form logic handles:
+- id auto-generation from name
+- mode-specific fields
+- preview URL derivation for live preview
+3. Save and delete requests update `config/cameras.json` through `CameraConfigStore`.
+4. After each successful write, the running app refreshes:
+- `app.state.cameras`
+- `app.state.camera_index`
+- runtime camera state entries
+5. Stream probing uses `ffprobe` on the resolved `record_url` through `POST /api/camera/probe`.
 
 ## Retention Flow
 

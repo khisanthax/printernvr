@@ -190,6 +190,28 @@ Deliverables:
 - Live recording control
 - UI state updates
 
+### Phase 3A - Camera Management [x]
+
+Goals:
+- Add a camera management page in the web UI
+- Allow add, edit, delete, preview, and probe without manual file editing
+- Keep camera config file based and lightweight
+
+Tasks:
+- Camera management page
+- Config-backed CRUD endpoints
+- Safe writes to `config/cameras.json`
+- Live preview panel while editing
+- ffprobe-based stream testing
+- In-memory camera reload after save/delete
+
+Deliverables:
+- `/cameras` management page
+- Camera create/update/delete from browser
+- Live preview while editing
+- ffprobe stream test endpoint
+- Dashboard reflects camera config changes without restart
+
 ### Phase 4 - Clip Management [ ]
 
 Goals:
@@ -266,6 +288,7 @@ Completed:
 - Phase 1 dashboard and status API
 - Phase 2 recording engine and recording API
 - Phase 3 recording UI controls
+- Phase 3A camera management UI
 - Phase 6 retention and storage protection
 
 Note:
@@ -278,7 +301,8 @@ Implemented highlights:
 - Resolution logic where manual URLs override generated URLs
 - Runtime camera state manager with recording metadata and error tracking
 - ffmpeg recording manager with start, stop, timed capture, and one-recording-per-camera enforcement
-- Endpoints: `GET /health`, `GET /api/cameras`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /`
+- Config-backed camera management UI with live preview and ffprobe testing
+- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /`, `GET /cameras`
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip
 - Empty dashboard state when no cameras are configured
 - Preview fallback rules: manual preview -> generated preview -> `no preview configured`

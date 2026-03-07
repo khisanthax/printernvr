@@ -72,6 +72,42 @@ class CameraConfigFile(BaseModel):
     cameras: list[CameraConfigInput] = Field(default_factory=list)
 
 
+class CameraUpsertRequest(BaseModel):
+    name: str = Field(min_length=1)
+    id: str | None = None
+    enabled: bool = True
+    output_subdir: str | None = None
+    description: str | None = None
+    mode: Literal["go2rtc_helper", "manual_urls"] = "go2rtc_helper"
+    go2rtc_base_url: str | None = None
+    stream_name: str | None = None
+    preview_url: str | None = None
+    record_url: str | None = None
+
+    @model_validator(mode="after")
+    def validate_mode_fields(self) -> "CameraUpsertRequest":
+        if self.mode == "go2rtc_helper" and not self.go2rtc_base_url:
+            raise ValueError("go2rtc_base_url is required for go2rtc_helper mode")
+        if self.mode == "manual_urls" and not self.record_url:
+            raise ValueError("record_url is required for manual_urls mode")
+        return self
+
+
+class CameraManagementItem(BaseModel):
+    id: str
+    name: str
+    enabled: bool
+    output_subdir: str
+    description: str | None = None
+    mode: Literal["go2rtc_helper", "manual_urls"]
+    go2rtc_base_url: str | None = None
+    stream_name: str | None = None
+    preview_url: str | None = None
+    record_url: str | None = None
+    resolved_preview_url: str | None = None
+    resolved_record_url: str
+
+
 class RetentionConfig(BaseModel):
     enabled: bool = False
     cleanup_mode: Literal["disabled", "alert_only", "delete_oldest"] = "disabled"
@@ -103,6 +139,17 @@ class CameraRuntimeState(BaseModel):
 
 class RecordStartRequest(BaseModel):
     duration: int | None = Field(default=None, ge=1)
+
+
+class CameraProbeResult(BaseModel):
+    reachable: bool
+    record_url: str
+    codec: str | None = None
+    width: int | None = None
+    height: int | None = None
+    stream_type: str | None = None
+    error: str | None = None
+    streams: list[dict] = Field(default_factory=list)
 
 
 class CleanupSummary(BaseModel):

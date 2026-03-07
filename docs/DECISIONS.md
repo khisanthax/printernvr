@@ -122,3 +122,29 @@ Why:
 Impact:
 - Warning status is exposed in API/UI even when automatic deletion is off.
 - Manual cleanup is available when retention is enabled and mode is not `disabled`.
+
+## 2026-03-07 - Camera Management Remains Config-File Based
+
+Decision:
+- Add camera management through the web UI, but keep `config/cameras.json` as the source of truth.
+- Do not add a database.
+
+Why:
+- The project is intended to stay simple, portable, and easy to self-host.
+- Camera configuration is small enough to manage safely in JSON.
+
+Impact:
+- Camera create, update, and delete operations write back to the JSON config file.
+- The running app refreshes in-memory camera state after successful writes.
+
+## 2026-03-07 - Block Camera Edit/Delete While Recording
+
+Decision:
+- Prevent editing or deleting a camera that is actively recording.
+
+Why:
+- Changing camera identity or removing a configured camera during an active ffmpeg process risks inconsistent state.
+
+Impact:
+- Users must stop the recording first, then edit or delete the camera.
+- Deletion only removes config; it does not delete recordings.

@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from urllib.parse import quote_plus, urlparse
 
 from app.models import (
     AppConfig,
     AppSettingsFile,
+    CameraManagementItem,
     CameraConfigFile,
     CameraConfigInput,
+    CameraUpsertRequest,
     ResolvedCamera,
 )
 
@@ -75,6 +78,11 @@ def load_app_config(camera_config_path: str, app_settings_path: str) -> AppConfi
 
 
 def load_camera_config(config_path: str) -> list[ResolvedCamera]:
+    raw_cameras = load_camera_inputs(config_path)
+    return validate_camera_inputs(raw_cameras)
+
+
+def load_camera_inputs(config_path: str) -> list[CameraConfigInput]:
     path = Path(config_path)
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
@@ -88,9 +96,7 @@ def load_camera_config(config_path: str) -> list[ResolvedCamera]:
         raise ValueError("Camera config root must be an object with a 'cameras' array")
 
     parsed = CameraConfigFile.model_validate(data)
-    resolved = [resolve_camera(camera) for camera in parsed.cameras]
-    _validate_unique_camera_ids(resolved)
-    return resolved
+    return parsed.cameras
 
 
 def load_app_settings(config_path: str) -> AppSettingsFile:
@@ -111,3 +117,78 @@ def _validate_unique_camera_ids(cameras: list[ResolvedCamera]) -> None:
     camera_ids = [camera.id for camera in cameras]
     if len(camera_ids) != len(set(camera_ids)):
         raise ValueError("Camera ids must be unique")
+
+
+def validate_camera_inputs(cameras: list[CameraConfigInput]) -> list[ResolvedCamera]:
+    resolved = [resolve_camera(camera) for camera in cameras]
+    _validate_unique_camera_ids(resolved)
+    return resolved
+
+
+def slugify_camera_id(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", name.strip().lower())
+    slug = re.sub(r"_+", "_", slug).strip("_")
+    return slug or "camera"
+
+
+def build_camera_input(payload: CameraUpsertRequest) -> CameraConfigInput:
+    generated_id = slugify_camera_id(payload.name)
+    camera_id = (payload.id or generated_id).strip() or generated_id
+
+    return CameraConfigInput(
+        id=camera_id,
+        name=payload.name.strip(),
+        enabled=payload.enabled,
+        description=(payload.description or "").strip() or None,
+        go2rtc_base_url=(
+            payload.go2rtc_base_url.strip() if payload.go2rtc_base_url else None
+        ),
+        stream_name=(payload.stream_name or "").strip() or None,
+        preview_url=(payload.preview_url or "").strip() or None,
+        record_url=(payload.record_url or "").strip() or None,
+        output_subdir=(payload.output_subdir or "").strip() or camera_id,
+    )
+
+
+def write_camera_inputs(config_path: str, cameras: list[CameraConfigInput]) -> None:
+    path = Path(config_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    payload = {
+        "cameras": [camera.model_dump(exclude_none=True) for camera in cameras],
+    }
+
+    temp_path = path.with_suffix(f"{path.suffix}.tmp")
+    temp_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    temp_path.replace(path)
+
+
+def build_management_items(
+    raw_cameras: list[CameraConfigInput],
+    resolved_cameras: list[ResolvedCamera],
+) -> list[CameraManagementItem]:
+    resolved_index = {camera.id: camera for camera in resolved_cameras}
+    items: list[CameraManagementItem] = []
+    for raw_camera in raw_cameras:
+        resolved = resolved_index[raw_camera.id]
+        items.append(
+            CameraManagementItem(
+                id=raw_camera.id,
+                name=raw_camera.name,
+                enabled=raw_camera.enabled,
+                output_subdir=raw_camera.output_subdir or raw_camera.id,
+                description=raw_camera.description,
+                mode=(
+                    "manual_urls"
+                    if (raw_camera.preview_url or raw_camera.record_url)
+                    else "go2rtc_helper"
+                ),
+                go2rtc_base_url=raw_camera.go2rtc_base_url,
+                stream_name=raw_camera.stream_name,
+                preview_url=raw_camera.preview_url,
+                record_url=raw_camera.record_url,
+                resolved_preview_url=resolved.preview_url,
+                resolved_record_url=resolved.record_url,
+            )
+        )
+    return items

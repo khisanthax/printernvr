@@ -18,6 +18,20 @@ class RuntimeStateManager:
                 for camera in cameras
             }
 
+    def sync_cameras(self, cameras: list[ResolvedCamera]) -> None:
+        with self._lock:
+            synced_states: dict[str, CameraRuntimeState] = {}
+            for camera in cameras:
+                existing = self._states.get(camera.id)
+                if existing:
+                    synced_states[camera.id] = existing
+                else:
+                    synced_states[camera.id] = CameraRuntimeState(
+                        camera_id=camera.id,
+                        status="idle",
+                    )
+            self._states = synced_states
+
     def list_states(self) -> list[CameraRuntimeState]:
         with self._lock:
             return [state.model_copy(deep=True) for state in self._states.values()]

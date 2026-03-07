@@ -11,6 +11,7 @@ This repository currently includes:
 - Phase 1 dashboard
 - Phase 2 ffmpeg recording engine
 - Phase 3 recording controls UI
+- Phase 3A camera management UI
 - Phase 6 retention and storage protection
 
 Clip management is not implemented yet.
@@ -56,6 +57,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8787 --reload
 ```
 
 Open `http://localhost:8787`.
+Camera management is available at `http://localhost:8787/cameras`.
 
 ## Docker Run Instructions
 
@@ -81,6 +83,7 @@ docker compose up -d --build
 
 The app is available at `http://localhost:8787` by default.
 If `PORT` is set in `.env`, Docker Compose uses that host port.
+Camera management is available at `/cameras`.
 
 ## Environment Variables
 
@@ -97,6 +100,7 @@ From `.env` (optional):
 ## Camera Configuration
 
 Camera config is JSON at `config/cameras.json`.
+The web UI can edit this file through `/cameras`, but the JSON file remains the source of truth.
 
 Top-level format:
 
@@ -157,6 +161,22 @@ Record resolution order:
 
 Manual URLs always override generated values.
 
+## Camera Management UI
+
+The `/cameras` page supports:
+- listing current cameras
+- adding new cameras
+- editing existing cameras
+- deleting cameras from config
+- live preview while editing
+- ffprobe-based stream testing
+
+Behavior notes:
+- camera ids auto-generate from the camera name when creating a new camera
+- once the id field is edited manually, the UI stops auto-overwriting it
+- deleting a camera removes it from config only
+- actively recording cameras must be stopped before edit or delete
+
 ## App Configuration
 
 App config is JSON at `config/app.json`.
@@ -214,6 +234,10 @@ sv08_left_20260307_154530.mp4
 
 - `GET /health`
 - `GET /api/cameras`
+- `POST /api/cameras`
+- `PUT /api/cameras/{camera_id}`
+- `DELETE /api/cameras/{camera_id}`
+- `POST /api/camera/probe`
 - `GET /api/status`
 - `GET /api/record/status`
 - `POST /api/record/start/{camera_id}`
@@ -237,5 +261,6 @@ The dashboard also shows storage usage, warning state, cleanup mode, and a manua
 
 - ffmpeg is installed in the Docker image.
 - The app starts even when zero cameras exist.
+- Camera saves update the running app state without requiring a restart.
 - Storage warnings are shown in the dashboard when retention thresholds are exceeded.
 - No database, queue, NAS sync logic, or external scheduler is included.

@@ -17,3 +17,14 @@ def dashboard(request: Request) -> HTMLResponse:
             "cameras": [camera.model_dump() for camera in cameras],
         },
     )
+
+
+@router.get("/cameras", response_class=HTMLResponse)
+def camera_management_page(request: Request) -> HTMLResponse:
+    templates = request.app.state.templates
+    return templates.TemplateResponse(
+        "cameras.html",
+        {
+            "request": request,
+        },
+    )

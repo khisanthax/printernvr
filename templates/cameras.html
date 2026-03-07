@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Printer NVR - Cameras</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="page-header">
+    <div>
+      <nav class="page-nav">
+        <a href="/">Dashboard</a>
+        <a href="/cameras" aria-current="page">Cameras</a>
+      </nav>
+      <h1>Camera Management</h1>
+      <p>Add, edit, delete, preview, and test cameras while keeping the config file as the source of truth.</p>
+    </div>
+  </header>
+
+  <main class="camera-admin">
+    <section class="camera-admin__list">
+      <div class="camera-admin__section-head">
+        <h2>Configured Cameras</h2>
+        <button type="button" id="new-camera-button" class="control-button">New Camera</button>
+      </div>
+      <div id="camera-list-empty" class="empty-state" hidden>
+        <h2>No cameras configured.</h2>
+        <p>Create a camera to start using the dashboard.</p>
+      </div>
+      <div id="camera-list" class="camera-list"></div>
+    </section>
+
+    <section class="camera-admin__editor">
+      <div class="camera-admin__form">
+        <div class="camera-admin__section-head">
+          <h2 id="camera-form-title">New Camera</h2>
+          <button type="button" id="cancel-edit-button" class="control-button control-button--secondary">Cancel</button>
+        </div>
+        <form id="camera-form">
+          <input type="hidden" id="editing-camera-id">
+
+          <div class="form-grid">
+            <label>
+              Name
+              <input id="camera-name" name="name" type="text" required>
+            </label>
+            <label>
+              ID
+              <input id="camera-id" name="id" type="text">
+            </label>
+            <label>
+              Output Subdirectory
+              <input id="camera-output-subdir" name="output_subdir" type="text">
+            </label>
+            <label>
+              Mode
+              <select id="camera-mode" name="mode">
+                <option value="go2rtc_helper">go2rtc_helper</option>
+                <option value="manual_urls">manual_urls</option>
+              </select>
+            </label>
+            <label class="form-checkbox">
+              <input id="camera-enabled" name="enabled" type="checkbox" checked>
+              Enabled
+            </label>
+            <label class="form-grid__full">
+              Description
+              <textarea id="camera-description" name="description" rows="3"></textarea>
+            </label>
+          </div>
+
+          <div id="go2rtc-fields" class="form-grid">
+            <label class="form-grid__full">
+              go2rtc Base URL
+              <input id="camera-go2rtc-base-url" name="go2rtc_base_url" type="text" placeholder="http://printer.local:1984">
+            </label>
+            <label>
+              Stream Name
+              <input id="camera-stream-name" name="stream_name" type="text" placeholder="cam">
+            </label>
+          </div>
+
+          <div id="manual-fields" class="form-grid" hidden>
+            <label class="form-grid__full">
+              Preview URL
+              <input id="camera-preview-url" name="preview_url" type="text" placeholder="http://printer.local:1984/stream.html?src=cam">
+            </label>
+            <label class="form-grid__full">
+              Record URL
+              <input id="camera-record-url" name="record_url" type="text" placeholder="rtsp://printer.local:8554/cam">
+            </label>
+          </div>
+
+          <p id="camera-form-error" class="camera-error" hidden></p>
+
+          <div class="form-actions">
+            <button type="submit" class="control-button">Save</button>
+            <button type="button" id="delete-camera-button" class="control-button control-button--danger" hidden>Delete</button>
+            <button type="button" id="probe-camera-button" class="control-button control-button--secondary">Test Stream</button>
+          </div>
+        </form>
+      </div>
+
+      <aside class="camera-admin__preview">
+        <div class="camera-admin__section-head">
+          <h2>Preview and Probe</h2>
+        </div>
+        <div id="editor-preview" class="camera-preview-wrap">
+          <div class="no-preview">Preview unavailable</div>
+        </div>
+        <dl class="camera-meta camera-meta--stacked">
+          <div>
+            <dt>Resolved preview URL</dt>
+            <dd id="resolved-preview-url">--</dd>
+          </div>
+          <div>
+            <dt>Resolved record URL</dt>
+            <dd id="resolved-record-url">--</dd>
+          </div>
+        </dl>
+        <div id="probe-result" class="probe-result">
+          <p class="probe-result__summary">Use Test Stream to verify recording compatibility.</p>
+          <dl class="camera-meta camera-meta--stacked">
+            <div>
+              <dt>Reachable</dt>
+              <dd id="probe-reachable">--</dd>
+            </div>
+            <div>
+              <dt>Codec</dt>
+              <dd id="probe-codec">--</dd>
+            </div>
+            <div>
+              <dt>Resolution</dt>
+              <dd id="probe-resolution">--</dd>
+            </div>
+            <div>
+              <dt>Stream Type</dt>
+              <dd id="probe-stream-type">--</dd>
+            </div>
+          </dl>
+          <p id="probe-error" class="camera-error" hidden></p>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script src="/static/cameras.js"></script>
+</body>
+</html>

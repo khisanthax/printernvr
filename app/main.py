@@ -14,6 +14,7 @@ from app.api.health import router as health_router
 from app.api.record import router as record_router
 from app.api.status import router as status_router
 from app.api.storage import router as storage_router
+from app.camera_store import CameraConfigStore
 from app.config import load_app_config
 from app.recorder import RecordingManager
 from app.retention import RetentionManager
@@ -87,6 +88,7 @@ async def lifespan(app: FastAPI):
     app.state.recording_manager = recording_manager
     app.state.retention_manager = retention_manager
     app.state.app_config = loaded_config
+    app.state.camera_store = CameraConfigStore(settings["camera_config_path"])
 
     LOGGER.info("Printer NVR started with %d configured cameras", len(loaded_config.cameras))
     try:
