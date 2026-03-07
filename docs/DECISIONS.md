@@ -148,3 +148,18 @@ Why:
 Impact:
 - Users must stop the recording first, then edit or delete the camera.
 - Deletion only removes config; it does not delete recordings.
+
+## 2026-03-07 - Clip Browser Reads Directly from the Filesystem
+
+Decision:
+- Implement clip browsing, download, and manual deletion by scanning the local recordings root directly.
+- Do not add a database or clip index.
+
+Why:
+- Recordings already exist as files on disk under per-camera directories.
+- A direct filesystem scan keeps the feature simple and consistent with the rest of the project.
+
+Impact:
+- `/clips` reflects the current local recordings directory without extra synchronization.
+- Clip metadata is derived from filesystem state and timestamps.
+- Secure path resolution and active-file protection are required in the API layer.

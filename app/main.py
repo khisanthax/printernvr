@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.api.clips import router as clips_router
 from app.api.cameras import router as cameras_router
 from app.api.dashboard import router as dashboard_router
 from app.api.health import router as health_router
@@ -15,6 +16,7 @@ from app.api.record import router as record_router
 from app.api.status import router as status_router
 from app.api.storage import router as storage_router
 from app.camera_store import CameraConfigStore
+from app.clips import ClipStore
 from app.config import load_app_config
 from app.recorder import RecordingManager
 from app.retention import RetentionManager
@@ -60,6 +62,7 @@ async def lifespan(app: FastAPI):
         settings["recordings_dir"],
         loaded_config.retention,
     )
+    clip_store = ClipStore(settings["recordings_dir"])
 
     def enforce_retention_after_recording() -> None:
         retention_manager.enforce_retention(
@@ -87,6 +90,7 @@ async def lifespan(app: FastAPI):
     app.state.templates = Jinja2Templates(directory="templates")
     app.state.recording_manager = recording_manager
     app.state.retention_manager = retention_manager
+    app.state.clip_store = clip_store
     app.state.app_config = loaded_config
     app.state.camera_store = CameraConfigStore(settings["camera_config_path"])
 
@@ -109,6 +113,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(health_router)
 app.include_router(dashboard_router)
+app.include_router(clips_router)
 app.include_router(cameras_router)
 app.include_router(status_router)
 app.include_router(record_router)

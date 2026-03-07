@@ -16,12 +16,14 @@ Printers are stream providers only. Recording and retention enforcement run on t
 - ffmpeg subprocess recording manager
 - Local recordings retention manager
 - Config-backed camera management UI
+- Filesystem-based clip browser and download/delete API
 
 ## Current Module Layout
 
 - `app/main.py`: app startup, settings, lifespan wiring, router registration
 - `app/config.py`: camera config loading, app config loading, URL resolution
 - `app/camera_store.py`: safe camera config CRUD and config file writes
+- `app/clips.py`: recordings filesystem scan, clip metadata, secure path resolution
 - `app/models.py`: Pydantic models for config, runtime state, and storage status
 - `app/state.py`: runtime state manager for camera recording state
 - `app/recorder.py`: ffmpeg command building, process lifecycle, monitor threads
@@ -34,6 +36,7 @@ Printers are stream providers only. Recording and retention enforcement run on t
 - `app/api/status.py`: legacy runtime status API
 - `app/api/record.py`: recording start, stop, and status API
 - `app/api/storage.py`: storage status and manual cleanup API
+- `app/api/clips.py`: clip list, download, and delete API
 
 ## Configuration Model
 
@@ -92,6 +95,28 @@ Retention config:
 - `app.state.camera_index`
 - runtime camera state entries
 5. Stream probing uses `ffprobe` on the resolved `record_url` through `POST /api/camera/probe`.
+
+## Clip Browser Flow
+
+1. `/clips` loads a lightweight template with an optional camera filter from the query string.
+2. Browser-side JavaScript calls `GET /api/clips` and optionally filters by `camera_id`.
+3. `ClipStore` scans the local recordings root directly from the filesystem.
+4. Clip metadata includes:
+- logical camera id
+- filename
+- relative path
+- filesystem timestamp
+- size
+- active/in-use state
+5. Download uses `GET /api/clips/download/{camera_id}/{filename}` with `FileResponse`.
+6. Manual delete uses `DELETE /api/clips/{camera_id}/{filename}` and is blocked for active recording outputs.
+
+Clip browser safety rules:
+- only paths under the local recordings root are allowed
+- camera id to storage directory resolution uses current camera config when available
+- path traversal is rejected
+- active files are never deleted
+- missing files return a clean error instead of crashing the app
 
 ## Retention Flow
 

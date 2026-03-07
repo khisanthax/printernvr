@@ -12,6 +12,7 @@
       <nav class="page-nav">
         <a href="/" aria-current="page">Dashboard</a>
         <a href="/cameras">Cameras</a>
+        <a href="/clips">Clips</a>
       </nav>
       <h1>Printer NVR</h1>
       <p>Recording dashboard for local 3D printer camera capture.</p>
@@ -91,7 +92,12 @@
         <p><strong>Started:</strong> <span data-started-at="{{ camera.id }}">--</span></p>
         <p><strong>Expected end:</strong> <span data-expected-end="{{ camera.id }}">--</span></p>
         <p><strong>Current output:</strong> <span data-output-file="{{ camera.id }}">--</span></p>
-        <p><strong>Last recorded clip:</strong> <span data-last-output="{{ camera.id }}">--</span></p>
+        <p>
+          <strong>Last recorded clip:</strong>
+          <a class="inline-link" href="/clips?camera_id={{ camera.id }}">
+            <span data-last-output="{{ camera.id }}">--</span>
+          </a>
+        </p>
       </div>
 
       <p class="camera-error" data-error-message="{{ camera.id }}" hidden></p>

@@ -212,7 +212,7 @@ Deliverables:
 - ffprobe stream test endpoint
 - Dashboard reflects camera config changes without restart
 
-### Phase 4 - Clip Management [ ]
+### Phase 4 - Clip Management [x]
 
 Goals:
 - View recorded clips
@@ -223,6 +223,12 @@ Tasks:
 - Metadata display
 - Download links
 - Optional delete
+
+Deliverables:
+- `/clips` page
+- Filesystem-based clip browser
+- Download endpoint
+- Manual clip deletion with active-file protection
 
 ### Phase 5 - Operational Hardening [ ]
 
@@ -289,10 +295,11 @@ Completed:
 - Phase 2 recording engine and recording API
 - Phase 3 recording UI controls
 - Phase 3A camera management UI
+- Phase 4 clip management
 - Phase 6 retention and storage protection
 
 Note:
-- Phase 6 was implemented ahead of clip management to protect recorder-host storage early.
+- Phase 6 was implemented ahead of Phase 5 operational hardening to protect recorder-host storage early.
 
 Implemented highlights:
 - FastAPI app scaffold with startup validation and logging
@@ -302,7 +309,8 @@ Implemented highlights:
 - Runtime camera state manager with recording metadata and error tracking
 - ffmpeg recording manager with start, stop, timed capture, and one-recording-per-camera enforcement
 - Config-backed camera management UI with live preview and ffprobe testing
-- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /`, `GET /cameras`
+- Filesystem-based clip browser with camera filter, download, and manual delete
+- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /cameras`, `GET /clips`
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip
 - Empty dashboard state when no cameras are configured
 - Preview fallback rules: manual preview -> generated preview -> `no preview configured`
@@ -313,7 +321,7 @@ Implemented highlights:
 - Docker Compose defaults that work without `.env`
 
 Next phase:
-- Phase 4 clip management
+- Phase 5 operational hardening
 
 ## Deployment Model
 

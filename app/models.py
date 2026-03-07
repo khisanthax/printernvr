@@ -176,3 +176,13 @@ class StorageStatus(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     candidate_cleanup_file_count: int = 0
     last_cleanup_summary: CleanupSummary | None = None
+
+
+class ClipItem(BaseModel):
+    camera_id: str
+    filename: str
+    relative_path: str
+    created_at: datetime
+    size_bytes: int
+    size_human: str
+    active: bool = False

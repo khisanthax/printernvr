@@ -12,9 +12,8 @@ This repository currently includes:
 - Phase 2 ffmpeg recording engine
 - Phase 3 recording controls UI
 - Phase 3A camera management UI
+- Phase 4 clip browser
 - Phase 6 retention and storage protection
-
-Clip management is not implemented yet.
 
 ## Project Structure
 
@@ -58,6 +57,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8787 --reload
 
 Open `http://localhost:8787`.
 Camera management is available at `http://localhost:8787/cameras`.
+Clip browsing is available at `http://localhost:8787/clips`.
 
 ## Docker Run Instructions
 
@@ -84,6 +84,7 @@ docker compose up -d --build
 The app is available at `http://localhost:8787` by default.
 If `PORT` is set in `.env`, Docker Compose uses that host port.
 Camera management is available at `/cameras`.
+Clip browsing is available at `/clips`.
 
 ## Environment Variables
 
@@ -249,6 +250,25 @@ Example:
 sv08_left_20260307_154530.mp4
 ```
 
+## Clip Browser
+
+The `/clips` page scans the local recordings directory directly and shows:
+- camera id
+- filename
+- relative path
+- created timestamp
+- file size
+- active status
+
+Behavior:
+- newest clips are shown first
+- clips can be filtered by camera
+- downloads stream the file directly from disk
+- delete removes only the selected local clip
+- active recording files cannot be deleted
+
+Clip APIs operate only within the configured local recordings root and reject invalid paths.
+
 ## API Endpoints
 
 - `GET /health`
@@ -263,6 +283,9 @@ sv08_left_20260307_154530.mp4
 - `POST /api/record/stop/{camera_id}`
 - `GET /api/storage/status`
 - `POST /api/storage/cleanup`
+- `GET /api/clips`
+- `GET /api/clips/download/{camera_id}/{filename}`
+- `DELETE /api/clips/{camera_id}/{filename}`
 
 `POST /api/record/start/{camera_id}` accepts an optional JSON body:
 

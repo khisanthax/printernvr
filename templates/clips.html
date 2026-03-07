@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Printer NVR - Clips</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-initial-camera-filter="{{ initial_camera_id }}">
+  <header class="page-header page-header--single">
+    <div>
+      <nav class="page-nav">
+        <a href="/">Dashboard</a>
+        <a href="/cameras">Cameras</a>
+        <a href="/clips" aria-current="page">Clips</a>
+      </nav>
+      <h1>Clips</h1>
+      <p>Browse completed local recordings, download them directly, or remove clips that are no longer needed.</p>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <section class="clips-page">
+      <div class="clips-toolbar">
+        <label for="clip-camera-filter">
+          Camera filter
+          <select id="clip-camera-filter">
+            <option value="">All cameras</option>
+            {% for camera in cameras %}
+            <option value="{{ camera.id }}">{{ camera.name }} ({{ camera.id }})</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="button" id="refresh-clips-button" class="control-button control-button--secondary">Refresh</button>
+      </div>
+
+      <p id="clips-feedback" class="storage-summary" hidden></p>
+
+      <div id="clips-empty" class="empty-state" hidden>
+        <h2>No clips found.</h2>
+        <p>Completed recordings will appear here after they are written to the local recordings directory.</p>
+      </div>
+
+      <div id="clips-table-wrap" class="clips-table-wrap" hidden>
+        <table class="clips-table">
+          <thead>
+            <tr>
+              <th scope="col">Camera</th>
+              <th scope="col">Filename</th>
+              <th scope="col">Created</th>
+              <th scope="col">Size</th>
+              <th scope="col">Status</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="clips-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/clips.js"></script>
+</body>
+</html>

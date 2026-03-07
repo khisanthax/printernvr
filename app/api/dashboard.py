@@ -28,3 +28,17 @@ def camera_management_page(request: Request) -> HTMLResponse:
             "request": request,
         },
     )
+
+
+@router.get("/clips", response_class=HTMLResponse)
+def clips_page(request: Request) -> HTMLResponse:
+    templates = request.app.state.templates
+    cameras = request.app.state.cameras
+    return templates.TemplateResponse(
+        "clips.html",
+        {
+            "request": request,
+            "cameras": [camera.model_dump() for camera in cameras],
+            "initial_camera_id": request.query_params.get("camera_id", ""),
+        },
+    )
