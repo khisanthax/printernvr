@@ -77,7 +77,7 @@ Manual values override auto-generated ones.
 Order of precedence:
 1. Manual URLs
 2. Generated go2rtc URLs
-3. `preview` may fall back to `record_url` if necessary
+3. Preview may be unset and shown as `no preview configured` in the dashboard
 
 ### Camera Configuration Fields
 
@@ -99,7 +99,7 @@ Status key:
 - `[-]` In progress
 - `[x]` Complete
 
-### Phase 0 - Project Foundation [ ]
+### Phase 0 - Project Foundation [x]
 
 Goals:
 - GitHub-ready repository
@@ -131,7 +131,7 @@ Deliverables:
 - Camera parsing
 - Dashboard showing cameras
 
-### Phase 1 - Camera Dashboard [ ]
+### Phase 1 - Camera Dashboard [x]
 
 Goals:
 - Display configured cameras
@@ -214,6 +214,27 @@ Tasks:
 - ffmpeg error handling
 - Config validation
 - Deployment docs
+
+## Current Implementation State
+
+Completed:
+- Phase 0 foundation
+- Phase 1 dashboard and status API
+
+Implemented highlights:
+- FastAPI app scaffold with startup validation and logging
+- JSON camera config loading with go2rtc helper mode and manual URL mode
+- Resolution logic where manual URLs override generated URLs
+- Runtime camera state manager with initial `idle` status
+- Endpoints: `GET /health`, `GET /api/cameras`, `GET /api/status`, `GET /`
+- Dashboard camera cards with preview iframe, status badge, output directory, and placeholder controls
+- Empty dashboard state when no cameras are configured
+- Preview fallback rules: manual preview -> generated preview -> `no preview configured`
+- Docker-first deployment with ffmpeg installed
+- Docker Compose defaults that work without `.env`
+
+Next phase:
+- Phase 2 recording engine (ffmpeg subprocess lifecycle and recording API)
 
 ## Deployment Model
 
