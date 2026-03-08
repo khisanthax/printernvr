@@ -17,6 +17,8 @@ logs/*
 !logs/.gitkeep
 recordings/*
 !recordings/.gitkeep
+config/cameras.json
+config/app.json
 
 # OS/editor
 .DS_Store

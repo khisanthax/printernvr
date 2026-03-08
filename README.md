@@ -51,6 +51,8 @@ cp config/cameras.example.json config/cameras.json
 cp config/app.example.json config/app.json
 ```
 
+The example files are tracked in git. The live files `config/cameras.json` and `config/app.json` are intentionally untracked so local deployments can edit them without causing `git pull` conflicts.
+
 5. Run the server:
 
 ```bash
@@ -87,6 +89,27 @@ The app is available at `http://localhost:8787` by default.
 If `PORT` is set in `.env`, Docker Compose uses that host port.
 Camera management is available at `/cameras`.
 Clip browsing is available at `/clips`.
+
+## Config Files and Git Pulls
+
+Tracked config templates:
+- `config/cameras.example.json`
+- `config/app.example.json`
+
+Local deployment config files:
+- `config/cameras.json`
+- `config/app.json`
+
+The local deployment config files are not tracked by git. This avoids merge conflicts when a deployed host edits camera or app settings locally and later pulls repository updates.
+
+One-time migration for older clones that still track these files:
+
+```bash
+git rm --cached config/cameras.json config/app.json
+git commit -m "Stop tracking deployment-local config files"
+```
+
+After that, keep editing the local files normally.
 
 ## Environment Variables
 

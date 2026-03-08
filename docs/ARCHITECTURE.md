@@ -49,9 +49,11 @@ Two JSON files are used:
 
 - `config/cameras.json`: camera definitions
 - `config/app.json`: app-level settings such as retention
+- `config/cameras.example.json` and `config/app.example.json`: tracked templates for new deployments
 
 Camera definitions remain the source of truth even when edited through the web UI.
 The `/cameras` page writes back to `config/cameras.json` rather than introducing a database.
+The live `config/cameras.json` and `config/app.json` files are deployment-local and should remain untracked so host-specific edits do not block repository pulls.
 
 Camera modes:
 - `go2rtc_helper`

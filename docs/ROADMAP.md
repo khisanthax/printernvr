@@ -391,6 +391,7 @@ Implemented highlights:
 - Automatic retention checks on startup and after recording completion
 - Docker-first deployment with ffmpeg installed
 - Docker Compose defaults that work without `.env`
+- Example config files tracked in git while live deployment config files remain untracked
 
 Next phase:
 - Phase 5 operational hardening
