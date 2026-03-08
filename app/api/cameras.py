@@ -35,7 +35,8 @@ def create_camera(payload: CameraUpsertRequest, request: Request) -> dict:
 @router.put("/cameras/{camera_id}")
 def update_camera(camera_id: str, payload: CameraUpsertRequest, request: Request) -> dict:
     recorder = request.app.state.recording_manager
-    if recorder.is_recording(camera_id):
+    gopro_recorder = request.app.state.gopro_recording_manager
+    if recorder.is_recording(camera_id) or gopro_recorder.is_busy(camera_id):
         raise HTTPException(
             status_code=409,
             detail=f"Camera '{camera_id}' is actively recording and cannot be edited",
@@ -56,7 +57,8 @@ def update_camera(camera_id: str, payload: CameraUpsertRequest, request: Request
 @router.delete("/cameras/{camera_id}")
 def delete_camera(camera_id: str, request: Request) -> dict:
     recorder = request.app.state.recording_manager
-    if recorder.is_recording(camera_id):
+    gopro_recorder = request.app.state.gopro_recording_manager
+    if recorder.is_recording(camera_id) or gopro_recorder.is_busy(camera_id):
         raise HTTPException(
             status_code=409,
             detail=f"Camera '{camera_id}' is actively recording and must be stopped before deletion",
@@ -83,6 +85,12 @@ def probe_camera(payload: CameraUpsertRequest) -> dict:
         resolved = resolve_camera(camera_input)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if resolved.backend_type != "ffmpeg" or not resolved.record_url:
+        raise HTTPException(
+            status_code=400,
+            detail="Stream probe is only available for ffmpeg/RTSP camera modes",
+        )
 
     result = probe_record_stream(resolved.record_url)
     return result.model_dump(mode="json")

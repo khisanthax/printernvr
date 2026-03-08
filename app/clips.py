@@ -34,6 +34,8 @@ class ClipStore:
         for path in root.rglob("*"):
             if not path.is_file():
                 continue
+            if path.name.endswith(".part"):
+                continue
 
             try:
                 relative = path.relative_to(root)

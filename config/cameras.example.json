@@ -3,6 +3,7 @@
     {
       "id": "sv08_left",
       "name": "SV08 Left",
+      "mode": "go2rtc_helper",
       "description": "Left-side print head view",
       "go2rtc_base_url": "http://printer-left.local:1984",
       "stream_name": "cam",
@@ -12,11 +13,26 @@
     {
       "id": "sv08_right",
       "name": "SV08 Right",
+      "mode": "manual_urls",
       "description": "Manual URL mode example",
       "preview_url": "http://printer-right.local:1984/stream.html?src=cam",
       "record_url": "rtsp://printer-right.local:8554/cam",
       "enabled": true,
       "output_subdir": "sv08_right"
+    },
+    {
+      "id": "hero7_top",
+      "name": "GoPro HERO7 Top Cam",
+      "mode": "gopro",
+      "description": "External-preview GoPro example",
+      "gopro_host": "10.5.5.9",
+      "preview_mode": "external_link",
+      "preview_url": "http://10.5.5.9:8080/live",
+      "auto_download_after_stop": true,
+      "download_timeout_seconds": 120,
+      "file_stabilization_wait_seconds": 5,
+      "enabled": false,
+      "output_subdir": "hero7_top"
     }
   ]
 }

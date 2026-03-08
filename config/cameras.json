@@ -3,6 +3,7 @@
     {
       "id": "example_printer",
       "name": "Example Printer",
+      "mode": "go2rtc_helper",
       "description": "Replace this with your real printer stream config.",
       "go2rtc_base_url": "http://printer.local:1984",
       "stream_name": "cam",

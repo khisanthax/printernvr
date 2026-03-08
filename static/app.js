@@ -54,7 +54,7 @@ async function fetchJson(url, options = {}) {
   return payload;
 }
 
-function setBadge(cameraId, status, recording) {
+function setBadge(cameraId, status) {
   const badge = bySelector(`[data-camera-status="${cameraId}"]`);
   if (!badge) {
     return;
@@ -68,38 +68,54 @@ function setBadge(cameraId, status, recording) {
     "status-starting",
     "status-recording",
     "status-stopping",
+    "status-downloading",
     "status-error",
   );
   badge.classList.add(`status-${normalized}`);
+}
 
+function updateControlStates(cameraId, state) {
   const card = bySelector(`[data-camera-card="${cameraId}"]`);
   if (!card) {
     return;
   }
 
+  const enabled = card.dataset.cameraEnabled === "true";
+  const mode = card.dataset.cameraMode;
+  const status = (state.status || "idle").toLowerCase();
+  const busy = ["starting", "recording", "stopping", "downloading"].includes(status);
   const buttons = bySelectorAll(`[data-camera-card="${cameraId}"] .control-button`);
   const input = bySelector(`[data-custom-duration="${cameraId}"]`);
-  const enabled = card.dataset.cameraEnabled === "true";
+
   buttons.forEach((button) => {
     const action = button.dataset.action;
     if (!enabled) {
       button.disabled = true;
       return;
     }
+
     if (action === "stop") {
-      button.disabled = !recording;
+      button.disabled = !["starting", "recording"].includes(status);
       return;
     }
-    button.disabled = recording;
+
+    if (mode === "gopro") {
+      button.disabled = busy;
+      return;
+    }
+
+    button.disabled = state.recording || status === "starting";
   });
+
   if (input) {
-    input.disabled = !enabled || recording;
+    input.disabled = !enabled || busy;
   }
 }
 
 function updateCameraState(state) {
   const cameraId = state.camera_id;
-  setBadge(cameraId, state.status, state.recording);
+  setBadge(cameraId, state.status);
+  updateControlStates(cameraId, state);
 
   const startedAt = bySelector(`[data-started-at="${cameraId}"]`);
   const expectedEnd = bySelector(`[data-expected-end="${cameraId}"]`);
@@ -109,6 +125,8 @@ function updateCameraState(state) {
   const errorDetailsWrap = bySelector(`[data-error-details-wrap="${cameraId}"]`);
   const errorDetails = bySelector(`[data-error-details="${cameraId}"]`);
   const errorCommandMeta = bySelector(`[data-error-command-meta="${cameraId}"]`);
+  const actionMessage = bySelector(`[data-action-message="${cameraId}"]`);
+  const downloadStatus = bySelector(`[data-download-status="${cameraId}"]`);
 
   if (startedAt) {
     startedAt.textContent = formatTimestamp(state.started_at);
@@ -117,10 +135,18 @@ function updateCameraState(state) {
     expectedEnd.textContent = formatTimestamp(state.expected_end_at);
   }
   if (outputFile) {
-    outputFile.textContent = humanFileName(state.output_file);
+    outputFile.textContent = humanFileName(state.output_file || state.last_downloaded_filename);
   }
   if (lastOutput) {
-    lastOutput.textContent = humanFileName(state.last_completed_output);
+    lastOutput.textContent = humanFileName(
+      state.last_completed_output || state.last_downloaded_filename,
+    );
+  }
+  if (actionMessage) {
+    actionMessage.textContent = state.last_action_message || "--";
+  }
+  if (downloadStatus) {
+    downloadStatus.textContent = state.last_download_status || "--";
   }
   if (errorMessage) {
     if (state.last_error) {
@@ -133,6 +159,9 @@ function updateCameraState(state) {
   }
   if (errorDetailsWrap && errorDetails && errorCommandMeta) {
     const metaParts = [];
+    if (state.backend_type) {
+      metaParts.push(`Backend: ${state.backend_type}`);
+    }
     if (state.last_ffmpeg_exit_code !== null && state.last_ffmpeg_exit_code !== undefined) {
       metaParts.push(`Exit code: ${state.last_ffmpeg_exit_code}`);
     }
@@ -235,6 +264,13 @@ async function stopRecording(cameraId) {
   await refreshAll();
 }
 
+async function downloadLatest(cameraId) {
+  await fetchJson(`/api/gopro/${cameraId}/download_latest`, {
+    method: "POST",
+  });
+  await refreshAll();
+}
+
 async function manualCleanup() {
   try {
     const payload = await fetchJson("/api/storage/cleanup", { method: "POST" });
@@ -284,6 +320,8 @@ function bindCameraControls() {
             throw new Error("Custom duration must be greater than zero");
           }
           await startRecording(cameraId, duration);
+        } else if (action === "download-latest") {
+          await downloadLatest(cameraId);
         }
       } catch (error) {
         console.error(error);

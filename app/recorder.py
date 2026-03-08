@@ -47,8 +47,12 @@ class RecordingManager:
         camera: ResolvedCamera,
         duration: int | None = None,
     ) -> CameraRuntimeState:
+        if camera.backend_type != "ffmpeg":
+            raise ValueError(f"Camera '{camera.id}' does not use ffmpeg recording")
         if not camera.enabled:
             raise ValueError(f"Camera '{camera.id}' is disabled")
+        if not camera.record_url:
+            raise ValueError(f"Camera '{camera.id}' does not have a record_url")
 
         with self._lock:
             current = self._processes.get(camera.id)
@@ -108,6 +112,8 @@ class RecordingManager:
             expected_end_at=expected_end_at,
             output_file=output_file,
             output_path=output_path,
+            requested_duration_seconds=duration,
+            message="ffmpeg recording active",
         )
 
         monitor_thread = Thread(
@@ -207,6 +213,7 @@ class RecordingManager:
             self._runtime_state.mark_recording_stopped(
                 managed.camera_id,
                 last_completed_output=managed.output_file,
+                message="Recording complete",
             )
             LOGGER.info(
                 "Recording finished for %s -> %s",

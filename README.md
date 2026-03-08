@@ -13,6 +13,7 @@ This repository currently includes:
 - Phase 3 recording controls UI
 - Phase 3A camera management UI
 - Phase 4 clip browser
+- Phase 4A GoPro recorder support
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -163,6 +164,33 @@ Record resolution order:
 
 Manual URLs always override generated values.
 
+### Mode 3: GoPro Mode
+
+Provide GoPro-specific settings:
+
+```json
+{
+  "id": "hero7_top",
+  "name": "GoPro HERO7 Top",
+  "mode": "gopro",
+  "gopro_host": "10.5.5.9",
+  "preview_mode": "external_link",
+  "preview_url": "http://10.5.5.9:8080/live",
+  "auto_download_after_stop": true,
+  "download_timeout_seconds": 120,
+  "file_stabilization_wait_seconds": 5,
+  "enabled": true,
+  "output_subdir": "hero7_top"
+}
+```
+
+GoPro mode behavior:
+- start and stop recording use the GoPro HTTP API
+- clips are downloaded locally after stop
+- downloaded clips land in the same `recordings/<camera_id>/` structure used by RTSP cameras
+- preview is best-effort and currently supports `none` or `external_link`
+- in-app stream proxy preview is not implemented in this version
+
 ## Camera Management UI
 
 The `/cameras` page supports:
@@ -246,6 +274,12 @@ Recording compatibility defaults:
 
 These defaults improve compatibility with go2rtc and camera streams that fail when ffmpeg tries to mux every stream into MP4.
 
+GoPro recording behavior:
+- GoPro does not record through ffmpeg
+- the app sends GoPro shutter commands over HTTP
+- timed GoPro recording uses an in-process worker thread
+- after stop, the app waits briefly for file stabilization and downloads the resulting clip(s)
+
 Filename format:
 
 ```text
@@ -285,6 +319,12 @@ Clip APIs operate only within the configured local recordings root and reject in
 - `PUT /api/cameras/{camera_id}`
 - `DELETE /api/cameras/{camera_id}`
 - `POST /api/camera/probe`
+- `POST /api/gopro/test`
+- `GET /api/gopro/{camera_id}/status`
+- `POST /api/gopro/{camera_id}/record_for`
+- `POST /api/gopro/{camera_id}/download_latest`
+- `GET /api/gopro/{camera_id}/preview`
+- `GET /api/gopro/{camera_id}/media`
 - `GET /api/status`
 - `GET /api/record/status`
 - `POST /api/record/start/{camera_id}`

@@ -8,11 +8,14 @@ from urllib.parse import quote_plus, urlparse
 from app.models import (
     AppConfig,
     AppSettingsFile,
-    CameraManagementItem,
     CameraConfigFile,
     CameraConfigInput,
+    CameraManagementItem,
+    CameraMode,
+    CameraPreviewMode,
     CameraUpsertRequest,
     ResolvedCamera,
+    infer_input_mode,
 )
 
 
@@ -43,6 +46,28 @@ def generate_go2rtc_urls(
 
 
 def resolve_camera(camera: CameraConfigInput) -> ResolvedCamera:
+    mode = infer_input_mode(camera)
+
+    if mode == "gopro":
+        preview_mode = _effective_preview_mode(camera.preview_mode)
+        preview_url = (camera.preview_url or "").strip() or None
+        return ResolvedCamera(
+            id=camera.id,
+            name=camera.name,
+            enabled=camera.enabled,
+            description=camera.description,
+            mode="gopro",
+            backend_type="gopro",
+            preview_url=preview_url if preview_mode == "external_link" else None,
+            record_url=None,
+            gopro_host=(camera.gopro_host or "").strip() or None,
+            preview_mode=preview_mode,
+            auto_download_after_stop=camera.auto_download_after_stop,
+            download_timeout_seconds=camera.download_timeout_seconds,
+            file_stabilization_wait_seconds=camera.file_stabilization_wait_seconds,
+            output_subdir=camera.output_subdir or camera.id,
+        )
+
     generated_preview: str | None = None
     generated_record: str | None = None
 
@@ -63,6 +88,8 @@ def resolve_camera(camera: CameraConfigInput) -> ResolvedCamera:
         name=camera.name,
         enabled=camera.enabled,
         description=camera.description,
+        mode=mode,
+        backend_type="ffmpeg",
         go2rtc_base_url=camera.go2rtc_base_url,
         stream_name=camera.stream_name,
         preview_url=final_preview_url,
@@ -135,17 +162,47 @@ def build_camera_input(payload: CameraUpsertRequest) -> CameraConfigInput:
     generated_id = slugify_camera_id(payload.name)
     camera_id = (payload.id or generated_id).strip() or generated_id
 
+    mode: CameraMode = payload.mode
+    preview_mode = payload.preview_mode
+    preview_url = (payload.preview_url or "").strip() or None
+    record_url = (payload.record_url or "").strip() or None
+    go2rtc_base_url = (payload.go2rtc_base_url or "").strip() or None
+    stream_name = (payload.stream_name or "").strip() or None
+    gopro_host = (payload.gopro_host or "").strip() or None
+
+    if mode == "go2rtc_helper":
+        preview_url = None
+        record_url = None
+        gopro_host = None
+        preview_mode = None
+    elif mode == "manual_urls":
+        go2rtc_base_url = None
+        stream_name = None
+        gopro_host = None
+        preview_mode = None
+    elif mode == "gopro":
+        go2rtc_base_url = None
+        stream_name = None
+        record_url = None
+        preview_mode = preview_mode or "none"
+        if preview_mode != "external_link":
+            preview_url = None
+
     return CameraConfigInput(
         id=camera_id,
         name=payload.name.strip(),
         enabled=payload.enabled,
         description=(payload.description or "").strip() or None,
-        go2rtc_base_url=(
-            payload.go2rtc_base_url.strip() if payload.go2rtc_base_url else None
-        ),
-        stream_name=(payload.stream_name or "").strip() or None,
-        preview_url=(payload.preview_url or "").strip() or None,
-        record_url=(payload.record_url or "").strip() or None,
+        mode=mode,
+        go2rtc_base_url=go2rtc_base_url,
+        stream_name=stream_name,
+        preview_url=preview_url,
+        record_url=record_url,
+        gopro_host=gopro_host,
+        preview_mode=preview_mode,
+        auto_download_after_stop=payload.auto_download_after_stop,
+        download_timeout_seconds=payload.download_timeout_seconds,
+        file_stabilization_wait_seconds=payload.file_stabilization_wait_seconds,
         output_subdir=(payload.output_subdir or "").strip() or camera_id,
     )
 
@@ -171,6 +228,7 @@ def build_management_items(
     items: list[CameraManagementItem] = []
     for raw_camera in raw_cameras:
         resolved = resolved_index[raw_camera.id]
+        mode = infer_input_mode(raw_camera)
         items.append(
             CameraManagementItem(
                 id=raw_camera.id,
@@ -178,17 +236,28 @@ def build_management_items(
                 enabled=raw_camera.enabled,
                 output_subdir=raw_camera.output_subdir or raw_camera.id,
                 description=raw_camera.description,
-                mode=(
-                    "manual_urls"
-                    if (raw_camera.preview_url or raw_camera.record_url)
-                    else "go2rtc_helper"
-                ),
+                mode=mode,
                 go2rtc_base_url=raw_camera.go2rtc_base_url,
                 stream_name=raw_camera.stream_name,
                 preview_url=raw_camera.preview_url,
                 record_url=raw_camera.record_url,
+                gopro_host=raw_camera.gopro_host,
+                preview_mode=_effective_preview_mode(raw_camera.preview_mode)
+                if mode == "gopro"
+                else None,
+                auto_download_after_stop=raw_camera.auto_download_after_stop,
+                download_timeout_seconds=raw_camera.download_timeout_seconds,
+                file_stabilization_wait_seconds=raw_camera.file_stabilization_wait_seconds,
                 resolved_preview_url=resolved.preview_url,
                 resolved_record_url=resolved.record_url,
             )
         )
     return items
+
+
+def _effective_preview_mode(
+    value: str | None,
+) -> CameraPreviewMode:
+    if value == "external_link":
+        return "external_link"
+    return "none"

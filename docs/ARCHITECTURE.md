@@ -5,6 +5,7 @@
 Printer NVR is a single-service, Docker-first application for 3D printer camera monitoring, recording, and local storage protection.
 
 Printers are stream providers only. Recording and retention enforcement run on the central Printer NVR host.
+GoPro devices are a separate recorder class controlled over their HTTP API, but still write clips back into the same local storage tree.
 
 ## Runtime Components
 
@@ -14,6 +15,7 @@ Printers are stream providers only. Recording and retention enforcement run on t
 - JSON configuration loader for camera config and app config
 - In-memory runtime camera state manager
 - ffmpeg subprocess recording manager
+- GoPro HTTP service and in-process recording manager
 - Local recordings retention manager
 - Config-backed camera management UI
 - Filesystem-based clip browser and download/delete API
@@ -27,12 +29,15 @@ Printers are stream providers only. Recording and retention enforcement run on t
 - `app/models.py`: Pydantic models for config, runtime state, and storage status
 - `app/state.py`: runtime state manager for camera recording state
 - `app/recorder.py`: ffmpeg command building, process lifecycle, monitor threads
+- `app/services/gopro_service.py`: HERO7 HTTP control, media listing, preview info, and clip download
+- `app/services/gopro_recording_manager.py`: in-process GoPro job orchestration and auto-download
 - `app/retention.py`: storage scanning, threshold evaluation, cleanup planning and deletion
 - `app/probe.py`: ffprobe stream testing
 - `app/util.py`: logging and directory helpers
 - `app/api/health.py`: health endpoint
 - `app/api/dashboard.py`: dashboard page
 - `app/api/cameras.py`: camera CRUD and probe API
+- `app/api/gopro.py`: GoPro test/status/media/preview/download endpoints
 - `app/api/status.py`: legacy runtime status API
 - `app/api/record.py`: recording start, stop, and status API
 - `app/api/storage.py`: storage status and manual cleanup API
@@ -48,9 +53,20 @@ Two JSON files are used:
 Camera definitions remain the source of truth even when edited through the web UI.
 The `/cameras` page writes back to `config/cameras.json` rather than introducing a database.
 
-Camera URL resolution:
+Camera modes:
+- `go2rtc_helper`
+- `manual_urls`
+- `gopro`
+
+RTSP camera URL resolution:
 - `record_url`: manual value, else generated go2rtc URL
 - `preview_url`: manual value, else generated go2rtc preview URL, else unset
+
+GoPro config behavior:
+- `gopro_host` identifies the HERO7 on the local network
+- `preview_mode` currently supports `none` and `external_link`
+- `stream_proxy` is intentionally rejected until a clean in-app preview path exists
+- GoPro clips are still written into `recordings/<output_subdir>/`
 
 Preview and recording URLs are intentionally different concerns:
 - `preview_url` should be browser-compatible and is used only for UI preview rendering
@@ -93,6 +109,24 @@ This recording profile is intentionally conservative for printer cameras:
 - RTSP over TCP improves compatibility with go2rtc and camera streams that are unreliable over default transport settings
 - video-only MP4 output avoids mux failures caused by audio or non-video side streams
 
+## GoPro Recording Flow
+
+1. Client calls shared `POST /api/record/start/{camera_id}` or `POST /api/record/stop/{camera_id}` for a GoPro camera.
+2. The record API dispatches by `camera.backend_type`.
+3. `GoProRecordingManager` snapshots the pre-record media list, sends the HERO7 shutter command, and updates shared runtime state.
+4. Timed GoPro recording uses an in-process background thread rather than ffmpeg `-t`.
+5. Stop transitions through:
+- stopping
+- stabilization wait
+- downloading
+6. If `auto_download_after_stop` is enabled, media polling compares the new media list against the pre-record snapshot and downloads newly created video files into the normal recordings folder.
+7. If snapshot comparison cannot identify a new file, the newest available video file is used as a fallback.
+
+GoPro v1 preview behavior:
+- no in-app stream proxy
+- external preview links only when configured
+- preview failures must not block record or download actions
+
 ## Camera Management Flow
 
 1. `/cameras` loads the current camera list from `GET /api/cameras`.
@@ -106,9 +140,10 @@ This recording profile is intentionally conservative for printer cameras:
 - `app.state.cameras`
 - `app.state.camera_index`
 - runtime camera state entries
-5. Stream probing uses `ffprobe` on the resolved `record_url` through `POST /api/camera/probe`.
+5. RTSP stream probing uses `ffprobe` on the resolved `record_url` through `POST /api/camera/probe`.
 6. If the probe input is `rtsp://`, ffprobe also uses TCP transport by default.
-7. Probe results distinguish:
+7. GoPro connectivity testing uses `POST /api/gopro/test`.
+8. Probe results distinguish:
 - input/open failure
 - reachable stream with no video stream found
 - reachable stream with a usable video stream

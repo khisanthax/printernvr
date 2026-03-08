@@ -28,7 +28,7 @@ Printer NVR is not intended to be a general CCTV platform. It is designed specif
 
 ## Camera Input Model (Updated)
 
-Printer NVR supports two camera configuration modes.
+Printer NVR supports three camera configuration modes.
 
 ### Mode 1: go2rtc-assisted setup
 
@@ -72,6 +72,32 @@ User provides explicit URLs.
 
 Manual values override auto-generated ones.
 
+### Mode 3: GoPro API-controlled recording
+
+User provides explicit GoPro device settings.
+
+```json
+{
+  "id": "hero7_top",
+  "name": "GoPro HERO7 Top",
+  "mode": "gopro",
+  "gopro_host": "10.5.5.9",
+  "preview_mode": "external_link",
+  "preview_url": "http://10.5.5.9:8080/live",
+  "auto_download_after_stop": true,
+  "download_timeout_seconds": 120,
+  "file_stabilization_wait_seconds": 5,
+  "enabled": true,
+  "output_subdir": "hero7_top"
+}
+```
+
+GoPro cameras:
+- do not record through ffmpeg
+- are controlled through the GoPro HTTP API
+- download clips back into the normal local recordings directory after stop
+- may use an external preview link when in-app live preview is not practical
+
 ### Configuration Priority
 
 Order of precedence:
@@ -86,10 +112,16 @@ Supported fields:
 - `name`
 - `enabled`
 - `description`
+- `mode`
 - `go2rtc_base_url`
 - `stream_name`
 - `preview_url`
 - `record_url`
+- `gopro_host`
+- `preview_mode`
+- `auto_download_after_stop`
+- `download_timeout_seconds`
+- `file_stabilization_wait_seconds`
 - `output_subdir`
 
 ## Updated Phased Roadmap
@@ -230,6 +262,29 @@ Deliverables:
 - Download endpoint
 - Manual clip deletion with active-file protection
 
+### Phase 4A - GoPro Recorder Support [x]
+
+Goals:
+- Support GoPro as a separate recording backend
+- Start and stop GoPro recording from the dashboard
+- Automatically download completed GoPro clips into local storage
+- Keep clip browsing and storage model unchanged
+
+Tasks:
+- Extend camera config for `mode=gopro`
+- Add GoPro connectivity testing
+- Add GoPro start/stop/record-for/download API
+- Add in-process GoPro recording manager
+- Add GoPro dashboard controls
+- Add external preview fallback
+
+Deliverables:
+- GoPro camera management support
+- Shared `/api/record` dispatch for RTSP and GoPro cameras
+- Automatic clip download after GoPro stop
+- One-click 30-second GoPro recording
+- Existing clip browser listing downloaded GoPro clips
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:
@@ -302,6 +357,7 @@ Completed:
 - Phase 3 recording UI controls
 - Phase 3A camera management UI
 - Phase 4 clip management
+- Phase 4A GoPro recorder support
 - Phase 6 retention and storage protection
 
 In progress:
@@ -313,19 +369,23 @@ Note:
 Implemented highlights:
 - FastAPI app scaffold with startup validation and logging
 - JSON camera config loading with go2rtc helper mode and manual URL mode
+- JSON camera config loading with go2rtc helper, manual URL, and GoPro modes
 - Separate app config loading for retention settings
 - Resolution logic where manual URLs override generated URLs
 - Runtime camera state manager with recording metadata and error tracking
 - ffmpeg recording manager with start, stop, timed capture, and one-recording-per-camera enforcement
+- GoPro API recording manager with start, stop, timed record, media polling, and automatic download
 - RTSP-over-TCP recording and probing defaults for `rtsp://` inputs
 - Video-only MP4 recording profile using `-map 0:v:0 -an -c:v copy`
-- Config-backed camera management UI with live preview and ffprobe testing
+- Config-backed camera management UI with live preview/external preview and mode-aware testing
 - Expanded ffmpeg and ffprobe diagnostics surfaced in the dashboard and camera management UI
 - Filesystem-based clip browser with camera filter, download, and manual delete
-- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /cameras`, `GET /clips`
+- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `POST /api/gopro/test`, `GET /api/gopro/{camera_id}/status`, `POST /api/gopro/{camera_id}/record_for`, `POST /api/gopro/{camera_id}/download_latest`, `GET /api/gopro/{camera_id}/preview`, `GET /api/gopro/{camera_id}/media`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /cameras`, `GET /clips`
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip
+- GoPro camera cards with start/stop, Record 30s, Download Latest, and external preview fallback
 - Empty dashboard state when no cameras are configured
 - Preview fallback rules: manual preview -> generated preview -> `no preview configured`
+- GoPro preview modes: `none` and `external_link`; `stream_proxy` remains deferred
 - Storage usage and free disk reporting in the UI
 - Retention thresholds with alert-only and delete-oldest cleanup modes
 - Automatic retention checks on startup and after recording completion

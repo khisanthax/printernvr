@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from app.api.clips import router as clips_router
 from app.api.cameras import router as cameras_router
 from app.api.dashboard import router as dashboard_router
+from app.api.gopro import router as gopro_router
 from app.api.health import router as health_router
 from app.api.record import router as record_router
 from app.api.status import router as status_router
@@ -20,6 +21,8 @@ from app.clips import ClipStore
 from app.config import load_app_config
 from app.recorder import RecordingManager
 from app.retention import RetentionManager
+from app.services.gopro_recording_manager import GoProRecordingManager
+from app.services.gopro_service import GoProService
 from app.state import RuntimeStateManager
 from app.util import configure_logging, ensure_directories
 
@@ -76,6 +79,13 @@ async def lifespan(app: FastAPI):
         runtime_state,
         on_recording_finished=enforce_retention_after_recording,
     )
+    gopro_service = GoProService()
+    gopro_recording_manager = GoProRecordingManager(
+        settings["recordings_dir"],
+        runtime_state,
+        gopro_service,
+        on_recording_finished=enforce_retention_after_recording,
+    )
 
     retention_manager.enforce_retention(
         runtime_state.active_output_paths(),
@@ -89,6 +99,8 @@ async def lifespan(app: FastAPI):
     app.state.runtime_state = runtime_state
     app.state.templates = Jinja2Templates(directory="templates")
     app.state.recording_manager = recording_manager
+    app.state.gopro_service = gopro_service
+    app.state.gopro_recording_manager = gopro_recording_manager
     app.state.retention_manager = retention_manager
     app.state.clip_store = clip_store
     app.state.app_config = loaded_config
@@ -99,6 +111,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         recording_manager.shutdown()
+        gopro_recording_manager.shutdown()
         LOGGER.info("Printer NVR shutdown complete")
 
 
@@ -115,6 +128,7 @@ app.include_router(health_router)
 app.include_router(dashboard_router)
 app.include_router(clips_router)
 app.include_router(cameras_router)
+app.include_router(gopro_router)
 app.include_router(status_router)
 app.include_router(record_router)
 app.include_router(storage_router)

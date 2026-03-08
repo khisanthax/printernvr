@@ -178,3 +178,18 @@ Impact:
 - Default ffmpeg recording uses `-rtsp_transport tcp`, `-map 0:v:0`, `-an`, and `-c:v copy` for RTSP printer streams.
 - Working cameras keep stream-copy performance while problematic cameras avoid common MP4 conversion failures.
 - Full ffmpeg stderr and command details are preserved in runtime state for troubleshooting.
+
+## 2026-03-08 - Treat GoPro as a Separate Recorder Backend
+
+Decision:
+- Add GoPro support as a separate `mode=gopro` camera backend.
+- Do not force GoPro recording through ffmpeg input capture.
+
+Why:
+- GoPro recording quality is a separate use case from printer IP streams.
+- HERO7 recording is more reliable when controlled through the device API and downloaded after stop.
+
+Impact:
+- Shared runtime state and `/api/record` dispatch now cover both ffmpeg and GoPro backends.
+- GoPro clips still land in the same local recordings tree and appear in the existing clip browser.
+- Preview support for GoPro remains best-effort and external-link based in v1.

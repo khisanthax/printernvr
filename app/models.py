@@ -10,18 +10,32 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 CAMERA_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 OUTPUT_SUBDIR_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
+CameraMode = Literal["go2rtc_helper", "manual_urls", "gopro"]
+CameraPreviewModeInput = Literal["none", "external_link", "stream_proxy"]
+CameraPreviewMode = Literal["none", "external_link"]
+BackendType = Literal["ffmpeg", "gopro"]
+CameraStatus = Literal["idle", "starting", "recording", "stopping", "downloading", "error"]
+CameraAction = Literal["idle", "starting", "recording", "stopping", "downloading", "error"]
+
 
 class CameraConfigInput(BaseModel):
     id: str
     name: str
     enabled: bool = True
     description: str | None = None
+    mode: CameraMode | None = None
 
     go2rtc_base_url: str | None = None
     stream_name: str | None = None
 
     preview_url: str | None = None
     record_url: str | None = None
+
+    gopro_host: str | None = None
+    preview_mode: CameraPreviewModeInput | None = None
+    auto_download_after_stop: bool = True
+    download_timeout_seconds: int = Field(default=120, ge=5, le=900)
+    file_stabilization_wait_seconds: int = Field(default=5, ge=0, le=120)
 
     output_subdir: str | None = None
 
@@ -44,7 +58,18 @@ class CameraConfigInput(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def validate_has_config_mode(self) -> "CameraConfigInput":
+    def validate_mode_fields(self) -> "CameraConfigInput":
+        mode = self.mode or infer_input_mode(self)
+        if mode == "gopro":
+            if not self.gopro_host:
+                raise ValueError("gopro_host is required for gopro mode")
+            preview_mode = self.preview_mode or "none"
+            if preview_mode == "stream_proxy":
+                raise ValueError("preview_mode 'stream_proxy' is not implemented yet")
+            if preview_mode == "external_link" and not (self.preview_url or "").strip():
+                raise ValueError("preview_url is required when preview_mode is external_link")
+            return self
+
         has_go2rtc = bool(self.go2rtc_base_url)
         has_manual = bool(self.preview_url or self.record_url)
         if not has_go2rtc and not has_manual:
@@ -59,12 +84,21 @@ class ResolvedCamera(BaseModel):
     name: str
     enabled: bool = True
     description: str | None = None
+    mode: CameraMode
+    backend_type: BackendType
 
     go2rtc_base_url: str | None = None
     stream_name: str | None = None
 
     preview_url: str | None = None
-    record_url: str
+    record_url: str | None = None
+
+    gopro_host: str | None = None
+    preview_mode: CameraPreviewMode | None = None
+    auto_download_after_stop: bool = True
+    download_timeout_seconds: int = 120
+    file_stabilization_wait_seconds: int = 5
+
     output_subdir: str
 
 
@@ -78,11 +112,16 @@ class CameraUpsertRequest(BaseModel):
     enabled: bool = True
     output_subdir: str | None = None
     description: str | None = None
-    mode: Literal["go2rtc_helper", "manual_urls"] = "go2rtc_helper"
+    mode: CameraMode = "go2rtc_helper"
     go2rtc_base_url: str | None = None
     stream_name: str | None = None
     preview_url: str | None = None
     record_url: str | None = None
+    gopro_host: str | None = None
+    preview_mode: CameraPreviewModeInput | None = None
+    auto_download_after_stop: bool = True
+    download_timeout_seconds: int = Field(default=120, ge=5, le=900)
+    file_stabilization_wait_seconds: int = Field(default=5, ge=0, le=120)
 
     @model_validator(mode="after")
     def validate_mode_fields(self) -> "CameraUpsertRequest":
@@ -90,6 +129,14 @@ class CameraUpsertRequest(BaseModel):
             raise ValueError("go2rtc_base_url is required for go2rtc_helper mode")
         if self.mode == "manual_urls" and not self.record_url:
             raise ValueError("record_url is required for manual_urls mode")
+        if self.mode == "gopro":
+            if not self.gopro_host:
+                raise ValueError("gopro_host is required for gopro mode")
+            preview_mode = self.preview_mode or "none"
+            if preview_mode == "stream_proxy":
+                raise ValueError("preview_mode 'stream_proxy' is not implemented yet")
+            if preview_mode == "external_link" and not self.preview_url:
+                raise ValueError("preview_url is required when preview_mode is external_link")
         return self
 
 
@@ -99,13 +146,18 @@ class CameraManagementItem(BaseModel):
     enabled: bool
     output_subdir: str
     description: str | None = None
-    mode: Literal["go2rtc_helper", "manual_urls"]
+    mode: CameraMode
     go2rtc_base_url: str | None = None
     stream_name: str | None = None
     preview_url: str | None = None
     record_url: str | None = None
+    gopro_host: str | None = None
+    preview_mode: CameraPreviewMode | None = None
+    auto_download_after_stop: bool = True
+    download_timeout_seconds: int = 120
+    file_stabilization_wait_seconds: int = 5
     resolved_preview_url: str | None = None
-    resolved_record_url: str
+    resolved_record_url: str | None = None
 
 
 class RetentionConfig(BaseModel):
@@ -127,16 +179,22 @@ class AppConfig(BaseModel):
 
 class CameraRuntimeState(BaseModel):
     camera_id: str
-    status: Literal["idle", "starting", "recording", "stopping", "error"] = "idle"
+    backend_type: BackendType
+    status: CameraStatus = "idle"
+    in_progress_action: CameraAction = "idle"
     recording: bool = False
     started_at: datetime | None = None
     expected_end_at: datetime | None = None
+    requested_duration_seconds: int | None = None
     output_file: str | None = None
     output_path: str | None = None
     last_error: str | None = None
     last_error_details: str | None = None
     last_ffmpeg_command: str | None = None
     last_ffmpeg_exit_code: int | None = None
+    last_downloaded_filename: str | None = None
+    last_download_status: str | None = None
+    last_action_message: str | None = None
     last_completed_output: str | None = None
 
 
@@ -158,6 +216,46 @@ class CameraProbeResult(BaseModel):
     details: str | None = None
     command: str | None = None
     streams: list[dict] = Field(default_factory=list)
+
+
+class GoProPreviewResult(BaseModel):
+    available: bool
+    preview_mode: CameraPreviewMode | str
+    open_url: str | None = None
+    message: str | None = None
+
+
+class GoProMediaItem(BaseModel):
+    folder: str
+    filename: str
+    relative_key: str
+    created_timestamp: int | None = None
+    created_at: datetime | None = None
+    size_bytes: int | None = None
+    download_url: str
+    is_video: bool = True
+
+
+class GoProStatusResult(BaseModel):
+    reachable: bool
+    host: str
+    message: str | None = None
+    error: str | None = None
+    details: str | None = None
+    http_status: int | None = None
+    recording: bool | None = None
+    battery: int | None = None
+    command: str | None = None
+    raw_status: dict = Field(default_factory=dict)
+
+
+class GoProDownloadResult(BaseModel):
+    success: bool
+    camera_id: str
+    downloaded_files: list[str] = Field(default_factory=list)
+    message: str | None = None
+    error: str | None = None
+    details: str | None = None
 
 
 class CleanupSummary(BaseModel):
@@ -194,3 +292,13 @@ class ClipItem(BaseModel):
     size_bytes: int
     size_human: str
     active: bool = False
+
+
+def infer_input_mode(camera: CameraConfigInput) -> CameraMode:
+    if camera.mode:
+        return camera.mode
+    if camera.gopro_host:
+        return "gopro"
+    if camera.go2rtc_base_url and not (camera.preview_url or camera.record_url):
+        return "go2rtc_helper"
+    return "manual_urls"

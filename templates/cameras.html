@@ -59,6 +59,7 @@
               <select id="camera-mode" name="mode">
                 <option value="go2rtc_helper">go2rtc_helper</option>
                 <option value="manual_urls">manual_urls</option>
+                <option value="gopro">gopro</option>
               </select>
             </label>
             <label class="form-checkbox">
@@ -101,6 +102,40 @@
             </label>
           </div>
 
+          <div id="gopro-fields" class="form-grid" hidden>
+            <label class="form-grid__full">
+              GoPro Host / IP
+              <input id="camera-gopro-host" name="gopro_host" type="text" placeholder="10.5.5.9">
+            </label>
+            <label>
+              Preview Mode
+              <select id="camera-preview-mode" name="preview_mode">
+                <option value="none">none</option>
+                <option value="external_link">external_link</option>
+              </select>
+            </label>
+            <label id="camera-preview-url-wrap" class="form-grid__full" hidden>
+              Preview URL
+              <input id="camera-gopro-preview-url" name="preview_url" type="text" placeholder="http://10.5.5.9:8080/live">
+              <span class="form-helper">External preview link or app URL for framing shots. In-app stream proxy is not part of this version.</span>
+            </label>
+            <label class="form-checkbox">
+              <input id="camera-auto-download" name="auto_download_after_stop" type="checkbox" checked>
+              Auto-download after stop
+            </label>
+            <label>
+              Download Timeout (seconds)
+              <input id="camera-download-timeout" name="download_timeout_seconds" type="number" min="5" step="1" value="120">
+            </label>
+            <label>
+              File Wait (seconds)
+              <input id="camera-file-wait" name="file_stabilization_wait_seconds" type="number" min="0" step="1" value="5">
+            </label>
+            <p class="form-helper form-grid__full">
+              GoPro recording is API-controlled. Clips are downloaded after stop into the same local recordings folder structure used by RTSP cameras.
+            </p>
+          </div>
+
           <p id="camera-form-error" class="camera-error" hidden></p>
 
           <div class="form-actions">
@@ -140,16 +175,16 @@
               <dd id="probe-reachable">--</dd>
             </div>
             <div>
-              <dt>Codec</dt>
-              <dd id="probe-codec">--</dd>
+              <dt id="probe-detail-1-label">Codec</dt>
+              <dd id="probe-detail-1-value">--</dd>
             </div>
             <div>
-              <dt>Resolution</dt>
-              <dd id="probe-resolution">--</dd>
+              <dt id="probe-detail-2-label">Resolution</dt>
+              <dd id="probe-detail-2-value">--</dd>
             </div>
             <div>
-              <dt>Stream Type</dt>
-              <dd id="probe-stream-type">--</dd>
+              <dt id="probe-detail-3-label">Stream Type</dt>
+              <dd id="probe-detail-3-value">--</dd>
             </div>
           </dl>
           <p id="probe-error" class="camera-error" hidden></p>

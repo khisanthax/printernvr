@@ -18,6 +18,14 @@ const recordUrlWarning = document.querySelector("#record-url-warning");
 const probeDetailsWrap = document.querySelector("#probe-details-wrap");
 const probeDetails = document.querySelector("#probe-details");
 const probeCommand = document.querySelector("#probe-command");
+const probeDetail1Label = document.querySelector("#probe-detail-1-label");
+const probeDetail1Value = document.querySelector("#probe-detail-1-value");
+const probeDetail2Label = document.querySelector("#probe-detail-2-label");
+const probeDetail2Value = document.querySelector("#probe-detail-2-value");
+const probeDetail3Label = document.querySelector("#probe-detail-3-label");
+const probeDetail3Value = document.querySelector("#probe-detail-3-value");
+const probeButton = document.querySelector("#probe-camera-button");
+const goproPreviewUrlWrap = document.querySelector("#camera-preview-url-wrap");
 
 const fields = {
   editingCameraId: document.querySelector("#editing-camera-id"),
@@ -31,6 +39,12 @@ const fields = {
   streamName: document.querySelector("#camera-stream-name"),
   previewUrl: document.querySelector("#camera-preview-url"),
   recordUrl: document.querySelector("#camera-record-url"),
+  goproHost: document.querySelector("#camera-gopro-host"),
+  previewMode: document.querySelector("#camera-preview-mode"),
+  goproPreviewUrl: document.querySelector("#camera-gopro-preview-url"),
+  autoDownload: document.querySelector("#camera-auto-download"),
+  downloadTimeoutSeconds: document.querySelector("#camera-download-timeout"),
+  fileWaitSeconds: document.querySelector("#camera-file-wait"),
 };
 
 function slugifyCameraId(value) {
@@ -53,6 +67,13 @@ function normalizeGo2RtcBaseUrl(value) {
 }
 
 function resolveUrls(draft) {
+  if (draft.mode === "gopro") {
+    return {
+      preview_url: draft.preview_mode === "external_link" ? (draft.preview_url || "").trim() : "",
+      record_url: "GoPro API-controlled recording",
+    };
+  }
+
   const previewUrlManual = (draft.preview_url || "").trim();
   const recordUrlManual = (draft.record_url || "").trim();
   let generatedPreview = "";
@@ -104,14 +125,28 @@ function cameraPayload() {
     stream_name: fields.streamName.value.trim(),
     preview_url: fields.previewUrl.value.trim(),
     record_url: fields.recordUrl.value.trim(),
+    gopro_host: fields.goproHost.value.trim(),
+    preview_mode: fields.previewMode.value,
+    auto_download_after_stop: fields.autoDownload.checked,
+    download_timeout_seconds: Number(fields.downloadTimeoutSeconds.value || 120),
+    file_stabilization_wait_seconds: Number(fields.fileWaitSeconds.value || 5),
   };
 
   if (payload.mode === "go2rtc_helper") {
     payload.preview_url = "";
     payload.record_url = "";
-  } else {
+    payload.gopro_host = "";
+    payload.preview_mode = "none";
+  } else if (payload.mode === "manual_urls") {
     payload.go2rtc_base_url = "";
     payload.stream_name = "";
+    payload.gopro_host = "";
+    payload.preview_mode = "none";
+  } else if (payload.mode === "gopro") {
+    payload.go2rtc_base_url = "";
+    payload.stream_name = "";
+    payload.record_url = "";
+    payload.preview_url = fields.goproPreviewUrl.value.trim();
   }
 
   return payload;
@@ -143,10 +178,18 @@ async function fetchJson(url, options = {}) {
 function setModeVisibility() {
   const go2rtcFields = document.querySelector("#go2rtc-fields");
   const manualFields = document.querySelector("#manual-fields");
-  const usingGo2Rtc = fields.mode.value === "go2rtc_helper";
+  const goproFields = document.querySelector("#gopro-fields");
+  const mode = fields.mode.value;
 
-  go2rtcFields.hidden = !usingGo2Rtc;
-  manualFields.hidden = usingGo2Rtc;
+  go2rtcFields.hidden = mode !== "go2rtc_helper";
+  manualFields.hidden = mode !== "manual_urls";
+  goproFields.hidden = mode !== "gopro";
+  goproPreviewUrlWrap.hidden = mode !== "gopro" || fields.previewMode.value !== "external_link";
+  updateProbeButtonLabel();
+}
+
+function updateProbeButtonLabel() {
+  probeButton.textContent = fields.mode.value === "gopro" ? "Test GoPro" : "Test Stream";
 }
 
 function updatePreviewPanel() {
@@ -155,6 +198,22 @@ function updatePreviewPanel() {
   resolvedPreviewNode.textContent = resolved.preview_url || "Preview unavailable";
   resolvedRecordNode.textContent = resolved.record_url || "--";
   updateRecordUrlWarning(resolved.record_url);
+
+  if (draft.mode === "gopro") {
+    if (draft.preview_mode === "external_link" && resolved.preview_url) {
+      previewNode.innerHTML = `
+        <div class="preview-link-state">
+          <p>GoPro preview opens externally for this configuration.</p>
+          <a class="control-button control-button--secondary table-link" href="${resolved.preview_url}" target="_blank" rel="noopener noreferrer">
+            Open Preview
+          </a>
+        </div>
+      `;
+    } else {
+      previewNode.innerHTML = '<div class="no-preview">Preview unavailable in-app for this GoPro configuration</div>';
+    }
+    return;
+  }
 
   if (resolved.preview_url) {
     previewNode.innerHTML = `<iframe title="Camera preview" src="${resolved.preview_url}" loading="lazy" allowfullscreen></iframe>`;
@@ -165,6 +224,10 @@ function updatePreviewPanel() {
 
 function updateRecordUrlWarning(recordUrl) {
   if (!recordUrlWarning) {
+    return false;
+  }
+  if (fields.mode.value !== "manual_urls") {
+    recordUrlWarning.hidden = true;
     return false;
   }
 
@@ -178,27 +241,46 @@ function resetProbeResult() {
   probeStatus.textContent = "--";
   probeError.hidden = true;
   probeError.textContent = "";
+  probeDetail1Label.textContent = "Codec";
+  probeDetail1Value.textContent = "--";
+  probeDetail2Label.textContent = "Resolution";
+  probeDetail2Value.textContent = "--";
+  probeDetail3Label.textContent = "Stream Type";
+  probeDetail3Value.textContent = "--";
   document.querySelector("#probe-reachable").textContent = "--";
-  document.querySelector("#probe-codec").textContent = "--";
-  document.querySelector("#probe-resolution").textContent = "--";
-  document.querySelector("#probe-stream-type").textContent = "--";
   probeDetailsWrap.hidden = true;
   probeDetailsWrap.open = false;
   probeDetails.textContent = "";
   probeCommand.textContent = "";
 }
 
-function updateProbeResult(result) {
-  probeSummary.textContent = result.message || (
-    result.reachable ? "ffprobe reached the stream." : "ffprobe could not verify the stream."
-  );
-  probeStatus.textContent = result.diagnostic_status || "--";
-  document.querySelector("#probe-reachable").textContent = result.reachable ? "yes" : "no";
-  document.querySelector("#probe-codec").textContent = result.codec || "--";
-  document.querySelector("#probe-resolution").textContent =
-    result.width && result.height ? `${result.width}x${result.height}` : "--";
-  document.querySelector("#probe-stream-type").textContent = result.stream_type || "--";
-  if (result.error && result.diagnostic_status !== "ok") {
+function updateProbeResult(result, mode) {
+  if (mode === "gopro") {
+    probeSummary.textContent = result.message || (result.reachable ? "GoPro reachable." : "GoPro unreachable.");
+    probeStatus.textContent = result.reachable ? "ok" : "error";
+    document.querySelector("#probe-reachable").textContent = result.reachable ? "yes" : "no";
+    probeDetail1Label.textContent = "HTTP Status";
+    probeDetail1Value.textContent = result.http_status || "--";
+    probeDetail2Label.textContent = "Battery";
+    probeDetail2Value.textContent = result.battery !== null && result.battery !== undefined ? String(result.battery) : "--";
+    probeDetail3Label.textContent = "Recording";
+    probeDetail3Value.textContent = result.recording === null || result.recording === undefined ? "--" : (result.recording ? "yes" : "no");
+  } else {
+    probeSummary.textContent = result.message || (
+      result.reachable ? "ffprobe reached the stream." : "ffprobe could not verify the stream."
+    );
+    probeStatus.textContent = result.diagnostic_status || "--";
+    document.querySelector("#probe-reachable").textContent = result.reachable ? "yes" : "no";
+    probeDetail1Label.textContent = "Codec";
+    probeDetail1Value.textContent = result.codec || "--";
+    probeDetail2Label.textContent = "Resolution";
+    probeDetail2Value.textContent =
+      result.width && result.height ? `${result.width}x${result.height}` : "--";
+    probeDetail3Label.textContent = "Stream Type";
+    probeDetail3Value.textContent = result.stream_type || "--";
+  }
+
+  if (result.error && (!(mode === "gopro") ? result.diagnostic_status !== "ok" : true)) {
     probeError.hidden = false;
     probeError.textContent = result.error;
   } else {
@@ -211,7 +293,10 @@ function updateProbeResult(result) {
     metaParts.push(`Command: ${result.command}`);
   }
 
-  const detailText = result.details || "";
+  const rawStatusDetails = result.raw_status && Object.keys(result.raw_status).length
+    ? JSON.stringify(result.raw_status, null, 2)
+    : "";
+  const detailText = result.details || rawStatusDetails || "";
   const hasDetails = Boolean(detailText || metaParts.length);
   probeDetailsWrap.hidden = !hasDetails;
   if (hasDetails) {
@@ -229,12 +314,16 @@ function renderCameraList() {
   listEmptyNode.hidden = cameras.length > 0;
 
   cameras.forEach((camera) => {
+    const detail = camera.mode === "gopro"
+      ? `GoPro host: ${camera.gopro_host || "--"}`
+      : `Output dir: ${camera.output_subdir}`;
     const row = document.createElement("article");
     row.className = "camera-list__item";
     row.innerHTML = `
       <div>
         <h3>${camera.name}</h3>
         <p>${camera.id}</p>
+        <p>${detail}</p>
       </div>
       <dl class="camera-list__meta">
         <div><dt>Enabled</dt><dd>${camera.enabled ? "yes" : "no"}</dd></div>
@@ -265,6 +354,12 @@ function beginNewCamera() {
   fields.streamName.value = "cam";
   fields.previewUrl.value = "";
   fields.recordUrl.value = "";
+  fields.goproHost.value = "";
+  fields.previewMode.value = "none";
+  fields.goproPreviewUrl.value = "";
+  fields.autoDownload.checked = true;
+  fields.downloadTimeoutSeconds.value = "120";
+  fields.fileWaitSeconds.value = "5";
   document.querySelector("#delete-camera-button").hidden = true;
   formError.hidden = true;
   formError.textContent = "";
@@ -290,6 +385,12 @@ function beginEditCamera(camera) {
   fields.streamName.value = camera.stream_name || "cam";
   fields.previewUrl.value = camera.preview_url || "";
   fields.recordUrl.value = camera.record_url || "";
+  fields.goproHost.value = camera.gopro_host || "";
+  fields.previewMode.value = camera.preview_mode || "none";
+  fields.goproPreviewUrl.value = camera.preview_url || "";
+  fields.autoDownload.checked = camera.auto_download_after_stop !== false;
+  fields.downloadTimeoutSeconds.value = String(camera.download_timeout_seconds || 120);
+  fields.fileWaitSeconds.value = String(camera.file_stabilization_wait_seconds || 5);
   document.querySelector("#delete-camera-button").hidden = false;
   formError.hidden = true;
   formError.textContent = "";
@@ -372,13 +473,15 @@ async function deleteCamera(cameraId) {
 
 async function probeCamera() {
   resetProbeResult();
-  updateRecordUrlWarning(resolveUrls(cameraPayload()).record_url);
+  const payload = cameraPayload();
+  updateRecordUrlWarning(resolveUrls(payload).record_url);
   try {
-    const payload = await fetchJson("/api/camera/probe", {
+    const url = payload.mode === "gopro" ? "/api/gopro/test" : "/api/camera/probe";
+    const result = await fetchJson(url, {
       method: "POST",
-      body: JSON.stringify(cameraPayload()),
+      body: JSON.stringify(payload),
     });
-    updateProbeResult(payload);
+    updateProbeResult(result, payload.mode);
   } catch (error) {
     probeError.hidden = false;
     probeError.textContent = error.message;
@@ -409,6 +512,12 @@ fields.outputSubdir.addEventListener("input", () => {
 fields.mode.addEventListener("change", () => {
   setModeVisibility();
   updatePreviewPanel();
+  resetProbeResult();
+});
+
+fields.previewMode.addEventListener("change", () => {
+  setModeVisibility();
+  updatePreviewPanel();
 });
 
 [
@@ -416,6 +525,8 @@ fields.mode.addEventListener("change", () => {
   fields.streamName,
   fields.previewUrl,
   fields.recordUrl,
+  fields.goproHost,
+  fields.goproPreviewUrl,
 ].forEach((field) => {
   field.addEventListener("input", updatePreviewPanel);
 });
@@ -428,7 +539,7 @@ document.querySelector("#delete-camera-button").addEventListener("click", () => 
     deleteCamera(editingCameraId);
   }
 });
-document.querySelector("#probe-camera-button").addEventListener("click", probeCamera);
+probeButton.addEventListener("click", probeCamera);
 
 listNode.addEventListener("click", (event) => {
   const target = event.target;
