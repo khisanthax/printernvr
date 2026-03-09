@@ -14,6 +14,7 @@ This repository currently includes:
 - Phase 3A camera management UI
 - Phase 4 clip browser
 - Phase 4B clip preview and bulk direct download
+- Phase 4C optional folder-targeted clip downloads
 - Phase 4A GoPro recorder support
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
@@ -331,6 +332,7 @@ Behavior:
 - clips can be filtered by camera
 - clips can be previewed inline in the browser through a dedicated preview endpoint
 - clips can be selected and bulk-downloaded as individual files from one user action
+- clips can optionally be saved into a user-selected folder when the browser supports the File System Access API
 - downloads stream the file directly from disk
 - delete removes only the selected local clip
 - active recording files cannot be deleted
@@ -339,6 +341,12 @@ Bulk download notes:
 - Printer NVR does not create ZIP archives for bulk clip download
 - the browser triggers one direct download per selected file
 - some browsers may ask permission before allowing multiple downloads
+
+Optional chosen-folder download notes:
+- this enhancement is client-side only and uses the browser File System Access API
+- it works only in supporting Chromium-based browsers and only in secure contexts such as HTTPS or localhost
+- when the browser allows it, the selected folder handle is restored from IndexedDB on later visits
+- if support, permission, or direct-save fails, Printer NVR falls back to the normal browser download flow
 
 Clip APIs operate only within the configured local recordings root and reject invalid paths.
 

@@ -1,3 +1,16 @@
+const HANDLE_DB_NAME = "printernvr-download-targets";
+const HANDLE_STORE_NAME = "handles";
+const HANDLE_KEY = "clips-download-folder";
+
+let currentClips = [];
+const selectedClipKeys = new Set();
+const downloadTargetState = {
+  supported: typeof window.showDirectoryPicker === "function" && window.isSecureContext,
+  persistenceSupported: typeof window.indexedDB !== "undefined",
+  folderHandle: null,
+  persistenceMode: "session-only",
+};
+
 function bySelector(selector) {
   return document.querySelector(selector);
 }
@@ -140,6 +153,98 @@ function createDownloadLink(cameraId, filename) {
   link.remove();
 }
 
+async function fetchClipBlob(cameraId, filename) {
+  const response = await fetch(downloadUrl(cameraId, filename));
+  if (!response.ok) {
+    throw new Error(`Download failed for ${filename}`);
+  }
+  return response.blob();
+}
+
+function splitFilename(filename) {
+  const lastDot = filename.lastIndexOf(".");
+  if (lastDot <= 0) {
+    return { base: filename, extension: "" };
+  }
+
+  return {
+    base: filename.slice(0, lastDot),
+    extension: filename.slice(lastDot),
+  };
+}
+
+async function resolveUniqueFilename(directoryHandle, filename) {
+  const { base, extension } = splitFilename(filename);
+  let attempt = 0;
+
+  while (true) {
+    const candidate = attempt === 0 ? filename : `${base} (${attempt})${extension}`;
+    try {
+      await directoryHandle.getFileHandle(candidate, { create: false });
+      attempt += 1;
+    } catch (error) {
+      if (error && error.name === "NotFoundError") {
+        return candidate;
+      }
+      throw error;
+    }
+  }
+}
+
+async function ensureDirectoryPermission(directoryHandle, requestWrite = false) {
+  if (!directoryHandle || typeof directoryHandle.queryPermission !== "function") {
+    return false;
+  }
+
+  const options = { mode: "readwrite" };
+  const current = await directoryHandle.queryPermission(options);
+  if (current === "granted") {
+    return true;
+  }
+
+  if (!requestWrite || typeof directoryHandle.requestPermission !== "function") {
+    return false;
+  }
+
+  const requested = await directoryHandle.requestPermission(options);
+  return requested === "granted";
+}
+
+function updateDownloadTargetUi() {
+  const statusNode = bySelector("#download-target-status");
+  const noteNode = bySelector("#download-target-note");
+  const selectButton = bySelector("#select-download-folder-button");
+  const clearButton = bySelector("#clear-download-folder-button");
+
+  if (!statusNode || !noteNode || !selectButton || !clearButton) {
+    return;
+  }
+
+  if (!downloadTargetState.supported) {
+    statusNode.textContent = "Using browser downloads.";
+    noteNode.textContent = "Direct folder save is available only in Chromium-based browsers on HTTPS or localhost.";
+    selectButton.disabled = true;
+    clearButton.disabled = true;
+    return;
+  }
+
+  selectButton.disabled = false;
+  clearButton.disabled = !downloadTargetState.folderHandle;
+
+  if (!downloadTargetState.folderHandle) {
+    statusNode.textContent = "Using browser downloads.";
+    noteNode.textContent = downloadTargetState.persistenceMode === "indexeddb"
+      ? "Select a folder to save downloads directly. Folder selection is restored when the browser keeps permission."
+      : "Select a folder to save downloads directly. If the browser does not allow persistence, the selection lasts for the current session.";
+    return;
+  }
+
+  statusNode.textContent = `Saving downloads to selected folder: ${downloadTargetState.folderHandle.name}`;
+  noteNode.textContent = downloadTargetState.persistenceMode === "indexeddb"
+    ? "Selected folder handle is stored in browser IndexedDB when the browser allows it."
+    : "Selected folder is active for this browser session only.";
+}
+
 function buildPreviewContent(clip) {
   const wrapper = document.createElement("div");
   wrapper.className = "clip-preview-panel";
@@ -247,6 +352,8 @@ function renderClips(clips) {
     const download = document.createElement("a");
     download.className = "control-button control-button--secondary table-link";
     download.href = downloadUrl(clip.camera_id, clip.filename);
+    download.dataset.downloadCameraId = clip.camera_id;
+    download.dataset.downloadFilename = clip.filename;
     download.textContent = "Download";
 
     const remove = document.createElement("button");
@@ -328,6 +435,241 @@ function togglePreview(cameraId, filename, button) {
   previewRow.hidden = true;
   button.textContent = "Preview";
   button.setAttribute("aria-expanded", "false");
+}
+
+function openHandleDb() {
+  return new Promise((resolve, reject) => {
+    if (!downloadTargetState.persistenceSupported) {
+      reject(new Error("IndexedDB unavailable"));
+      return;
+    }
+
+    const request = window.indexedDB.open(HANDLE_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(HANDLE_STORE_NAME)) {
+        db.createObjectStore(HANDLE_STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Unable to open IndexedDB"));
+  });
+}
+
+async function loadPersistedFolderHandle() {
+  if (!downloadTargetState.persistenceSupported) {
+    return null;
+  }
+
+  try {
+    const db = await openHandleDb();
+    const handle = await new Promise((resolve, reject) => {
+      const transaction = db.transaction(HANDLE_STORE_NAME, "readonly");
+      const store = transaction.objectStore(HANDLE_STORE_NAME);
+      const request = store.get(HANDLE_KEY);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error || new Error("Unable to read saved folder handle"));
+    });
+    db.close();
+    return handle;
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function persistFolderHandle(handle) {
+  if (!downloadTargetState.persistenceSupported) {
+    downloadTargetState.persistenceMode = "session-only";
+    return false;
+  }
+
+  try {
+    const db = await openHandleDb();
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction(HANDLE_STORE_NAME, "readwrite");
+      const store = transaction.objectStore(HANDLE_STORE_NAME);
+      const request = store.put(handle, HANDLE_KEY);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error || new Error("Unable to save folder handle"));
+    });
+    db.close();
+    downloadTargetState.persistenceMode = "indexeddb";
+    return true;
+  } catch (_error) {
+    downloadTargetState.persistenceMode = "session-only";
+    return false;
+  }
+}
+
+async function clearPersistedFolderHandle() {
+  if (!downloadTargetState.persistenceSupported) {
+    return;
+  }
+
+  try {
+    const db = await openHandleDb();
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction(HANDLE_STORE_NAME, "readwrite");
+      const store = transaction.objectStore(HANDLE_STORE_NAME);
+      const request = store.delete(HANDLE_KEY);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error || new Error("Unable to clear folder handle"));
+    });
+    db.close();
+  } catch (_error) {
+    // Keep browser-download fallback even if IndexedDB cleanup fails.
+  }
+}
+
+async function initializeDownloadTarget() {
+  updateDownloadTargetUi();
+  if (!downloadTargetState.supported) {
+    return;
+  }
+
+  const persistedHandle = await loadPersistedFolderHandle();
+  if (!persistedHandle) {
+    updateDownloadTargetUi();
+    return;
+  }
+
+  const hasPermission = await ensureDirectoryPermission(persistedHandle, false);
+  if (!hasPermission) {
+    await clearPersistedFolderHandle();
+    downloadTargetState.folderHandle = null;
+    downloadTargetState.persistenceMode = "session-only";
+    updateDownloadTargetUi();
+    return;
+  }
+
+  downloadTargetState.folderHandle = persistedHandle;
+  downloadTargetState.persistenceMode = "indexeddb";
+  updateDownloadTargetUi();
+}
+
+async function setDownloadFolder() {
+  if (!downloadTargetState.supported) {
+    updateFeedback("Direct folder save is not available in this browser. Using browser downloads instead.");
+    return;
+  }
+
+  let handle;
+  try {
+    handle = await window.showDirectoryPicker();
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      return;
+    }
+    throw error;
+  }
+  const granted = await ensureDirectoryPermission(handle, true);
+  if (!granted) {
+    downloadTargetState.folderHandle = null;
+    await clearPersistedFolderHandle();
+    updateDownloadTargetUi();
+    throw new Error("Folder access denied; using browser downloads.");
+  }
+
+  downloadTargetState.folderHandle = handle;
+  downloadTargetState.persistenceMode = "session-only";
+  await persistFolderHandle(handle);
+  updateDownloadTargetUi();
+}
+
+async function clearDownloadFolder() {
+  downloadTargetState.folderHandle = null;
+  downloadTargetState.persistenceMode = "session-only";
+  await clearPersistedFolderHandle();
+  updateDownloadTargetUi();
+}
+
+async function saveClipToSelectedFolder(cameraId, filename) {
+  const handle = downloadTargetState.folderHandle;
+  if (!downloadTargetState.supported || !handle) {
+    throw new Error("No selected folder available");
+  }
+
+  const hasPermission = await ensureDirectoryPermission(handle, true);
+  if (!hasPermission) {
+    downloadTargetState.folderHandle = null;
+    downloadTargetState.persistenceMode = "session-only";
+    await clearPersistedFolderHandle();
+    updateDownloadTargetUi();
+    throw new Error("Folder access denied; using browser downloads.");
+  }
+
+  const blob = await fetchClipBlob(cameraId, filename);
+  const safeFilename = await resolveUniqueFilename(handle, filename);
+  const fileHandle = await handle.getFileHandle(safeFilename, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+  return safeFilename;
+}
+
+async function trySaveClipToSelectedFolder(cameraId, filename) {
+  try {
+    const savedName = await saveClipToSelectedFolder(cameraId, filename);
+    return { saved: true, fallback: false, filename: savedName };
+  } catch (error) {
+    createDownloadLink(cameraId, filename);
+    return {
+      saved: false,
+      fallback: true,
+      error: error instanceof Error ? error.message : String(error),
+      filename,
+    };
+  }
+}
+
+async function handleSingleDownload(cameraId, filename) {
+  if (!downloadTargetState.folderHandle || !downloadTargetState.supported) {
+    createDownloadLink(cameraId, filename);
+    return;
+  }
+
+  const result = await trySaveClipToSelectedFolder(cameraId, filename);
+  if (result.saved) {
+    const name = result.filename === filename ? filename : `${filename} as ${result.filename}`;
+    updateFeedback(`Saved ${name} to the selected folder.`);
+    return;
+  }
+
+  updateFeedback(`${result.error || "Direct save failed"} Falling back to browser download for ${filename}.`, true);
+}
+
+async function handleBulkDownload(clips) {
+  if (!clips.length) {
+    updateFeedback("Select at least one clip to download.", true);
+    return;
+  }
+
+  if (!downloadTargetState.folderHandle || !downloadTargetState.supported) {
+    clips.forEach((clip) => {
+      createDownloadLink(clip.camera_id, clip.filename);
+    });
+    updateFeedback(`Started ${clips.length} download(s). Your browser may ask permission for multiple downloads.`);
+    return;
+  }
+
+  let savedCount = 0;
+  let fallbackCount = 0;
+
+  for (const clip of clips) {
+    const result = await trySaveClipToSelectedFolder(clip.camera_id, clip.filename);
+    if (result.saved) {
+      savedCount += 1;
+    } else {
+      fallbackCount += 1;
+    }
+  }
+
+  if (!fallbackCount) {
+    updateFeedback(`Saved ${savedCount} file(s) to the selected folder.`);
+    return;
+  }
+
+  updateFeedback(`Saved ${savedCount} of ${clips.length} file(s) to the selected folder. ${fallbackCount} file(s) fell back to browser downloads.`, true);
 }
 
 function bindFilters() {
@@ -415,17 +757,46 @@ function bindSelection() {
   }
 
   if (downloadSelectedButton) {
-    downloadSelectedButton.addEventListener("click", () => {
+    downloadSelectedButton.addEventListener("click", async () => {
       const clips = currentClips.filter((clip) => selectedClipKeys.has(clipKey(clip.camera_id, clip.filename)));
-      if (!clips.length) {
-        updateFeedback("Select at least one clip to download.", true);
-        return;
+      try {
+        await handleBulkDownload(clips);
+      } catch (error) {
+        updateFeedback(error.message, true);
       }
+    });
+  }
+}
 
-      clips.forEach((clip) => {
-        createDownloadLink(clip.camera_id, clip.filename);
-      });
-      updateFeedback(`Started ${clips.length} download(s). Your browser may ask permission for multiple downloads.`);
+function bindDownloadTargetControls() {
+  const selectButton = bySelector("#select-download-folder-button");
+  const clearButton = bySelector("#clear-download-folder-button");
+
+  if (selectButton) {
+    selectButton.addEventListener("click", async () => {
+      selectButton.disabled = true;
+      try {
+        await setDownloadFolder();
+        if (downloadTargetState.folderHandle) {
+          updateFeedback(`Using selected folder '${downloadTargetState.folderHandle.name}' for clip downloads.`);
+        }
+      } catch (error) {
+        updateFeedback(error.message, true);
+      } finally {
+        updateDownloadTargetUi();
+      }
+    });
+  }
+
+  if (clearButton) {
+    clearButton.addEventListener("click", async () => {
+      clearButton.disabled = true;
+      try {
+        await clearDownloadFolder();
+        updateFeedback("Selected folder cleared. Using browser downloads.");
+      } finally {
+        updateDownloadTargetUi();
+      }
     });
   }
 }
@@ -439,6 +810,21 @@ function bindTableActions() {
   tbody.addEventListener("click", async (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const downloadLink = target.closest("a[data-download-camera-id]");
+    if (downloadLink instanceof HTMLAnchorElement) {
+      if (!downloadTargetState.folderHandle || !downloadTargetState.supported) {
+        return;
+      }
+
+      event.preventDefault();
+      try {
+        await handleSingleDownload(downloadLink.dataset.downloadCameraId, downloadLink.dataset.downloadFilename);
+      } catch (error) {
+        updateFeedback(error.message, true);
+      }
       return;
     }
 
@@ -475,12 +861,17 @@ function bindTableActions() {
   });
 }
 
-let currentClips = [];
-const selectedClipKeys = new Set();
-
 bindFilters();
 bindSelection();
+bindDownloadTargetControls();
 bindTableActions();
-loadClips().catch((error) => {
-  updateFeedback(error.message, true);
-});
+initializeDownloadTarget()
+  .catch(() => {
+    downloadTargetState.folderHandle = null;
+    updateDownloadTargetUi();
+  })
+  .finally(() => {
+    loadClips().catch((error) => {
+      updateFeedback(error.message, true);
+    });
+  });

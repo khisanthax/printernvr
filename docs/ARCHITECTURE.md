@@ -166,6 +166,11 @@ GoPro v1 preview behavior:
 6. Download uses `GET /api/clips/download/{camera_id}/{filename}` with `FileResponse`.
 7. Manual delete uses `DELETE /api/clips/{camera_id}/{filename}` and is blocked for active recording outputs.
 8. Bulk direct download is handled client-side in `/clips` by iterating selected clip download URLs from one user action; the backend still validates each file request individually.
+9. Optional chosen-folder saves use the browser File System Access API entirely client-side:
+- the browser prompts the user to choose a directory
+- the frontend may persist the directory handle in IndexedDB when the browser allows it
+- the backend never receives local filesystem path data
+- if folder save is unavailable or fails, the UI falls back to the existing per-file browser download flow
 
 Clip browser safety rules:
 - only paths under the local recordings root are allowed
@@ -175,6 +180,7 @@ Clip browser safety rules:
 - missing files return a clean error instead of crashing the app
 - clip preview uses a separate inline-serving endpoint instead of changing the attachment behavior of the download route
 - bulk clip download does not generate ZIP archives or background jobs
+- chosen-folder saves are a browser-only enhancement and require File System Access API support in a secure context
 
 ## Retention Flow
 

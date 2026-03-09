@@ -209,3 +209,19 @@ Impact:
 - `/clips` now supports inline preview and one-click multi-download from a single user action.
 - Browsers may still prompt for permission before allowing multiple downloads.
 - Existing single download and delete semantics remain unchanged.
+
+## 2026-03-09 - Keep Optional Folder-Targeted Downloads Client-Side Only
+
+Decision:
+- Add optional chosen-folder clip downloads through the browser File System Access API.
+- Keep folder-handle storage in the browser only.
+- Fall back to normal browser downloads whenever support, permission, or direct-save fails.
+
+Why:
+- The feature should improve usability without changing the backend security model or adding server-side path awareness.
+- Browser APIs already enforce the correct user-granted permission boundary.
+
+Impact:
+- `/clips` can save directly into a user-selected folder in supporting browsers.
+- No backend local-path tracking, no database storage, and no ZIP packaging were added.
+- Folder-handle persistence is browser-dependent and remains optional.
