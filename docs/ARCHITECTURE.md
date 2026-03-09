@@ -18,7 +18,7 @@ GoPro devices are a separate recorder class controlled over their HTTP API, but 
 - GoPro HTTP service and in-process recording manager
 - Local recordings retention manager
 - Config-backed camera management UI
-- Filesystem-based clip browser and download/delete API
+- Filesystem-based clip browser and preview/download/delete API
 
 ## Current Module Layout
 
@@ -41,7 +41,7 @@ GoPro devices are a separate recorder class controlled over their HTTP API, but 
 - `app/api/status.py`: legacy runtime status API
 - `app/api/record.py`: recording start, stop, and status API
 - `app/api/storage.py`: storage status and manual cleanup API
-- `app/api/clips.py`: clip list, download, and delete API
+- `app/api/clips.py`: clip list, preview, download, and delete API
 
 ## Configuration Model
 
@@ -162,8 +162,10 @@ GoPro v1 preview behavior:
 - filesystem timestamp
 - size
 - active/in-use state
-5. Download uses `GET /api/clips/download/{camera_id}/{filename}` with `FileResponse`.
-6. Manual delete uses `DELETE /api/clips/{camera_id}/{filename}` and is blocked for active recording outputs.
+5. Inline preview uses `GET /api/clips/preview/{camera_id}/{filename}` with safe file resolution and browser-friendly media type handling.
+6. Download uses `GET /api/clips/download/{camera_id}/{filename}` with `FileResponse`.
+7. Manual delete uses `DELETE /api/clips/{camera_id}/{filename}` and is blocked for active recording outputs.
+8. Bulk direct download is handled client-side in `/clips` by iterating selected clip download URLs from one user action; the backend still validates each file request individually.
 
 Clip browser safety rules:
 - only paths under the local recordings root are allowed
@@ -171,6 +173,8 @@ Clip browser safety rules:
 - path traversal is rejected
 - active files are never deleted
 - missing files return a clean error instead of crashing the app
+- clip preview uses a separate inline-serving endpoint instead of changing the attachment behavior of the download route
+- bulk clip download does not generate ZIP archives or background jobs
 
 ## Retention Flow
 

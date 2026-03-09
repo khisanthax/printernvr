@@ -193,3 +193,19 @@ Impact:
 - Shared runtime state and `/api/record` dispatch now cover both ffmpeg and GoPro backends.
 - GoPro clips still land in the same local recordings tree and appear in the existing clip browser.
 - Preview support for GoPro remains best-effort and external-link based in v1.
+
+## 2026-03-09 - Keep Bulk Clip Download Client-Side and Per-File
+
+Decision:
+- Add clip preview through a dedicated inline-serving endpoint.
+- Implement bulk clip download in the browser by triggering the existing per-file download endpoint for each selected clip.
+- Do not add ZIP packaging.
+
+Why:
+- The project should stay filesystem-based and operationally simple.
+- Per-file downloads preserve the current secure path validation model and avoid adding archive generation work on the server.
+
+Impact:
+- `/clips` now supports inline preview and one-click multi-download from a single user action.
+- Browsers may still prompt for permission before allowing multiple downloads.
+- Existing single download and delete semantics remain unchanged.

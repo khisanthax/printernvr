@@ -43,6 +43,10 @@ function downloadUrl(cameraId, filename) {
   return `/api/clips/download/${encodeURIComponent(cameraId)}/${encodeURIComponent(filename)}`;
 }
 
+function previewUrl(cameraId, filename) {
+  return `/api/clips/preview/${encodeURIComponent(cameraId)}/${encodeURIComponent(filename)}`;
+}
+
 function deleteUrl(cameraId, filename) {
   return `/api/clips/${encodeURIComponent(cameraId)}/${encodeURIComponent(filename)}`;
 }
@@ -90,6 +94,79 @@ function populateFilter(clips) {
   select.value = current;
 }
 
+function buildCell(label, value) {
+  const cell = document.createElement("td");
+  cell.dataset.label = label;
+  cell.textContent = value;
+  return cell;
+}
+
+function clipKey(cameraId, filename) {
+  return `${cameraId}::${filename}`;
+}
+
+function getVisibleSelectedKeys() {
+  return currentClips
+    .map((clip) => clipKey(clip.camera_id, clip.filename))
+    .filter((key) => selectedClipKeys.has(key));
+}
+
+function updateSelectionUi() {
+  const selectedCount = getVisibleSelectedKeys().length;
+  const countLabel = bySelector("#clips-selected-count");
+  const downloadButton = bySelector("#download-selected-button");
+  const clearButton = bySelector("#clear-selection-button");
+
+  if (countLabel) {
+    countLabel.textContent = `${selectedCount} selected`;
+  }
+
+  if (downloadButton) {
+    downloadButton.disabled = selectedCount === 0;
+  }
+
+  if (clearButton) {
+    clearButton.disabled = selectedCount === 0;
+  }
+}
+
+function createDownloadLink(cameraId, filename) {
+  const link = document.createElement("a");
+  link.href = downloadUrl(cameraId, filename);
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function buildPreviewContent(clip) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "clip-preview-panel";
+
+  const meta = document.createElement("div");
+  meta.className = "clip-preview-panel__meta";
+  meta.textContent = `Previewing ${clip.filename}`;
+
+  const video = document.createElement("video");
+  video.className = "clip-preview-player";
+  video.controls = true;
+  video.preload = "metadata";
+  video.src = previewUrl(clip.camera_id, clip.filename);
+
+  const error = document.createElement("p");
+  error.className = "clip-preview-error";
+  error.textContent = "Preview unavailable for this clip.";
+  error.hidden = true;
+
+  video.addEventListener("error", () => {
+    error.hidden = false;
+  });
+
+  wrapper.append(meta, video, error);
+  return wrapper;
+}
+
 function renderClips(clips) {
   const empty = bySelector("#clips-empty");
   const tableWrap = bySelector("#clips-table-wrap");
@@ -98,10 +175,14 @@ function renderClips(clips) {
     return;
   }
 
+  currentClips = clips;
+  selectedClipKeys.clear();
   tbody.innerHTML = "";
+
   if (!clips.length) {
     empty.hidden = false;
     tableWrap.hidden = true;
+    updateSelectionUi();
     return;
   }
 
@@ -109,7 +190,21 @@ function renderClips(clips) {
   tableWrap.hidden = false;
 
   clips.forEach((clip) => {
+    const key = clipKey(clip.camera_id, clip.filename);
     const row = document.createElement("tr");
+    row.className = "clip-row";
+    row.dataset.clipKey = key;
+
+    const selectCell = document.createElement("td");
+    selectCell.dataset.label = "Select";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "clip-select-checkbox";
+    checkbox.dataset.clipKey = key;
+    checkbox.dataset.cameraId = clip.camera_id;
+    checkbox.dataset.filename = clip.filename;
+    selectCell.appendChild(checkbox);
+    row.appendChild(selectCell);
 
     row.appendChild(buildCell("Camera", clip.camera_id));
 
@@ -142,6 +237,13 @@ function renderClips(clips) {
     const actions = document.createElement("div");
     actions.className = "table-actions";
 
+    const previewButton = document.createElement("button");
+    previewButton.type = "button";
+    previewButton.className = "control-button control-button--secondary";
+    previewButton.dataset.previewCameraId = clip.camera_id;
+    previewButton.dataset.previewFilename = clip.filename;
+    previewButton.textContent = "Preview";
+
     const download = document.createElement("a");
     download.className = "control-button control-button--secondary table-link";
     download.href = downloadUrl(clip.camera_id, clip.filename);
@@ -155,19 +257,25 @@ function renderClips(clips) {
     remove.textContent = "Delete";
     remove.disabled = clip.active;
 
-    actions.append(download, remove);
+    actions.append(previewButton, download, remove);
     actionsCell.appendChild(actions);
     row.appendChild(actionsCell);
 
-    tbody.appendChild(row);
-  });
-}
+    const previewRow = document.createElement("tr");
+    previewRow.className = "clip-preview-row";
+    previewRow.dataset.previewKey = key;
+    previewRow.hidden = true;
 
-function buildCell(label, value) {
-  const cell = document.createElement("td");
-  cell.dataset.label = label;
-  cell.textContent = value;
-  return cell;
+    const previewCell = document.createElement("td");
+    previewCell.colSpan = 7;
+    previewCell.dataset.label = "Preview";
+    previewCell.className = "clip-preview-row__cell";
+    previewRow.appendChild(previewCell);
+
+    tbody.append(row, previewRow);
+  });
+
+  updateSelectionUi();
 }
 
 async function loadClips() {
@@ -188,6 +296,38 @@ async function deleteClip(cameraId, filename) {
   await fetchJson(deleteUrl(cameraId, filename), {
     method: "DELETE",
   });
+}
+
+function togglePreview(cameraId, filename, button) {
+  const key = clipKey(cameraId, filename);
+  const previewRow = document.querySelector(`.clip-preview-row[data-preview-key="${CSS.escape(key)}"]`);
+  if (!previewRow) {
+    return;
+  }
+
+  const previewCell = previewRow.querySelector("td");
+  if (!previewCell) {
+    return;
+  }
+
+  if (previewRow.hidden) {
+    if (!previewCell.dataset.loaded) {
+      const clip = currentClips.find((item) => item.camera_id === cameraId && item.filename === filename);
+      if (!clip) {
+        return;
+      }
+      previewCell.appendChild(buildPreviewContent(clip));
+      previewCell.dataset.loaded = "true";
+    }
+    previewRow.hidden = false;
+    button.textContent = "Hide Preview";
+    button.setAttribute("aria-expanded", "true");
+    return;
+  }
+
+  previewRow.hidden = true;
+  button.textContent = "Preview";
+  button.setAttribute("aria-expanded", "false");
 }
 
 function bindFilters() {
@@ -220,7 +360,77 @@ function bindFilters() {
   }
 }
 
-function bindDeletes() {
+function bindSelection() {
+  const tbody = bySelector("#clips-table-body");
+  const selectAllButton = bySelector("#select-all-clips-button");
+  const clearButton = bySelector("#clear-selection-button");
+  const downloadSelectedButton = bySelector("#download-selected-button");
+
+  if (tbody) {
+    tbody.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement) || !target.classList.contains("clip-select-checkbox")) {
+        return;
+      }
+
+      const key = target.dataset.clipKey;
+      if (!key) {
+        return;
+      }
+
+      if (target.checked) {
+        selectedClipKeys.add(key);
+      } else {
+        selectedClipKeys.delete(key);
+      }
+      updateSelectionUi();
+    });
+  }
+
+  if (selectAllButton) {
+    selectAllButton.addEventListener("click", () => {
+      document.querySelectorAll(".clip-select-checkbox").forEach((node) => {
+        if (!(node instanceof HTMLInputElement)) {
+          return;
+        }
+        node.checked = true;
+        if (node.dataset.clipKey) {
+          selectedClipKeys.add(node.dataset.clipKey);
+        }
+      });
+      updateSelectionUi();
+    });
+  }
+
+  if (clearButton) {
+    clearButton.addEventListener("click", () => {
+      selectedClipKeys.clear();
+      document.querySelectorAll(".clip-select-checkbox").forEach((node) => {
+        if (node instanceof HTMLInputElement) {
+          node.checked = false;
+        }
+      });
+      updateSelectionUi();
+    });
+  }
+
+  if (downloadSelectedButton) {
+    downloadSelectedButton.addEventListener("click", () => {
+      const clips = currentClips.filter((clip) => selectedClipKeys.has(clipKey(clip.camera_id, clip.filename)));
+      if (!clips.length) {
+        updateFeedback("Select at least one clip to download.", true);
+        return;
+      }
+
+      clips.forEach((clip) => {
+        createDownloadLink(clip.camera_id, clip.filename);
+      });
+      updateFeedback(`Started ${clips.length} download(s). Your browser may ask permission for multiple downloads.`);
+    });
+  }
+}
+
+function bindTableActions() {
   const tbody = bySelector("#clips-table-body");
   if (!tbody) {
     return;
@@ -228,6 +438,15 @@ function bindDeletes() {
 
   tbody.addEventListener("click", async (event) => {
     const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    if (target instanceof HTMLButtonElement && target.dataset.previewCameraId && target.dataset.previewFilename) {
+      togglePreview(target.dataset.previewCameraId, target.dataset.previewFilename, target);
+      return;
+    }
+
     if (!(target instanceof HTMLButtonElement)) {
       return;
     }
@@ -246,6 +465,7 @@ function bindDeletes() {
     target.disabled = true;
     try {
       await deleteClip(cameraId, filename);
+      selectedClipKeys.delete(clipKey(cameraId, filename));
       updateFeedback(`Deleted ${filename}.`);
       await loadClips();
     } catch (error) {
@@ -255,8 +475,12 @@ function bindDeletes() {
   });
 }
 
+let currentClips = [];
+const selectedClipKeys = new Set();
+
 bindFilters();
-bindDeletes();
+bindSelection();
+bindTableActions();
 loadClips().catch((error) => {
   updateFeedback(error.message, true);
 });

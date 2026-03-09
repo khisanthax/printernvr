@@ -31,7 +31,21 @@
             {% endfor %}
           </select>
         </label>
-        <button type="button" id="refresh-clips-button" class="control-button control-button--secondary">Refresh</button>
+        <div class="table-actions">
+          <button type="button" id="refresh-clips-button" class="control-button control-button--secondary">Refresh</button>
+        </div>
+      </div>
+
+      <div class="clips-bulk-actions">
+        <div class="table-actions">
+          <button type="button" id="select-all-clips-button" class="control-button control-button--secondary">Select All</button>
+          <button type="button" id="clear-selection-button" class="control-button control-button--secondary">Clear Selection</button>
+          <button type="button" id="download-selected-button" class="control-button" disabled>Download Selected</button>
+        </div>
+        <div class="clips-bulk-actions__meta">
+          <strong id="clips-selected-count">0 selected</strong>
+          <span>Your browser may ask permission for multiple downloads.</span>
+        </div>
       </div>
 
       <p id="clips-feedback" class="storage-summary" hidden></p>
@@ -45,6 +59,7 @@
         <table class="clips-table">
           <thead>
             <tr>
+              <th scope="col">Select</th>
               <th scope="col">Camera</th>
               <th scope="col">Filename</th>
               <th scope="col">Created</th>

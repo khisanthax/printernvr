@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import mimetypes
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -27,6 +28,21 @@ def get_clips(
 
 @router.get("/download/{camera_id}/{filename}")
 def download_clip(camera_id: str, filename: str, request: Request) -> FileResponse:
+    clip_path = _resolve_clip_path(camera_id, filename, request)
+    return FileResponse(
+        path=clip_path,
+        filename=clip_path.name,
+        media_type=_guess_media_type(clip_path),
+    )
+
+
+@router.get("/preview/{camera_id}/{filename}")
+def preview_clip(camera_id: str, filename: str, request: Request) -> FileResponse:
+    clip_path = _resolve_clip_path(camera_id, filename, request)
+    return FileResponse(path=clip_path, media_type=_guess_media_type(clip_path))
+
+
+def _resolve_clip_path(camera_id: str, filename: str, request: Request) -> Path:
     clip_store = request.app.state.clip_store
     cameras = request.app.state.cameras
 
@@ -38,7 +54,7 @@ def download_clip(camera_id: str, filename: str, request: Request) -> FileRespon
     if not clip_path.exists() or not clip_path.is_file():
         raise HTTPException(status_code=404, detail="Clip not found")
 
-    return FileResponse(path=clip_path, filename=clip_path.name, media_type="video/mp4")
+    return clip_path
 
 
 @router.delete("/{camera_id}/{filename}")
@@ -77,3 +93,8 @@ def delete_clip(camera_id: str, filename: str, request: Request) -> dict:
             Path(request.app.state.settings["recordings_dir"]).resolve(strict=False)
         ).as_posix(),
     }
+
+
+def _guess_media_type(clip_path: Path) -> str:
+    media_type, _encoding = mimetypes.guess_type(clip_path.name)
+    return media_type or "application/octet-stream"

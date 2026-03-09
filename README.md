@@ -13,6 +13,7 @@ This repository currently includes:
 - Phase 3 recording controls UI
 - Phase 3A camera management UI
 - Phase 4 clip browser
+- Phase 4B clip preview and bulk direct download
 - Phase 4A GoPro recorder support
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
@@ -328,9 +329,16 @@ The `/clips` page scans the local recordings directory directly and shows:
 Behavior:
 - newest clips are shown first
 - clips can be filtered by camera
+- clips can be previewed inline in the browser through a dedicated preview endpoint
+- clips can be selected and bulk-downloaded as individual files from one user action
 - downloads stream the file directly from disk
 - delete removes only the selected local clip
 - active recording files cannot be deleted
+
+Bulk download notes:
+- Printer NVR does not create ZIP archives for bulk clip download
+- the browser triggers one direct download per selected file
+- some browsers may ask permission before allowing multiple downloads
 
 Clip APIs operate only within the configured local recordings root and reject invalid paths.
 
@@ -355,6 +363,7 @@ Clip APIs operate only within the configured local recordings root and reject in
 - `GET /api/storage/status`
 - `POST /api/storage/cleanup`
 - `GET /api/clips`
+- `GET /api/clips/preview/{camera_id}/{filename}`
 - `GET /api/clips/download/{camera_id}/{filename}`
 - `DELETE /api/clips/{camera_id}/{filename}`
 

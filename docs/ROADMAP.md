@@ -262,6 +262,25 @@ Deliverables:
 - Download endpoint
 - Manual clip deletion with active-file protection
 
+### Phase 4B - Clip Preview and Bulk Direct Download [x]
+
+Goals:
+- Preview clips inline in the browser before downloading
+- Support selecting multiple clips from the current clip list
+- Trigger one-click bulk direct download of selected clips as individual files
+
+Tasks:
+- Add clip preview endpoint for inline playback
+- Add per-clip preview toggle in `/clips`
+- Add checkbox selection UI with select-all and clear actions
+- Add client-side bulk direct download behavior without ZIP packaging
+
+Deliverables:
+- Inline clip preview on `/clips`
+- Multi-select clip actions
+- One-click bulk direct download as separate files
+- Existing single download and delete actions preserved
+
 ### Phase 4A - GoPro Recorder Support [x]
 
 Goals:
@@ -357,6 +376,7 @@ Completed:
 - Phase 3 recording UI controls
 - Phase 3A camera management UI
 - Phase 4 clip management
+- Phase 4B clip preview and bulk direct download
 - Phase 4A GoPro recorder support
 - Phase 6 retention and storage protection
 
@@ -380,7 +400,9 @@ Implemented highlights:
 - Config-backed camera management UI with live preview/external preview and mode-aware testing
 - Expanded ffmpeg and ffprobe diagnostics surfaced in the dashboard and camera management UI
 - Filesystem-based clip browser with camera filter, download, and manual delete
-- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `POST /api/gopro/test`, `GET /api/gopro/{camera_id}/status`, `POST /api/gopro/{camera_id}/record_for`, `POST /api/gopro/{camera_id}/download_latest`, `GET /api/gopro/{camera_id}/preview`, `GET /api/gopro/{camera_id}/media`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /cameras`, `GET /clips`
+- Inline clip preview endpoint and browser preview player on `/clips`
+- Client-side bulk direct download of selected clips as individual files with no ZIP packaging
+- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `POST /api/gopro/test`, `GET /api/gopro/{camera_id}/status`, `POST /api/gopro/{camera_id}/record_for`, `POST /api/gopro/{camera_id}/download_latest`, `GET /api/gopro/{camera_id}/preview`, `GET /api/gopro/{camera_id}/media`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /cameras`, `GET /clips`
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip
 - GoPro camera cards with start/stop, Record 30s, Download Latest, and external preview fallback
 - Empty dashboard state when no cameras are configured
