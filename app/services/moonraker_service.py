@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 import httpx
@@ -22,6 +22,8 @@ class MoonrakerService:
         if not moonraker_url:
             return PrinterStatusSnapshot()
 
+        attempted_at = datetime.now(timezone.utc)
+
         try:
             request_url = _query_url(moonraker_url)
             response = self._client.get(request_url)
@@ -33,7 +35,10 @@ class MoonrakerService:
             return PrinterStatusSnapshot(
                 connection_state="offline",
                 printer_status_text="Offline",
+                monitor_state="offline",
                 error_message=str(exc),
+                has_metadata_source=True,
+                last_metadata_attempt_at=attempted_at,
             )
 
         status_payload = payload.get("result", {}).get("status", {})
@@ -41,6 +46,11 @@ class MoonrakerService:
             return PrinterStatusSnapshot(
                 connection_state="online",
                 printer_status_text="Status unavailable",
+                monitor_state="unavailable",
+                has_metadata_source=True,
+                metadata_available=True,
+                last_metadata_attempt_at=attempted_at,
+                last_metadata_success_at=attempted_at,
             )
 
         print_stats = _as_dict(status_payload.get("print_stats"))
@@ -73,6 +83,7 @@ class MoonrakerService:
         return PrinterStatusSnapshot(
             connection_state="online",
             printer_status_text=printer_status_text,
+            monitor_state=_monitor_state(state),
             current_file_name=filename,
             progress_percent=progress_percent,
             extruder_current_temp=_as_number(extruder.get("temperature")),
@@ -80,6 +91,10 @@ class MoonrakerService:
             bed_current_temp=_as_number(heater_bed.get("temperature")),
             bed_target_temp=_as_number(heater_bed.get("target")),
             eta_text=eta_text,
+            has_metadata_source=True,
+            metadata_available=True,
+            last_metadata_attempt_at=attempted_at,
+            last_metadata_success_at=attempted_at,
         )
 
 
@@ -126,6 +141,19 @@ def _normalize_state_text(state: str) -> str:
         "error": "Error",
     }
     return mapping.get(state, "Status unavailable")
+
+
+def _monitor_state(state: str) -> str:
+    mapping = {
+        "printing": "printing",
+        "paused": "paused",
+        "complete": "complete",
+        "standby": "idle",
+        "ready": "idle",
+        "cancelled": "complete",
+        "error": "error",
+    }
+    return mapping.get(state, "unavailable")
 
 
 def _format_eta(seconds: float) -> str:

@@ -18,6 +18,7 @@ This repository currently includes:
 - Phase 4A GoPro recorder support
 - Phase 8 live multi-printer dashboard
 - Phase 8.1 per-printer camera view selector
+- Phase 8.2 printer dashboard monitoring polish
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -380,11 +381,14 @@ Current behavior:
 - one default camera/view per printer
 - per-printer view selector when multiple camera previews exist
 - large preview area
+- enlarged modal preview for the currently selected view
 - printer details shown below the preview
 - top checkbox row for showing or hiding printer cards
 - visibility persisted in browser `localStorage`
 - selected view persisted per printer in browser `localStorage`
 - optional Moonraker polling for printer status/details
+- printer-state badges and per-card freshness text
+- page-level and per-card status refresh buttons
 
 View selection behavior:
 - the backend still computes the default live camera using `default_live_view`, enabled state, preview availability, and `display_order`
@@ -403,6 +407,12 @@ If Moonraker is not configured or unavailable:
 - the card still renders
 - preview still works when configured
 - status fields fall back to placeholders
+- freshness text falls back to `No metadata source` or `Waiting for successful refresh`
+
+Monitoring polish notes:
+- enlarged preview uses a lightweight modal overlay; it does not replace the card grid
+- status badges are normalized to `Printing`, `Idle`, `Complete`, `Paused`, `Error`, `Offline`, or `Status unavailable`
+- preview-unavailable and offline states are handled per card and do not affect other printers
 
 ## API Endpoints
 

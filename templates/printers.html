@@ -27,6 +27,7 @@
         <p class="printer-toolbar__note">Choose which printer cards stay on screen. Visibility is stored in your browser.</p>
       </div>
       <div class="table-actions">
+        <button type="button" id="printers-refresh-all" class="control-button control-button--secondary">Refresh Status</button>
         <button type="button" id="printers-select-all" class="control-button control-button--secondary">Select All</button>
         <button type="button" id="printers-clear-all" class="control-button control-button--secondary">Clear All</button>
       </div>
@@ -52,7 +53,10 @@
         class="printer-card"
         data-printer-card="{{ printer.printer_id }}"
         data-printer-name="{{ printer.printer_name }}"
-        data-default-camera-id="{{ printer.default_camera_id or '' }}">
+        data-default-camera-id="{{ printer.default_camera_id or '' }}"
+        data-has-metadata-source="{{ 'true' if printer.has_metadata_source else 'false' }}"
+        data-last-metadata-attempt-at="{{ printer.last_metadata_attempt_at or '' }}"
+        data-last-metadata-success-at="{{ printer.last_metadata_success_at or '' }}">
         <header class="printer-card__header">
           <div class="printer-card__header-main">
             <h2>{{ printer.printer_name }}</h2>
@@ -79,6 +83,20 @@
               </select>
             </label>
             {% endif %}
+            <div class="printer-card__header-actions">
+              <button
+                type="button"
+                class="control-button control-button--secondary control-button--compact"
+                data-printer-open-preview="{{ printer.printer_id }}">
+                Enlarge
+              </button>
+              <button
+                type="button"
+                class="control-button control-button--secondary control-button--compact"
+                data-printer-refresh="{{ printer.printer_id }}">
+                Refresh
+              </button>
+            </div>
             <span class="printer-state-badge printer-state-badge--{{ printer.connection_state }}" data-printer-connection="{{ printer.printer_id }}">
               {{ printer.connection_state|capitalize }}
             </span>
@@ -88,7 +106,10 @@
         <div
           class="printer-card__preview"
           data-printer-preview="{{ printer.printer_id }}"
-          data-current-camera-id="{{ printer.default_camera_id or '' }}">
+          data-current-camera-id="{{ printer.default_camera_id or '' }}"
+          data-preview-url="{{ printer.preview_url or '' }}"
+          data-preview-mode="{{ printer.preview_mode }}"
+          data-preview-available="{{ 'true' if printer.preview_available else 'false' }}">
           {% if printer.preview_mode == "embedded" and printer.preview_url %}
           <iframe
             title="{{ printer.printer_name }} live view"
@@ -112,7 +133,9 @@
           <dl class="printer-stats">
             <div>
               <dt>Status</dt>
-              <dd data-printer-status-text="{{ printer.printer_id }}">{{ printer.printer_status_text }}</dd>
+              <dd>
+                <span class="printer-status-pill printer-status-pill--{{ printer.monitor_state }}" data-printer-status-badge="{{ printer.printer_id }}">{{ printer.printer_status_text }}</span>
+              </dd>
             </div>
             <div>
               <dt>File</dt>
@@ -149,6 +172,15 @@
           </dl>
 
           <div class="printer-card__footer">
+            <span data-printer-updated-text="{{ printer.printer_id }}">
+              {% if printer.last_metadata_success_at %}
+              Updated just now
+              {% elif printer.has_metadata_source %}
+              Waiting for successful refresh
+              {% else %}
+              No metadata source
+              {% endif %}
+            </span>
             <span>Default view: {{ printer.default_camera_name or printer.default_camera_id or "--" }}</span>
             <span>{{ printer.available_camera_count }} configured view{% if printer.available_camera_count != 1 %}s{% endif %}</span>
           </div>
@@ -164,6 +196,21 @@
     </section>
     {% endif %}
   </main>
+
+  <dialog id="printer-preview-modal" class="printer-preview-modal">
+    <div class="printer-preview-modal__content">
+      <header class="printer-preview-modal__header">
+        <div>
+          <h2 id="printer-preview-modal-title">Printer Preview</h2>
+          <p id="printer-preview-modal-view">Current view</p>
+        </div>
+        <button type="button" id="printer-preview-modal-close" class="control-button control-button--secondary">Close</button>
+      </header>
+      <div id="printer-preview-modal-body" class="printer-preview-modal__body">
+        <div class="no-preview">Preview unavailable</div>
+      </div>
+    </div>
+  </dialog>
 
   <script src="/static/printers.js"></script>
 </body>

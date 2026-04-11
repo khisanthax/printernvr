@@ -257,3 +257,18 @@ Impact:
 - `GET /api/printers/cards` now exposes selector-ready `available_views` data per printer card.
 - The frontend swaps only the selected card preview without changing printer-level Moonraker metadata.
 - If camera config changes invalidate a stored selection, the dashboard falls back cleanly to the backend default camera.
+
+## 2026-04-11 - Keep Printer Monitoring Polish Polling-Based and Card-Local
+
+Decision:
+- Add enlarged preview, state badges, freshness text, and manual refresh controls to `/printers`.
+- Reuse the existing polling endpoint and keep the implementation card-local and browser-driven.
+
+Why:
+- The live dashboard needs better monitoring ergonomics, but the project still needs to avoid websocket infrastructure, a database, or a SPA rewrite.
+- Card-local degraded states ensure one broken printer or preview does not affect the rest of the monitoring grid.
+
+Impact:
+- `/printers` now provides a modal enlarged-view experience without replacing the card grid.
+- Printer status is normalized into a small badge vocabulary for clearer scanning.
+- Metadata freshness is shown from Moonraker polling timestamps, while printers without metadata sources stay readable with explicit fallback text.

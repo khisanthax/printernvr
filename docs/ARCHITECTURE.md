@@ -117,8 +117,11 @@ Retention config:
 - progress
 - extruder and bed temperatures
 - ETA
-10. If a printer has `moonraker_url`, `MoonrakerService` queries it directly for status data.
-11. If Moonraker is unavailable or not configured, the card still renders with:
+10. The page also tracks per-card metadata freshness from Moonraker responses and renders relative text such as `Updated just now` or `Stale`.
+11. Manual refresh remains lightweight and reuses the same polling endpoint rather than introducing websockets or a separate real-time channel.
+12. Enlarged preview uses a client-side modal overlay that reuses the currently selected view for the clicked printer card.
+13. If a printer has `moonraker_url`, `MoonrakerService` queries it directly for status data.
+14. If Moonraker is unavailable or not configured, the card still renders with:
 - printer name
 - selected preview
 - placeholder status details
@@ -127,6 +130,7 @@ Current phase limits:
 - one active preview shown per printer card at a time
 - selector state is browser-local and not stored in config
 - multi-preview layouts and explicit per-view config preferences are intentionally deferred to a follow-up phase
+- polling-based status refresh remains intentionally simple; no websocket or push-based monitoring path was added
 
 ## Recording Flow
 

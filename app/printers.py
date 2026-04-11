@@ -37,6 +37,7 @@ def build_printer_cards(
                 preview_available=preview_available,
                 connection_state=status.connection_state,
                 printer_status_text=status.printer_status_text,
+                monitor_state=status.monitor_state,
                 current_file_name=status.current_file_name,
                 progress_percent=status.progress_percent,
                 extruder_current_temp=status.extruder_current_temp,
@@ -48,6 +49,10 @@ def build_printer_cards(
                 available_camera_count=len(grouped_cameras),
                 available_views=available_views,
                 moonraker_url=status_camera.moonraker_url,
+                has_metadata_source=status.has_metadata_source,
+                metadata_available=status.metadata_available,
+                last_metadata_attempt_at=status.last_metadata_attempt_at,
+                last_metadata_success_at=status.last_metadata_success_at,
                 display_order=primary.display_order,
                 error_message=status.error_message,
             )

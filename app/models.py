@@ -18,6 +18,7 @@ CameraStatus = Literal["idle", "starting", "recording", "stopping", "downloading
 CameraAction = Literal["idle", "starting", "recording", "stopping", "downloading", "error"]
 PrinterConnectionState = Literal["online", "offline", "unknown"]
 PrinterPreviewMode = Literal["embedded", "external_link", "none"]
+PrinterMonitorState = Literal["printing", "idle", "complete", "paused", "error", "offline", "unavailable"]
 
 
 class CameraConfigInput(BaseModel):
@@ -328,6 +329,7 @@ class ClipItem(BaseModel):
 class PrinterStatusSnapshot(BaseModel):
     connection_state: PrinterConnectionState = "unknown"
     printer_status_text: str = "Status unavailable"
+    monitor_state: PrinterMonitorState = "unavailable"
     current_file_name: str | None = None
     progress_percent: float | None = None
     extruder_current_temp: float | None = None
@@ -336,6 +338,10 @@ class PrinterStatusSnapshot(BaseModel):
     bed_target_temp: float | None = None
     eta_text: str | None = None
     error_message: str | None = None
+    has_metadata_source: bool = False
+    metadata_available: bool = False
+    last_metadata_attempt_at: datetime | None = None
+    last_metadata_success_at: datetime | None = None
 
 
 class PrinterViewOption(BaseModel):
@@ -361,6 +367,7 @@ class PrinterCard(BaseModel):
     preview_available: bool = False
     connection_state: PrinterConnectionState = "unknown"
     printer_status_text: str = "Status unavailable"
+    monitor_state: PrinterMonitorState = "unavailable"
     current_file_name: str | None = None
     progress_percent: float | None = None
     extruder_current_temp: float | None = None
@@ -372,6 +379,10 @@ class PrinterCard(BaseModel):
     available_camera_count: int = 0
     available_views: list[PrinterViewOption] = Field(default_factory=list)
     moonraker_url: str | None = None
+    has_metadata_source: bool = False
+    metadata_available: bool = False
+    last_metadata_attempt_at: datetime | None = None
+    last_metadata_success_at: datetime | None = None
     display_order: int | None = None
     error_message: str | None = None
 
