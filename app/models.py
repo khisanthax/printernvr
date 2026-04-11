@@ -338,11 +338,24 @@ class PrinterStatusSnapshot(BaseModel):
     error_message: str | None = None
 
 
+class PrinterViewOption(BaseModel):
+    camera_id: str
+    camera_name: str
+    preview_url: str | None = None
+    preview_mode: PrinterPreviewMode = "none"
+    preview_available: bool = False
+    default_live_view: bool = False
+    enabled: bool = True
+    display_order: int | None = None
+
+
 class PrinterCard(BaseModel):
     printer_id: str
     printer_name: str
     camera_id: str | None = None
     camera_name: str | None = None
+    default_camera_id: str | None = None
+    default_camera_name: str | None = None
     preview_url: str | None = None
     preview_mode: PrinterPreviewMode = "none"
     preview_available: bool = False
@@ -357,6 +370,7 @@ class PrinterCard(BaseModel):
     eta_text: str | None = None
     available_camera_ids: list[str] = Field(default_factory=list)
     available_camera_count: int = 0
+    available_views: list[PrinterViewOption] = Field(default_factory=list)
     moonraker_url: str | None = None
     display_order: int | None = None
     error_message: str | None = None

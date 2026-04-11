@@ -348,7 +348,7 @@ Deliverables:
 - Printer visibility checkboxes with client-side persistence
 - Optional printer status/progress/temperature details when Moonraker is configured
 
-### Phase 8A - Multi-View Per Printer [ ]
+### Phase 8A - Multi-View Per Printer [x]
 
 Goals:
 - Add a per-printer camera/view selector
@@ -358,6 +358,11 @@ Tasks:
 - Add per-printer camera selector UI
 - Switch live preview within the printer card
 - Preserve a default view while allowing temporary alternate selection
+
+Deliverables:
+- Compact per-printer view selector on `/printers` when multiple views exist
+- Browser-side view persistence per printer in `localStorage`
+- Default live view remains the backend fallback when no stored selection is valid
 
 ### Phase 5 - Operational Hardening [-]
 
@@ -435,6 +440,7 @@ Completed:
 - Phase 4C optional folder-targeted clip downloads
 - Phase 4A GoPro recorder support
 - Phase 8 live multi-printer dashboard
+- Phase 8A per-printer multi-view selector
 - Phase 6 retention and storage protection
 
 In progress:
@@ -462,6 +468,7 @@ Implemented highlights:
 - Optional client-side chosen-folder clip saves using the browser File System Access API when available
 - Browser-download fallback remains the default when folder access is unavailable, denied, or unsupported
 - `/printers` live dashboard with top printer toggles, one default live view per printer, and status/details beneath each preview
+- Per-printer camera/view selector on `/printers` with browser-side selection persistence and backend default fallback
 - Optional Moonraker-backed status polling for printer status, file name, progress, temperatures, and ETA
 - Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `POST /api/gopro/test`, `GET /api/gopro/{camera_id}/status`, `POST /api/gopro/{camera_id}/record_for`, `POST /api/gopro/{camera_id}/download_latest`, `GET /api/gopro/{camera_id}/preview`, `GET /api/gopro/{camera_id}/media`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /printers`, `GET /cameras`, `GET /clips`
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip
@@ -478,7 +485,7 @@ Implemented highlights:
 
 Next phase:
 - Phase 5 operational hardening
-- Phase 8A per-printer multi-view selector
+- follow-up printer UX improvements such as clearer per-view labels or quick camera cycling
 
 ## Deployment Model
 

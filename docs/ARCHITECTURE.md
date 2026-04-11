@@ -106,24 +106,27 @@ Retention config:
 - `default_live_view=true` before other cameras
 - cameras with preview URLs before cameras without preview URLs
 - lower `display_order`
-4. Printer details are shown below the preview, not overlaid on top of video.
-5. Browser-side checkbox toggles show or hide printer cards and persist visibility in `localStorage`.
-6. The page polls `GET /api/printers/cards` on a lightweight interval to refresh:
+4. Each printer card exposes an `available_views` list sorted with the same default-view rules for compact selector UI.
+5. Printer details are shown below the preview, not overlaid on top of video.
+6. Browser-side checkbox toggles show or hide printer cards and persist visibility in `localStorage`.
+7. When a printer has multiple views, the page stores the user-selected camera id in browser `localStorage` and swaps only that card's preview source.
+8. If a stored camera selection is missing or no longer valid, the page falls back to the backend-computed default live view for that printer.
+9. The page polls `GET /api/printers/cards` on a lightweight interval to refresh:
 - status text
 - file name
 - progress
 - extruder and bed temperatures
 - ETA
-7. If a printer has `moonraker_url`, `MoonrakerService` queries it directly for status data.
-8. If Moonraker is unavailable or not configured, the card still renders with:
+10. If a printer has `moonraker_url`, `MoonrakerService` queries it directly for status data.
+11. If Moonraker is unavailable or not configured, the card still renders with:
 - printer name
-- selected default preview
+- selected preview
 - placeholder status details
 
 Current phase limits:
-- one default live camera per printer
-- no per-printer camera selector yet
-- multi-view support is intentionally deferred to a follow-up phase
+- one active preview shown per printer card at a time
+- selector state is browser-local and not stored in config
+- multi-preview layouts and explicit per-view config preferences are intentionally deferred to a follow-up phase
 
 ## Recording Flow
 

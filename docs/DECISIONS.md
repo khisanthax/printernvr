@@ -241,3 +241,19 @@ Impact:
 - Camera config now supports `printer_id`, `printer_name`, `default_live_view`, `moonraker_url`, and `display_order`.
 - `/printers` can optionally enrich cards with Moonraker status, progress, temperatures, and ETA.
 - Multi-view/camera switching per printer is intentionally deferred to a follow-up phase.
+
+## 2026-04-11 - Keep Per-Printer View Selection Browser-Side
+
+Decision:
+- Add a per-printer camera/view selector on `/printers` when a printer has multiple configured views.
+- Persist the selected camera id in browser `localStorage` only.
+- Keep backend `default_live_view` logic as the fallback whenever the stored selection is missing or invalid.
+
+Why:
+- The live dashboard needs quick camera switching without introducing a database or per-user server-side preference storage.
+- Browser-local persistence keeps the feature lightweight and avoids changing the config source of truth for each temporary view choice.
+
+Impact:
+- `GET /api/printers/cards` now exposes selector-ready `available_views` data per printer card.
+- The frontend swaps only the selected card preview without changing printer-level Moonraker metadata.
+- If camera config changes invalidate a stored selection, the dashboard falls back cleanly to the backend default camera.

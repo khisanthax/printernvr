@@ -17,6 +17,7 @@ This repository currently includes:
 - Phase 4C optional folder-targeted clip downloads
 - Phase 4A GoPro recorder support
 - Phase 8 live multi-printer dashboard
+- Phase 8.1 per-printer camera view selector
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -206,6 +207,7 @@ Behavior:
 - cameras with the same `printer_id` are grouped into one printer card
 - `default_live_view: true` marks the preferred live card camera for that printer
 - if no camera is marked default, Printer NVR chooses the first enabled preview-capable camera
+- if a printer has multiple configured cameras/views, `/printers` lets the browser choose between them while keeping the backend-computed default as the fallback
 - `moonraker_url` is optional and, when set, is used to populate printer status, progress, temperatures, and ETA on the live printer page
 
 ### Mode 3: GoPro Mode
@@ -376,11 +378,18 @@ The `/printers` page shows one live card per printer.
 
 Current behavior:
 - one default camera/view per printer
+- per-printer view selector when multiple camera previews exist
 - large preview area
 - printer details shown below the preview
 - top checkbox row for showing or hiding printer cards
 - visibility persisted in browser `localStorage`
+- selected view persisted per printer in browser `localStorage`
 - optional Moonraker polling for printer status/details
+
+View selection behavior:
+- the backend still computes the default live camera using `default_live_view`, enabled state, preview availability, and `display_order`
+- the browser may temporarily override that preview per printer card without changing config
+- if the stored camera id is no longer valid, the card falls back to the backend default view
 
 If `moonraker_url` is configured for a printer, the page attempts to show:
 - printer status

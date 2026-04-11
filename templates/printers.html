@@ -48,18 +48,47 @@
 
     <section id="printers-grid" class="printer-grid">
       {% for printer in printers %}
-      <article class="printer-card" data-printer-card="{{ printer.printer_id }}">
+      <article
+        class="printer-card"
+        data-printer-card="{{ printer.printer_id }}"
+        data-printer-name="{{ printer.printer_name }}"
+        data-default-camera-id="{{ printer.default_camera_id or '' }}">
         <header class="printer-card__header">
-          <div>
+          <div class="printer-card__header-main">
             <h2>{{ printer.printer_name }}</h2>
-            <p>{{ printer.camera_name or "No default camera" }}</p>
+            <p data-printer-current-view-label="{{ printer.printer_id }}">{{ printer.camera_name or "No default camera" }}</p>
           </div>
-          <span class="printer-state-badge printer-state-badge--{{ printer.connection_state }}" data-printer-connection="{{ printer.printer_id }}">
-            {{ printer.connection_state|capitalize }}
-          </span>
+          <div class="printer-card__header-side">
+            {% if printer.available_views|length > 1 %}
+            <label class="printer-view-select">
+              <span>View</span>
+              <select data-printer-view-select="{{ printer.printer_id }}">
+                {% for view in printer.available_views %}
+                <option
+                  value="{{ view.camera_id }}"
+                  data-camera-name="{{ view.camera_name }}"
+                  data-preview-url="{{ view.preview_url or '' }}"
+                  data-preview-mode="{{ view.preview_mode }}"
+                  data-preview-available="{{ 'true' if view.preview_available else 'false' }}"
+                  data-default-live-view="{{ 'true' if view.default_live_view else 'false' }}"
+                  data-enabled="{{ 'true' if view.enabled else 'false' }}"
+                  {% if view.camera_id == printer.default_camera_id %}selected{% endif %}>
+                  {{ view.camera_name }}
+                </option>
+                {% endfor %}
+              </select>
+            </label>
+            {% endif %}
+            <span class="printer-state-badge printer-state-badge--{{ printer.connection_state }}" data-printer-connection="{{ printer.printer_id }}">
+              {{ printer.connection_state|capitalize }}
+            </span>
+          </div>
         </header>
 
-        <div class="printer-card__preview">
+        <div
+          class="printer-card__preview"
+          data-printer-preview="{{ printer.printer_id }}"
+          data-current-camera-id="{{ printer.default_camera_id or '' }}">
           {% if printer.preview_mode == "embedded" and printer.preview_url %}
           <iframe
             title="{{ printer.printer_name }} live view"
@@ -120,7 +149,7 @@
           </dl>
 
           <div class="printer-card__footer">
-            <span>Default view: {{ printer.camera_id or "--" }}</span>
+            <span>Default view: {{ printer.default_camera_name or printer.default_camera_id or "--" }}</span>
             <span>{{ printer.available_camera_count }} configured view{% if printer.available_camera_count != 1 %}s{% endif %}</span>
           </div>
           <p class="camera-error" data-printer-error="{{ printer.printer_id }}" {% if not printer.error_message %}hidden{% endif %}>{{ printer.error_message or "" }}</p>
