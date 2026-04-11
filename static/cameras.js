@@ -2,6 +2,8 @@ let cameras = [];
 let editingCameraId = null;
 let idTouched = false;
 let outputSubdirTouched = false;
+let printerIdTouched = false;
+let printerNameTouched = false;
 
 const listNode = document.querySelector("#camera-list");
 const listEmptyNode = document.querySelector("#camera-list-empty");
@@ -35,6 +37,11 @@ const fields = {
   outputSubdir: document.querySelector("#camera-output-subdir"),
   description: document.querySelector("#camera-description"),
   mode: document.querySelector("#camera-mode"),
+  printerName: document.querySelector("#camera-printer-name"),
+  printerId: document.querySelector("#camera-printer-id"),
+  defaultLiveView: document.querySelector("#camera-default-live-view"),
+  moonrakerUrl: document.querySelector("#camera-moonraker-url"),
+  displayOrder: document.querySelector("#camera-display-order"),
   go2rtcBaseUrl: document.querySelector("#camera-go2rtc-base-url"),
   streamName: document.querySelector("#camera-stream-name"),
   previewUrl: document.querySelector("#camera-preview-url"),
@@ -121,6 +128,11 @@ function cameraPayload() {
     output_subdir: fields.outputSubdir.value.trim(),
     description: fields.description.value.trim(),
     mode: fields.mode.value,
+    printer_name: fields.printerName.value.trim(),
+    printer_id: fields.printerId.value.trim(),
+    default_live_view: fields.defaultLiveView.checked,
+    moonraker_url: fields.moonrakerUrl.value.trim(),
+    display_order: fields.displayOrder.value === "" ? null : Number(fields.displayOrder.value),
     go2rtc_base_url: fields.go2rtcBaseUrl.value.trim(),
     stream_name: fields.streamName.value.trim(),
     preview_url: fields.previewUrl.value.trim(),
@@ -326,6 +338,7 @@ function renderCameraList() {
         <p>${detail}</p>
       </div>
       <dl class="camera-list__meta">
+        <div><dt>Printer</dt><dd>${camera.printer_name} (${camera.printer_id})</dd></div>
         <div><dt>Enabled</dt><dd>${camera.enabled ? "yes" : "no"}</dd></div>
         <div><dt>Mode</dt><dd>${camera.mode}</dd></div>
       </dl>
@@ -342,6 +355,8 @@ function beginNewCamera() {
   editingCameraId = null;
   idTouched = false;
   outputSubdirTouched = false;
+  printerIdTouched = false;
+  printerNameTouched = false;
   formTitle.textContent = "New Camera";
   fields.editingCameraId.value = "";
   fields.name.value = "";
@@ -350,6 +365,11 @@ function beginNewCamera() {
   fields.outputSubdir.value = "";
   fields.description.value = "";
   fields.mode.value = "go2rtc_helper";
+  fields.printerName.value = "";
+  fields.printerId.value = "";
+  fields.defaultLiveView.checked = false;
+  fields.moonrakerUrl.value = "";
+  fields.displayOrder.value = "";
   fields.go2rtcBaseUrl.value = "";
   fields.streamName.value = "cam";
   fields.previewUrl.value = "";
@@ -373,6 +393,8 @@ function beginEditCamera(camera) {
   editingCameraId = camera.id;
   idTouched = true;
   outputSubdirTouched = true;
+  printerIdTouched = true;
+  printerNameTouched = true;
   formTitle.textContent = `Edit ${camera.name}`;
   fields.editingCameraId.value = camera.id;
   fields.name.value = camera.name;
@@ -381,6 +403,11 @@ function beginEditCamera(camera) {
   fields.outputSubdir.value = camera.output_subdir || camera.id;
   fields.description.value = camera.description || "";
   fields.mode.value = camera.mode;
+  fields.printerName.value = camera.printer_name || camera.name;
+  fields.printerId.value = camera.printer_id || camera.id;
+  fields.defaultLiveView.checked = camera.default_live_view === true;
+  fields.moonrakerUrl.value = camera.moonraker_url || "";
+  fields.displayOrder.value = camera.display_order !== null && camera.display_order !== undefined ? String(camera.display_order) : "";
   fields.go2rtcBaseUrl.value = camera.go2rtc_base_url || "";
   fields.streamName.value = camera.stream_name || "cam";
   fields.previewUrl.value = camera.preview_url || "";
@@ -495,6 +522,12 @@ fields.name.addEventListener("input", () => {
   if (!outputSubdirTouched) {
     fields.outputSubdir.value = fields.id.value || slugifyCameraId(fields.name.value);
   }
+  if (!printerNameTouched) {
+    fields.printerName.value = fields.name.value.trim();
+  }
+  if (!printerIdTouched) {
+    fields.printerId.value = fields.id.value || slugifyCameraId(fields.name.value);
+  }
   updatePreviewPanel();
 });
 
@@ -503,10 +536,21 @@ fields.id.addEventListener("input", () => {
   if (!outputSubdirTouched) {
     fields.outputSubdir.value = fields.id.value.trim();
   }
+  if (!printerIdTouched) {
+    fields.printerId.value = fields.id.value.trim();
+  }
 });
 
 fields.outputSubdir.addEventListener("input", () => {
   outputSubdirTouched = true;
+});
+
+fields.printerName.addEventListener("input", () => {
+  printerNameTouched = true;
+});
+
+fields.printerId.addEventListener("input", () => {
+  printerIdTouched = true;
 });
 
 fields.mode.addEventListener("change", () => {

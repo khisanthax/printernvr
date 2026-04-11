@@ -16,6 +16,8 @@ CameraPreviewMode = Literal["none", "external_link"]
 BackendType = Literal["ffmpeg", "gopro"]
 CameraStatus = Literal["idle", "starting", "recording", "stopping", "downloading", "error"]
 CameraAction = Literal["idle", "starting", "recording", "stopping", "downloading", "error"]
+PrinterConnectionState = Literal["online", "offline", "unknown"]
+PrinterPreviewMode = Literal["embedded", "external_link", "none"]
 
 
 class CameraConfigInput(BaseModel):
@@ -24,6 +26,11 @@ class CameraConfigInput(BaseModel):
     enabled: bool = True
     description: str | None = None
     mode: CameraMode | None = None
+    printer_id: str | None = None
+    printer_name: str | None = None
+    default_live_view: bool = False
+    moonraker_url: str | None = None
+    display_order: int | None = Field(default=None, ge=0)
 
     go2rtc_base_url: str | None = None
     stream_name: str | None = None
@@ -44,6 +51,15 @@ class CameraConfigInput(BaseModel):
     def validate_camera_id(cls, value: str) -> str:
         if not CAMERA_ID_RE.match(value):
             raise ValueError("Camera id must match [A-Za-z0-9_-]+")
+        return value
+
+    @field_validator("printer_id")
+    @classmethod
+    def validate_printer_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if not CAMERA_ID_RE.match(value):
+            raise ValueError("printer_id must match [A-Za-z0-9_-]+")
         return value
 
     @field_validator("output_subdir")
@@ -86,6 +102,11 @@ class ResolvedCamera(BaseModel):
     description: str | None = None
     mode: CameraMode
     backend_type: BackendType
+    printer_id: str
+    printer_name: str
+    default_live_view: bool = False
+    moonraker_url: str | None = None
+    display_order: int | None = None
 
     go2rtc_base_url: str | None = None
     stream_name: str | None = None
@@ -113,6 +134,11 @@ class CameraUpsertRequest(BaseModel):
     output_subdir: str | None = None
     description: str | None = None
     mode: CameraMode = "go2rtc_helper"
+    printer_id: str | None = None
+    printer_name: str | None = None
+    default_live_view: bool = False
+    moonraker_url: str | None = None
+    display_order: int | None = Field(default=None, ge=0)
     go2rtc_base_url: str | None = None
     stream_name: str | None = None
     preview_url: str | None = None
@@ -147,6 +173,11 @@ class CameraManagementItem(BaseModel):
     output_subdir: str
     description: str | None = None
     mode: CameraMode
+    printer_id: str
+    printer_name: str
+    default_live_view: bool = False
+    moonraker_url: str | None = None
+    display_order: int | None = None
     go2rtc_base_url: str | None = None
     stream_name: str | None = None
     preview_url: str | None = None
@@ -292,6 +323,43 @@ class ClipItem(BaseModel):
     size_bytes: int
     size_human: str
     active: bool = False
+
+
+class PrinterStatusSnapshot(BaseModel):
+    connection_state: PrinterConnectionState = "unknown"
+    printer_status_text: str = "Status unavailable"
+    current_file_name: str | None = None
+    progress_percent: float | None = None
+    extruder_current_temp: float | None = None
+    extruder_target_temp: float | None = None
+    bed_current_temp: float | None = None
+    bed_target_temp: float | None = None
+    eta_text: str | None = None
+    error_message: str | None = None
+
+
+class PrinterCard(BaseModel):
+    printer_id: str
+    printer_name: str
+    camera_id: str | None = None
+    camera_name: str | None = None
+    preview_url: str | None = None
+    preview_mode: PrinterPreviewMode = "none"
+    preview_available: bool = False
+    connection_state: PrinterConnectionState = "unknown"
+    printer_status_text: str = "Status unavailable"
+    current_file_name: str | None = None
+    progress_percent: float | None = None
+    extruder_current_temp: float | None = None
+    extruder_target_temp: float | None = None
+    bed_current_temp: float | None = None
+    bed_target_temp: float | None = None
+    eta_text: str | None = None
+    available_camera_ids: list[str] = Field(default_factory=list)
+    available_camera_count: int = 0
+    moonraker_url: str | None = None
+    display_order: int | None = None
+    error_message: str | None = None
 
 
 def infer_input_mode(camera: CameraConfigInput) -> CameraMode:

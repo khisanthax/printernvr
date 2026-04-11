@@ -11,6 +11,7 @@
     <div>
       <nav class="page-nav">
         <a href="/">Dashboard</a>
+        <a href="/printers">Printers</a>
         <a href="/cameras" aria-current="page">Cameras</a>
         <a href="/clips">Clips</a>
       </nav>
@@ -61,6 +62,27 @@
                 <option value="manual_urls">manual_urls</option>
                 <option value="gopro">gopro</option>
               </select>
+            </label>
+            <label>
+              Printer Name
+              <input id="camera-printer-name" name="printer_name" type="text" placeholder="Sovol SV08">
+            </label>
+            <label>
+              Printer ID
+              <input id="camera-printer-id" name="printer_id" type="text" placeholder="sovol_sv08">
+            </label>
+            <label class="form-checkbox">
+              <input id="camera-default-live-view" name="default_live_view" type="checkbox">
+              Default live view for printer
+            </label>
+            <label>
+              Moonraker URL
+              <input id="camera-moonraker-url" name="moonraker_url" type="text" placeholder="http://printer.local">
+              <span class="form-helper">Optional. Used by the live printer dashboard for status, progress, temperatures, and ETA.</span>
+            </label>
+            <label>
+              Display Order
+              <input id="camera-display-order" name="display_order" type="number" min="0" step="1" placeholder="0">
             </label>
             <label class="form-checkbox">
               <input id="camera-enabled" name="enabled" type="checkbox" checked>

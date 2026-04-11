@@ -112,6 +112,11 @@ Supported fields:
 - `name`
 - `enabled`
 - `description`
+- `printer_id`
+- `printer_name`
+- `default_live_view`
+- `moonraker_url`
+- `display_order`
 - `mode`
 - `go2rtc_base_url`
 - `stream_name`
@@ -322,6 +327,38 @@ Deliverables:
 - One-click 30-second GoPro recording
 - Existing clip browser listing downloaded GoPro clips
 
+### Phase 8 - Live Multi-Printer Dashboard [x]
+
+Goals:
+- Add a live printer overview page with one card per printer
+- Show printer details below each live preview instead of overlaying them on video
+- Allow users to toggle visible printer cards from a top control area
+- Support one default live camera per printer in this phase
+
+Tasks:
+- Add `/printers` page and printer-card grid
+- Group cameras into printers using lightweight config fields
+- Choose one default live camera per printer
+- Add printer visibility toggles with browser persistence
+- Add optional Moonraker-backed status polling for card details
+
+Deliverables:
+- Live printer dashboard page
+- Klipper-style printer cards with details beneath preview
+- Printer visibility checkboxes with client-side persistence
+- Optional printer status/progress/temperature details when Moonraker is configured
+
+### Phase 8A - Multi-View Per Printer [ ]
+
+Goals:
+- Add a per-printer camera/view selector
+- Support alternate live angles for the same printer without leaving the live page
+
+Tasks:
+- Add per-printer camera selector UI
+- Switch live preview within the printer card
+- Preserve a default view while allowing temporary alternate selection
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:
@@ -397,6 +434,7 @@ Completed:
 - Phase 4B clip preview and bulk direct download
 - Phase 4C optional folder-targeted clip downloads
 - Phase 4A GoPro recorder support
+- Phase 8 live multi-printer dashboard
 - Phase 6 retention and storage protection
 
 In progress:
@@ -423,7 +461,9 @@ Implemented highlights:
 - Client-side bulk direct download of selected clips as individual files with no ZIP packaging
 - Optional client-side chosen-folder clip saves using the browser File System Access API when available
 - Browser-download fallback remains the default when folder access is unavailable, denied, or unsupported
-- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `POST /api/gopro/test`, `GET /api/gopro/{camera_id}/status`, `POST /api/gopro/{camera_id}/record_for`, `POST /api/gopro/{camera_id}/download_latest`, `GET /api/gopro/{camera_id}/preview`, `GET /api/gopro/{camera_id}/media`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /cameras`, `GET /clips`
+- `/printers` live dashboard with top printer toggles, one default live view per printer, and status/details beneath each preview
+- Optional Moonraker-backed status polling for printer status, file name, progress, temperatures, and ETA
+- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `POST /api/gopro/test`, `GET /api/gopro/{camera_id}/status`, `POST /api/gopro/{camera_id}/record_for`, `POST /api/gopro/{camera_id}/download_latest`, `GET /api/gopro/{camera_id}/preview`, `GET /api/gopro/{camera_id}/media`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /printers`, `GET /cameras`, `GET /clips`
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip
 - GoPro camera cards with start/stop, Record 30s, Download Latest, and external preview fallback
 - Empty dashboard state when no cameras are configured
@@ -438,6 +478,7 @@ Implemented highlights:
 
 Next phase:
 - Phase 5 operational hardening
+- Phase 8A per-printer multi-view selector
 
 ## Deployment Model
 

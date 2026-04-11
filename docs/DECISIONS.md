@@ -225,3 +225,19 @@ Impact:
 - `/clips` can save directly into a user-selected folder in supporting browsers.
 - No backend local-path tracking, no database storage, and no ZIP packaging were added.
 - Folder-handle persistence is browser-dependent and remains optional.
+
+## 2026-04-11 - Derive Live Printer Cards from Camera Config
+
+Decision:
+- Add a dedicated `/printers` live page that groups cameras into printer cards using lightweight camera config fields.
+- Keep one default live camera per printer in this phase.
+- Show printer status/details below the preview rather than overlaying them on video.
+
+Why:
+- The live monitoring page needs printer grouping without introducing a database or a second config system.
+- A single default live view keeps the first implementation practical while leaving room for a later multi-view selector.
+
+Impact:
+- Camera config now supports `printer_id`, `printer_name`, `default_live_view`, `moonraker_url`, and `display_order`.
+- `/printers` can optionally enrich cards with Moonraker status, progress, temperatures, and ETA.
+- Multi-view/camera switching per printer is intentionally deferred to a follow-up phase.

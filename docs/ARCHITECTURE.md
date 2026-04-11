@@ -16,8 +16,10 @@ GoPro devices are a separate recorder class controlled over their HTTP API, but 
 - In-memory runtime camera state manager
 - ffmpeg subprocess recording manager
 - GoPro HTTP service and in-process recording manager
+- Moonraker status service for optional printer metadata
 - Local recordings retention manager
 - Config-backed camera management UI
+- Live multi-printer dashboard
 - Filesystem-based clip browser and preview/download/delete API
 
 ## Current Module Layout
@@ -32,8 +34,10 @@ GoPro devices are a separate recorder class controlled over their HTTP API, but 
 - `app/services/gopro_service.py`: HERO7 HTTP control, media listing, preview info, and clip download
 - `app/services/gopro_recording_manager.py`: in-process GoPro job orchestration and auto-download
 - `app/retention.py`: storage scanning, threshold evaluation, cleanup planning and deletion
+- `app/printers.py`: printer-card grouping and default-view selection
 - `app/probe.py`: ffprobe stream testing
 - `app/util.py`: logging and directory helpers
+- `app/services/moonraker_service.py`: optional Moonraker status queries for printer cards
 - `app/api/health.py`: health endpoint
 - `app/api/dashboard.py`: dashboard page
 - `app/api/cameras.py`: camera CRUD and probe API
@@ -41,6 +45,7 @@ GoPro devices are a separate recorder class controlled over their HTTP API, but 
 - `app/api/status.py`: legacy runtime status API
 - `app/api/record.py`: recording start, stop, and status API
 - `app/api/storage.py`: storage status and manual cleanup API
+- `app/api/printers.py`: live printer card status API
 - `app/api/clips.py`: clip list, preview, download, and delete API
 
 ## Configuration Model
@@ -59,6 +64,16 @@ Camera modes:
 - `go2rtc_helper`
 - `manual_urls`
 - `gopro`
+
+Camera-to-printer mapping fields:
+- `printer_id`
+- `printer_name`
+- `default_live_view`
+- `moonraker_url`
+- `display_order`
+
+For this phase, printers are derived from camera config rather than a separate printer database model.
+If printer mapping fields are omitted, each camera falls back to its own printer card identity.
 
 RTSP camera URL resolution:
 - `record_url`: manual value, else generated go2rtc URL
@@ -81,6 +96,34 @@ Retention config:
 - `max_age_days`
 - `max_total_gb`
 - `minimum_free_gb`
+
+## Printer Dashboard Flow
+
+1. `/printers` builds one live card per logical printer group.
+2. Cameras are grouped by `printer_id`.
+3. The default live camera is chosen in this order:
+- enabled cameras before disabled cameras
+- `default_live_view=true` before other cameras
+- cameras with preview URLs before cameras without preview URLs
+- lower `display_order`
+4. Printer details are shown below the preview, not overlaid on top of video.
+5. Browser-side checkbox toggles show or hide printer cards and persist visibility in `localStorage`.
+6. The page polls `GET /api/printers/cards` on a lightweight interval to refresh:
+- status text
+- file name
+- progress
+- extruder and bed temperatures
+- ETA
+7. If a printer has `moonraker_url`, `MoonrakerService` queries it directly for status data.
+8. If Moonraker is unavailable or not configured, the card still renders with:
+- printer name
+- selected default preview
+- placeholder status details
+
+Current phase limits:
+- one default live camera per printer
+- no per-printer camera selector yet
+- multi-view support is intentionally deferred to a follow-up phase
 
 ## Recording Flow
 

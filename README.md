@@ -16,6 +16,7 @@ This repository currently includes:
 - Phase 4B clip preview and bulk direct download
 - Phase 4C optional folder-targeted clip downloads
 - Phase 4A GoPro recorder support
+- Phase 8 live multi-printer dashboard
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -62,6 +63,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8787 --reload
 ```
 
 Open `http://localhost:8787`.
+Live printer monitoring is available at `http://localhost:8787/printers`.
 Camera management is available at `http://localhost:8787/cameras`.
 Clip browsing is available at `http://localhost:8787/clips`.
 
@@ -89,6 +91,7 @@ docker compose up -d --build
 
 The app is available at `http://localhost:8787` by default.
 If `PORT` is set in `.env`, Docker Compose uses that host port.
+Live printer monitoring is available at `/printers`.
 Camera management is available at `/cameras`.
 Clip browsing is available at `/clips`.
 
@@ -189,6 +192,22 @@ Record resolution order:
 
 Manual URLs always override generated values.
 
+### Printer Grouping and Live Dashboard Fields
+
+Optional camera fields used by `/printers`:
+
+- `printer_id`
+- `printer_name`
+- `default_live_view`
+- `moonraker_url`
+- `display_order`
+
+Behavior:
+- cameras with the same `printer_id` are grouped into one printer card
+- `default_live_view: true` marks the preferred live card camera for that printer
+- if no camera is marked default, Printer NVR chooses the first enabled preview-capable camera
+- `moonraker_url` is optional and, when set, is used to populate printer status, progress, temperatures, and ETA on the live printer page
+
 ### Mode 3: GoPro Mode
 
 Provide GoPro-specific settings:
@@ -225,6 +244,7 @@ The `/cameras` page supports:
 - deleting cameras from config
 - live preview while editing
 - ffprobe-based stream testing
+- printer grouping fields for the live printer dashboard
 
 Behavior notes:
 - camera ids auto-generate from the camera name when creating a new camera
@@ -350,6 +370,31 @@ Optional chosen-folder download notes:
 
 Clip APIs operate only within the configured local recordings root and reject invalid paths.
 
+## Live Printer Dashboard
+
+The `/printers` page shows one live card per printer.
+
+Current behavior:
+- one default camera/view per printer
+- large preview area
+- printer details shown below the preview
+- top checkbox row for showing or hiding printer cards
+- visibility persisted in browser `localStorage`
+- optional Moonraker polling for printer status/details
+
+If `moonraker_url` is configured for a printer, the page attempts to show:
+- printer status
+- current file
+- progress
+- extruder temperature
+- bed temperature
+- ETA when it can be estimated
+
+If Moonraker is not configured or unavailable:
+- the card still renders
+- preview still works when configured
+- status fields fall back to placeholders
+
 ## API Endpoints
 
 - `GET /health`
@@ -365,6 +410,7 @@ Clip APIs operate only within the configured local recordings root and reject in
 - `GET /api/gopro/{camera_id}/preview`
 - `GET /api/gopro/{camera_id}/media`
 - `GET /api/status`
+- `GET /api/printers/cards`
 - `GET /api/record/status`
 - `POST /api/record/start/{camera_id}`
 - `POST /api/record/stop/{camera_id}`

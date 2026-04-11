@@ -47,6 +47,9 @@ def generate_go2rtc_urls(
 
 def resolve_camera(camera: CameraConfigInput) -> ResolvedCamera:
     mode = infer_input_mode(camera)
+    printer_id = (camera.printer_id or "").strip() or camera.id
+    printer_name = (camera.printer_name or "").strip() or camera.name
+    moonraker_url = (camera.moonraker_url or "").strip() or None
 
     if mode == "gopro":
         preview_mode = _effective_preview_mode(camera.preview_mode)
@@ -58,6 +61,11 @@ def resolve_camera(camera: CameraConfigInput) -> ResolvedCamera:
             description=camera.description,
             mode="gopro",
             backend_type="gopro",
+            printer_id=printer_id,
+            printer_name=printer_name,
+            default_live_view=camera.default_live_view,
+            moonraker_url=moonraker_url,
+            display_order=camera.display_order,
             preview_url=preview_url if preview_mode == "external_link" else None,
             record_url=None,
             gopro_host=(camera.gopro_host or "").strip() or None,
@@ -90,6 +98,11 @@ def resolve_camera(camera: CameraConfigInput) -> ResolvedCamera:
         description=camera.description,
         mode=mode,
         backend_type="ffmpeg",
+        printer_id=printer_id,
+        printer_name=printer_name,
+        default_live_view=camera.default_live_view,
+        moonraker_url=moonraker_url,
+        display_order=camera.display_order,
         go2rtc_base_url=camera.go2rtc_base_url,
         stream_name=camera.stream_name,
         preview_url=final_preview_url,
@@ -161,6 +174,8 @@ def slugify_camera_id(name: str) -> str:
 def build_camera_input(payload: CameraUpsertRequest) -> CameraConfigInput:
     generated_id = slugify_camera_id(payload.name)
     camera_id = (payload.id or generated_id).strip() or generated_id
+    printer_id = (payload.printer_id or "").strip() or None
+    printer_name = (payload.printer_name or "").strip() or None
 
     mode: CameraMode = payload.mode
     preview_mode = payload.preview_mode
@@ -194,6 +209,11 @@ def build_camera_input(payload: CameraUpsertRequest) -> CameraConfigInput:
         enabled=payload.enabled,
         description=(payload.description or "").strip() or None,
         mode=mode,
+        printer_id=printer_id,
+        printer_name=printer_name,
+        default_live_view=payload.default_live_view,
+        moonraker_url=(payload.moonraker_url or "").strip() or None,
+        display_order=payload.display_order,
         go2rtc_base_url=go2rtc_base_url,
         stream_name=stream_name,
         preview_url=preview_url,
@@ -237,6 +257,11 @@ def build_management_items(
                 output_subdir=raw_camera.output_subdir or raw_camera.id,
                 description=raw_camera.description,
                 mode=mode,
+                printer_id=resolved.printer_id,
+                printer_name=resolved.printer_name,
+                default_live_view=resolved.default_live_view,
+                moonraker_url=resolved.moonraker_url,
+                display_order=resolved.display_order,
                 go2rtc_base_url=raw_camera.go2rtc_base_url,
                 stream_name=raw_camera.stream_name,
                 preview_url=raw_camera.preview_url,

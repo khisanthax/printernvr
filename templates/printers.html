@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Printer NVR - Live Printers</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="page-header page-header--single">
+    <div>
+      <nav class="page-nav">
+        <a href="/">Dashboard</a>
+        <a href="/printers" aria-current="page">Printers</a>
+        <a href="/cameras">Cameras</a>
+        <a href="/clips">Clips</a>
+      </nav>
+      <h1>Live Printers</h1>
+      <p>Monitor printer cards with live camera views and printer details beneath each preview.</p>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <section class="printer-toolbar">
+      <div>
+        <h2>Visible Printers</h2>
+        <p class="printer-toolbar__note">Choose which printer cards stay on screen. Visibility is stored in your browser.</p>
+      </div>
+      <div class="table-actions">
+        <button type="button" id="printers-select-all" class="control-button control-button--secondary">Select All</button>
+        <button type="button" id="printers-clear-all" class="control-button control-button--secondary">Clear All</button>
+      </div>
+      <div id="printer-toggle-list" class="printer-toggle-list">
+        {% for printer in printers %}
+        <label class="printer-toggle">
+          <input type="checkbox" data-printer-toggle="{{ printer.printer_id }}" checked>
+          <span>{{ printer.printer_name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </section>
+
+    {% if printers %}
+    <section id="printers-empty-filtered" class="empty-state" hidden>
+      <h2>No printers selected.</h2>
+      <p>Select one or more printers above to restore the live card grid.</p>
+    </section>
+
+    <section id="printers-grid" class="printer-grid">
+      {% for printer in printers %}
+      <article class="printer-card" data-printer-card="{{ printer.printer_id }}">
+        <header class="printer-card__header">
+          <div>
+            <h2>{{ printer.printer_name }}</h2>
+            <p>{{ printer.camera_name or "No default camera" }}</p>
+          </div>
+          <span class="printer-state-badge printer-state-badge--{{ printer.connection_state }}" data-printer-connection="{{ printer.printer_id }}">
+            {{ printer.connection_state|capitalize }}
+          </span>
+        </header>
+
+        <div class="printer-card__preview">
+          {% if printer.preview_mode == "embedded" and printer.preview_url %}
+          <iframe
+            title="{{ printer.printer_name }} live view"
+            src="{{ printer.preview_url }}"
+            loading="lazy"
+            allowfullscreen>
+          </iframe>
+          {% elif printer.preview_mode == "external_link" and printer.preview_url %}
+          <div class="preview-link-state">
+            <p>Preview opens externally for this printer view.</p>
+            <a class="control-button control-button--secondary table-link" href="{{ printer.preview_url }}" target="_blank" rel="noopener noreferrer">
+              Open Preview
+            </a>
+          </div>
+          {% else %}
+          <div class="no-preview">Preview unavailable</div>
+          {% endif %}
+        </div>
+
+        <div class="printer-card__details">
+          <dl class="printer-stats">
+            <div>
+              <dt>Status</dt>
+              <dd data-printer-status-text="{{ printer.printer_id }}">{{ printer.printer_status_text }}</dd>
+            </div>
+            <div>
+              <dt>File</dt>
+              <dd data-printer-file-name="{{ printer.printer_id }}">{{ printer.current_file_name or "--" }}</dd>
+            </div>
+            <div>
+              <dt>Progress</dt>
+              <dd data-printer-progress="{{ printer.printer_id }}">{% if printer.progress_percent is not none %}{{ "%.1f"|format(printer.progress_percent) }}%{% else %}--{% endif %}</dd>
+            </div>
+            <div>
+              <dt>Extruder</dt>
+              <dd data-printer-extruder="{{ printer.printer_id }}">
+                {% if printer.extruder_current_temp is not none %}
+                {{ "%.1f"|format(printer.extruder_current_temp) }} / {% if printer.extruder_target_temp is not none %}{{ "%.1f"|format(printer.extruder_target_temp) }}{% else %}--{% endif %} C
+                {% else %}
+                --
+                {% endif %}
+              </dd>
+            </div>
+            <div>
+              <dt>Bed</dt>
+              <dd data-printer-bed="{{ printer.printer_id }}">
+                {% if printer.bed_current_temp is not none %}
+                {{ "%.1f"|format(printer.bed_current_temp) }} / {% if printer.bed_target_temp is not none %}{{ "%.1f"|format(printer.bed_target_temp) }}{% else %}--{% endif %} C
+                {% else %}
+                --
+                {% endif %}
+              </dd>
+            </div>
+            <div>
+              <dt>ETA</dt>
+              <dd data-printer-eta="{{ printer.printer_id }}">{{ printer.eta_text or "--" }}</dd>
+            </div>
+          </dl>
+
+          <div class="printer-card__footer">
+            <span>Default view: {{ printer.camera_id or "--" }}</span>
+            <span>{{ printer.available_camera_count }} configured view{% if printer.available_camera_count != 1 %}s{% endif %}</span>
+          </div>
+          <p class="camera-error" data-printer-error="{{ printer.printer_id }}" {% if not printer.error_message %}hidden{% endif %}>{{ printer.error_message or "" }}</p>
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+    {% else %}
+    <section class="empty-state">
+      <h2>No printers configured.</h2>
+      <p>Add cameras in <a class="inline-link" href="/cameras">Camera Management</a>. Each camera defaults to its own printer card until you group multiple cameras under the same printer.</p>
+    </section>
+    {% endif %}
+  </main>
+
+  <script src="/static/printers.js"></script>
+</body>
+</html>
