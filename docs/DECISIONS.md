@@ -288,3 +288,20 @@ Impact:
 - Recording from `/printers` targets the currently selected camera/view for each printer card.
 - Runtime recording state remains camera-based and is projected onto the relevant printer card in the frontend.
 - Clip storage and the `/clips` browser remain unchanged.
+
+## 2026-05-07 - Keep Printer Latest Clip Shortcuts Filesystem-Based
+
+Decision:
+- Add latest clip shortcuts to `/printers` by querying the existing recordings filesystem through `ClipStore`.
+- Expose `GET /api/clips/latest/{camera_id}` rather than adding a database, index, or clip cache.
+- Keep latest clip preview and download actions on printer cards tied to the browser-selected camera/view.
+
+Why:
+- The clip browser already treats local files as the source of truth.
+- Printer-card shortcuts should tighten the watch, record, review loop without creating a second clip-management model.
+
+Impact:
+- Latest clip info follows the selected view on each printer card.
+- The newest completed local clip is discovered from `recordings/<output_subdir>/`.
+- Active recording outputs are excluded from latest clip results.
+- Preview and download still use the existing secure clip endpoints.

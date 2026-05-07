@@ -405,6 +405,26 @@ Deliverables:
 - Per-card runtime recording state for idle, starting, recording, stopping, downloading, and error
 - Direct link from each printer card to clips for the selected camera
 
+### Phase 8D / 8.4 - Clip Shortcuts and Latest Clip Preview on Printer Cards [x]
+
+Goals:
+- Tighten the watch, record, review workflow on `/printers`
+- Show latest clip information for the currently selected camera/view
+- Provide quick latest-clip preview, download, and view-all actions from each printer card
+
+Tasks:
+- Add latest clip metadata to printer card and view-option models
+- Add `GET /api/clips/latest/{camera_id}` using the existing filesystem clip store
+- Add compact latest clip UI below printer-card recording controls
+- Refresh latest clip data when the selected view changes and after recording finishes
+- Add a lightweight latest clip preview modal using the existing clip preview endpoint
+
+Deliverables:
+- Latest clip shortcuts on `/printers`
+- Latest clip state follows the currently selected camera/view
+- Preview Latest, Download Latest, and View All Clips actions on printer cards
+- Filesystem-based clip discovery reused from the clip browser
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:
@@ -484,6 +504,7 @@ Completed:
 - Phase 8A per-printer multi-view selector
 - Phase 8B printer dashboard monitoring polish
 - Phase 8C printer card recording controls
+- Phase 8D printer card latest clip shortcuts
 - Phase 6 retention and storage protection
 
 In progress:
@@ -514,8 +535,9 @@ Implemented highlights:
 - Per-printer camera/view selector on `/printers` with browser-side selection persistence and backend default fallback
 - Enlarged preview modal, printer-state badges, degraded-state placeholders, freshness text, and lightweight manual refresh controls on `/printers`
 - Printer-card Start, Stop, and Record 30s controls that target the currently selected camera/view and reuse existing RTSP/GoPro recording APIs
+- Printer-card latest clip shortcuts that preview, download, or open clips for the currently selected camera/view
 - Optional Moonraker-backed status polling for printer status, file name, progress, temperatures, and ETA
-- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `POST /api/gopro/test`, `GET /api/gopro/{camera_id}/status`, `POST /api/gopro/{camera_id}/record_for`, `POST /api/gopro/{camera_id}/download_latest`, `GET /api/gopro/{camera_id}/preview`, `GET /api/gopro/{camera_id}/media`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /printers`, `GET /cameras`, `GET /clips`
+- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `POST /api/gopro/test`, `GET /api/gopro/{camera_id}/status`, `POST /api/gopro/{camera_id}/record_for`, `POST /api/gopro/{camera_id}/download_latest`, `GET /api/gopro/{camera_id}/preview`, `GET /api/gopro/{camera_id}/media`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/latest/{camera_id}`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /printers`, `GET /cameras`, `GET /clips`
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip
 - GoPro camera cards with start/stop, Record 30s, Download Latest, and external preview fallback
 - Empty dashboard state when no cameras are configured

@@ -26,6 +26,24 @@ def get_clips(
     return {"clips": [clip.model_dump(mode="json") for clip in clips]}
 
 
+@router.get("/latest/{camera_id}")
+def get_latest_clip(camera_id: str, request: Request) -> dict:
+    clip_store = request.app.state.clip_store
+    runtime_state = request.app.state.runtime_state
+    cameras = request.app.state.cameras
+    camera_index = request.app.state.camera_index
+
+    if camera_id not in camera_index:
+        raise HTTPException(status_code=404, detail=f"Unknown camera '{camera_id}'")
+
+    latest = clip_store.latest_clip(
+        cameras=cameras,
+        active_output_paths=runtime_state.active_output_paths(),
+        camera_id=camera_id,
+    )
+    return latest.model_dump(mode="json")
+
+
 @router.get("/download/{camera_id}/{filename}")
 def download_clip(camera_id: str, filename: str, request: Request) -> FileResponse:
     clip_path = _resolve_clip_path(camera_id, filename, request)

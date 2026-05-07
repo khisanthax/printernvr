@@ -51,11 +51,11 @@
       {% for printer in printers %}
       <article
         class="printer-card"
-          data-printer-card="{{ printer.printer_id }}"
-          data-printer-name="{{ printer.printer_name }}"
-          data-default-camera-id="{{ printer.default_camera_id or '' }}"
-          data-default-camera-enabled="{{ 'true' if printer.camera_enabled else 'false' }}"
-          data-has-metadata-source="{{ 'true' if printer.has_metadata_source else 'false' }}"
+        data-printer-card="{{ printer.printer_id }}"
+        data-printer-name="{{ printer.printer_name }}"
+        data-default-camera-id="{{ printer.default_camera_id or '' }}"
+        data-default-camera-enabled="{{ 'true' if printer.camera_enabled else 'false' }}"
+        data-has-metadata-source="{{ 'true' if printer.has_metadata_source else 'false' }}"
         data-last-metadata-attempt-at="{{ printer.last_metadata_attempt_at or '' }}"
         data-last-metadata-success-at="{{ printer.last_metadata_success_at or '' }}">
         <header class="printer-card__header">
@@ -193,6 +193,39 @@
             <p class="camera-error" data-printer-recording-error="{{ printer.printer_id }}" hidden></p>
           </section>
 
+          <section class="printer-latest-clip" data-printer-latest-clip="{{ printer.printer_id }}">
+            <div class="printer-latest-clip__head">
+              <div>
+                <h3>Latest Clip</h3>
+                <p data-printer-latest-clip-name="{{ printer.printer_id }}">
+                  {% if printer.latest_clip and printer.latest_clip.has_latest_clip %}
+                  {{ printer.latest_clip.filename }}
+                  {% else %}
+                  No clips yet
+                  {% endif %}
+                </p>
+              </div>
+              <span data-printer-latest-clip-meta="{{ printer.printer_id }}">
+                {% if printer.latest_clip and printer.latest_clip.has_latest_clip %}
+                {{ printer.latest_clip.size_human or "" }}
+                {% else %}
+                --
+                {% endif %}
+              </span>
+            </div>
+            <div class="printer-latest-clip__actions">
+              <button type="button" class="control-button control-button--secondary" data-printer-latest-preview="{{ printer.printer_id }}" {% if not printer.latest_clip or not printer.latest_clip.has_latest_clip %}disabled{% endif %}>
+                Preview
+              </button>
+              <a class="control-button control-button--secondary table-link" href="{{ printer.latest_clip.download_url if printer.latest_clip and printer.latest_clip.download_url else '#' }}" data-printer-latest-download="{{ printer.printer_id }}" {% if not printer.latest_clip or not printer.latest_clip.has_latest_clip %}aria-disabled="true"{% endif %}>
+                Download
+              </a>
+              <a class="control-button control-button--secondary table-link" href="/clips?camera_id={{ printer.default_camera_id or '' }}" data-printer-latest-all="{{ printer.printer_id }}">
+                View All
+              </a>
+            </div>
+          </section>
+
           <div class="printer-card__footer">
             <span data-printer-updated-text="{{ printer.printer_id }}">
               {% if printer.last_metadata_success_at %}
@@ -230,6 +263,21 @@
       </header>
       <div id="printer-preview-modal-body" class="printer-preview-modal__body">
         <div class="no-preview">Preview unavailable</div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="latest-clip-modal" class="printer-preview-modal">
+    <div class="printer-preview-modal__content">
+      <header class="printer-preview-modal__header">
+        <div>
+          <h2 id="latest-clip-modal-title">Latest Clip</h2>
+          <p id="latest-clip-modal-meta">Selected view</p>
+        </div>
+        <button type="button" id="latest-clip-modal-close" class="control-button control-button--secondary">Close</button>
+      </header>
+      <div id="latest-clip-modal-body" class="printer-preview-modal__body">
+        <div class="no-preview">No clip selected</div>
       </div>
     </div>
   </dialog>

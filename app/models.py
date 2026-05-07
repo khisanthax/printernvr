@@ -326,6 +326,17 @@ class ClipItem(BaseModel):
     active: bool = False
 
 
+class LatestClipInfo(BaseModel):
+    camera_id: str
+    has_latest_clip: bool = False
+    filename: str | None = None
+    created_at: datetime | None = None
+    size_bytes: int | None = None
+    size_human: str | None = None
+    preview_url: str | None = None
+    download_url: str | None = None
+
+
 class PrinterStatusSnapshot(BaseModel):
     connection_state: PrinterConnectionState = "unknown"
     printer_status_text: str = "Status unavailable"
@@ -353,6 +364,7 @@ class PrinterViewOption(BaseModel):
     default_live_view: bool = False
     enabled: bool = True
     display_order: int | None = None
+    latest_clip: LatestClipInfo | None = None
 
 
 class PrinterCard(BaseModel):
@@ -379,6 +391,7 @@ class PrinterCard(BaseModel):
     available_camera_ids: list[str] = Field(default_factory=list)
     available_camera_count: int = 0
     available_views: list[PrinterViewOption] = Field(default_factory=list)
+    latest_clip: LatestClipInfo | None = None
     moonraker_url: str | None = None
     has_metadata_source: bool = False
     metadata_available: bool = False

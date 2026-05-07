@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from app.models import PrinterCard, PrinterViewOption, ResolvedCamera
+from app.models import LatestClipInfo, PrinterCard, PrinterViewOption, ResolvedCamera
+from app.clips import ClipStore
 from app.services.moonraker_service import MoonrakerService
 
 
 def build_printer_cards(
     cameras: list[ResolvedCamera],
     moonraker_service: MoonrakerService,
+    clip_store: ClipStore | None = None,
+    active_output_paths: set[str] | None = None,
 ) -> list[PrinterCard]:
     grouped: dict[str, list[ResolvedCamera]] = defaultdict(list)
     for camera in cameras:
@@ -19,7 +22,18 @@ def build_printer_cards(
         primary = _select_primary_camera(grouped_cameras)
         preview_mode = _preview_mode(primary)
         preview_available = bool(primary.preview_url) if preview_mode != "none" else False
-        available_views = _build_available_views(grouped_cameras)
+        available_views = _build_available_views(
+            grouped_cameras,
+            cameras,
+            clip_store,
+            active_output_paths or set(),
+        )
+        latest_clip = _latest_clip_for_camera(
+            primary,
+            cameras,
+            clip_store,
+            active_output_paths or set(),
+        )
 
         status_camera = _select_status_camera(grouped_cameras)
         status = moonraker_service.fetch_status(status_camera.moonraker_url)
@@ -49,6 +63,7 @@ def build_printer_cards(
                 available_camera_ids=[camera.id for camera in grouped_cameras],
                 available_camera_count=len(grouped_cameras),
                 available_views=available_views,
+                latest_clip=latest_clip,
                 moonraker_url=status_camera.moonraker_url,
                 has_metadata_source=status.has_metadata_source,
                 metadata_available=status.metadata_available,
@@ -74,7 +89,12 @@ def _select_status_camera(cameras: list[ResolvedCamera]) -> ResolvedCamera:
     return sorted(with_status, key=_camera_sort_key)[0]
 
 
-def _build_available_views(cameras: list[ResolvedCamera]) -> list[PrinterViewOption]:
+def _build_available_views(
+    cameras: list[ResolvedCamera],
+    all_cameras: list[ResolvedCamera],
+    clip_store: ClipStore | None,
+    active_output_paths: set[str],
+) -> list[PrinterViewOption]:
     sorted_cameras = sorted(cameras, key=_camera_sort_key)
     views: list[PrinterViewOption] = []
     for camera in sorted_cameras:
@@ -89,9 +109,26 @@ def _build_available_views(cameras: list[ResolvedCamera]) -> list[PrinterViewOpt
                 default_live_view=camera.default_live_view,
                 enabled=camera.enabled,
                 display_order=camera.display_order,
+                latest_clip=_latest_clip_for_camera(
+                    camera,
+                    all_cameras,
+                    clip_store,
+                    active_output_paths,
+                ),
             )
         )
     return views
+
+
+def _latest_clip_for_camera(
+    camera: ResolvedCamera,
+    all_cameras: list[ResolvedCamera],
+    clip_store: ClipStore | None,
+    active_output_paths: set[str],
+) -> LatestClipInfo | None:
+    if not clip_store:
+        return None
+    return clip_store.latest_clip(all_cameras, active_output_paths, camera.id)
 
 
 def _camera_sort_key(camera: ResolvedCamera) -> tuple:

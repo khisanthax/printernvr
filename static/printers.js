@@ -7,6 +7,7 @@ const PRINTER_VIEW_SELECTION_KEY = "printernvr-printer-view-selections";
 let refreshInFlight = false;
 const recordingStates = new Map();
 const localRecordingErrors = new Map();
+const latestClipStates = new Map();
 
 function query(selector) {
   return document.querySelector(selector);
@@ -93,6 +94,28 @@ function humanFileName(value) {
 
   const parts = String(value).split(/[\\/]/);
   return parts[parts.length - 1] || String(value);
+}
+
+function clipAgeText(value) {
+  const createdAt = parseIsoDate(value);
+  if (!createdAt) {
+    return "";
+  }
+
+  const ageSeconds = Math.max(0, Math.round((Date.now() - createdAt.getTime()) / 1000));
+  if (ageSeconds < 60) {
+    return "just now";
+  }
+  const ageMinutes = Math.floor(ageSeconds / 60);
+  if (ageMinutes < 60) {
+    return `${ageMinutes}m ago`;
+  }
+  const ageHours = Math.floor(ageMinutes / 60);
+  if (ageHours < 24) {
+    return `${ageHours}h ago`;
+  }
+  const ageDays = Math.floor(ageHours / 24);
+  return `${ageDays}d ago`;
 }
 
 function normalizeVisiblePrinterIds() {
@@ -310,6 +333,7 @@ function renderPreview(printerId, view) {
   container.dataset.viewEnabled = view && view.enabled === false ? "false" : "true";
   container.replaceChildren(createPreviewNode(printerName, view));
   updatePrinterRecordingState(printerId);
+  refreshLatestClipForPrinter(printerId).catch((error) => console.error(error));
 }
 
 function restoreStoredViewForPrinter(printerId) {
@@ -540,6 +564,101 @@ function updatePrinterClipsLink(printerId, cameraId) {
   link.href = cameraId ? `/clips?camera_id=${encodeURIComponent(cameraId)}` : "/clips";
 }
 
+function updateLatestClipLinks(printerId, cameraId) {
+  const allLinks = queryAll(
+    `[data-printer-latest-all="${printerId}"], [data-printer-clips-link="${printerId}"]`,
+  );
+  allLinks.forEach((link) => {
+    link.href = cameraId ? `/clips?camera_id=${encodeURIComponent(cameraId)}` : "/clips";
+  });
+}
+
+function latestClipUrl(cameraId) {
+  return `/api/clips/latest/${encodeURIComponent(cameraId)}`;
+}
+
+function updateLatestClipSection(printerId, latestClip) {
+  const nameNode = query(`[data-printer-latest-clip-name="${printerId}"]`);
+  const metaNode = query(`[data-printer-latest-clip-meta="${printerId}"]`);
+  const previewButton = query(`[data-printer-latest-preview="${printerId}"]`);
+  const downloadLink = query(`[data-printer-latest-download="${printerId}"]`);
+  const cameraId = latestClip && latestClip.camera_id ? latestClip.camera_id : getSelectedCameraId(printerId);
+
+  if (cameraId) {
+    updateLatestClipLinks(printerId, cameraId);
+  }
+
+  if (!latestClip || !latestClip.has_latest_clip) {
+    if (nameNode) {
+      nameNode.textContent = "No clips yet";
+    }
+    if (metaNode) {
+      metaNode.textContent = "--";
+    }
+    if (previewButton instanceof HTMLButtonElement) {
+      previewButton.disabled = true;
+    }
+    if (downloadLink instanceof HTMLAnchorElement) {
+      downloadLink.href = "#";
+      downloadLink.setAttribute("aria-disabled", "true");
+    }
+    return;
+  }
+
+  latestClipStates.set(latestClip.camera_id, latestClip);
+  if (nameNode) {
+    nameNode.textContent = latestClip.filename || "Latest clip";
+  }
+  if (metaNode) {
+    const age = clipAgeText(latestClip.created_at);
+    const size = latestClip.size_human || "";
+    metaNode.textContent = [age, size].filter(Boolean).join(" | ") || "--";
+  }
+  if (previewButton instanceof HTMLButtonElement) {
+    previewButton.disabled = !latestClip.preview_url;
+  }
+  if (downloadLink instanceof HTMLAnchorElement) {
+    downloadLink.href = latestClip.download_url || "#";
+    if (latestClip.download_url) {
+      downloadLink.removeAttribute("aria-disabled");
+    } else {
+      downloadLink.setAttribute("aria-disabled", "true");
+    }
+  }
+}
+
+async function refreshLatestClipForPrinter(printerId) {
+  const cameraId = getSelectedCameraId(printerId);
+  if (!cameraId) {
+    updateLatestClipSection(printerId, { has_latest_clip: false, camera_id: "" });
+    return;
+  }
+
+  const latestClip = await fetchJson(latestClipUrl(cameraId));
+  latestClipStates.set(cameraId, latestClip);
+  updateLatestClipSection(printerId, latestClip);
+}
+
+async function refreshLatestClipForCamera(cameraId) {
+  const matchingCards = queryAll("[data-printer-card]").filter((card) => {
+    const printerId = card.dataset.printerCard;
+    return printerId && getSelectedCameraId(printerId) === cameraId;
+  });
+
+  await Promise.all(
+    matchingCards.map((card) => refreshLatestClipForPrinter(card.dataset.printerCard)),
+  );
+}
+
+function refreshAllLatestClips() {
+  queryAll("[data-printer-card]").forEach((card) => {
+    const printerId = card.dataset.printerCard;
+    if (printerId) {
+      refreshLatestClipForPrinter(printerId).catch((error) => console.error(error));
+    }
+  });
+}
+
 function describeRecordingState(printerId, view, state) {
   const viewName = view && view.camera_name ? view.camera_name.trim() : "selected view";
   if (!view || !view.camera_id) {
@@ -629,7 +748,17 @@ function updateAllPrinterRecordingStates() {
 
 function mergeRecordingState(state) {
   if (state && state.camera_id) {
+    const previous = recordingStates.get(state.camera_id);
+    const previousTone = previous ? getRecordingStatusTone(previous.status) : "idle";
+    const nextTone = getRecordingStatusTone(state.status);
     recordingStates.set(state.camera_id, state);
+    const wasBusy = ["starting", "recording", "stopping", "downloading"].includes(previousTone);
+    const isBusy = ["starting", "recording", "stopping", "downloading"].includes(nextTone);
+    if (wasBusy && !isBusy) {
+      setTimeout(() => {
+        refreshLatestClipForCamera(state.camera_id).catch((error) => console.error(error));
+      }, 1000);
+    }
   }
 }
 
@@ -794,6 +923,85 @@ function closePreviewModal() {
   }
 }
 
+function buildLatestClipPreviewNode(latestClip) {
+  if (!latestClip || !latestClip.has_latest_clip || !latestClip.preview_url) {
+    const empty = document.createElement("div");
+    empty.className = "no-preview";
+    empty.textContent = "No latest clip available";
+    return empty;
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "latest-clip-preview";
+
+  const video = document.createElement("video");
+  video.className = "clip-preview-player latest-clip-preview__video";
+  video.controls = true;
+  video.preload = "metadata";
+  video.src = latestClip.preview_url;
+
+  const error = document.createElement("p");
+  error.className = "clip-preview-error";
+  error.textContent = "Preview unavailable for this clip.";
+  error.hidden = true;
+
+  video.addEventListener("error", () => {
+    error.hidden = false;
+  });
+
+  wrapper.append(video, error);
+  return wrapper;
+}
+
+async function openLatestClipModal(printerId) {
+  const cameraId = getSelectedCameraId(printerId);
+  let latestClip = cameraId ? latestClipStates.get(cameraId) : null;
+  const modal = query("#latest-clip-modal");
+  const modalTitle = query("#latest-clip-modal-title");
+  const modalMeta = query("#latest-clip-modal-meta");
+  const modalBody = query("#latest-clip-modal-body");
+  const card = getPrinterCard(printerId);
+  const view = getCurrentView(printerId);
+
+  if (!(modal instanceof HTMLDialogElement) || !modalTitle || !modalMeta || !modalBody || !card) {
+    return;
+  }
+
+  const printerName = card.dataset.printerName || "Printer";
+  const viewName = view && view.camera_name ? view.camera_name : cameraId || "Selected view";
+
+  if (cameraId && !latestClip) {
+    try {
+      latestClip = await fetchJson(latestClipUrl(cameraId));
+      latestClipStates.set(cameraId, latestClip);
+      updateLatestClipSection(printerId, latestClip);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  modalTitle.textContent = latestClip && latestClip.filename ? latestClip.filename : "Latest Clip";
+  modalMeta.textContent = `${printerName} | ${viewName}`;
+  modalBody.replaceChildren(buildLatestClipPreviewNode(latestClip));
+
+  if (!modal.open) {
+    modal.showModal();
+  }
+}
+
+function closeLatestClipModal() {
+  const modal = query("#latest-clip-modal");
+  const modalBody = query("#latest-clip-modal-body");
+  if (!(modal instanceof HTMLDialogElement) || !modalBody) {
+    return;
+  }
+
+  modalBody.replaceChildren(buildLatestClipPreviewNode(null));
+  if (modal.open) {
+    modal.close();
+  }
+}
+
 function bindViewSelectors() {
   queryAll("[data-printer-view-select]").forEach((select) => {
     if (!(select instanceof HTMLSelectElement)) {
@@ -904,6 +1112,39 @@ function bindRecordingControls() {
   });
 }
 
+function bindLatestClipControls() {
+  queryAll("[data-printer-latest-preview]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const printerId = button.dataset.printerLatestPreview;
+      if (printerId) {
+        openLatestClipModal(printerId).catch((error) => console.error(error));
+      }
+    });
+  });
+
+  queryAll("[data-printer-latest-download]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      if (link.getAttribute("aria-disabled") === "true") {
+        event.preventDefault();
+      }
+    });
+  });
+
+  const closeButton = query("#latest-clip-modal-close");
+  if (closeButton) {
+    closeButton.addEventListener("click", closeLatestClipModal);
+  }
+
+  const modal = query("#latest-clip-modal");
+  if (modal instanceof HTMLDialogElement) {
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) {
+        closeLatestClipModal();
+      }
+    });
+  }
+}
+
 function bindControls() {
   queryAll("[data-printer-toggle]").forEach((input) => {
     input.addEventListener("change", () => {
@@ -940,11 +1181,13 @@ bindControls();
 bindViewSelectors();
 bindPreviewInteractions();
 bindRecordingControls();
+bindLatestClipControls();
 applySavedVisibility();
 restoreStoredViews();
 updateFreshnessLabels();
 refreshPrinterCards().catch((error) => console.error(error));
 refreshRecordingStates().catch((error) => console.error(error));
+refreshAllLatestClips();
 setInterval(() => {
   refreshPrinterCards().catch((error) => console.error(error));
 }, PRINTER_POLL_INTERVAL_MS);

@@ -825,6 +825,67 @@ body {
   word-break: break-word;
 }
 
+.printer-latest-clip {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.printer-latest-clip__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.printer-latest-clip__head h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.printer-latest-clip__head p,
+.printer-latest-clip__head span {
+  margin: 0.22rem 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  word-break: break-word;
+}
+
+.printer-latest-clip__head span {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.printer-latest-clip__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.printer-latest-clip__actions .control-button {
+  padding-inline: 0.75rem;
+}
+
+.printer-latest-clip__actions a[aria-disabled="true"] {
+  opacity: 0.55;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+.latest-clip-preview {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.75rem;
+}
+
+.latest-clip-preview__video {
+  width: 100%;
+  max-height: min(68vh, 700px);
+}
+
 .recording-state-pill {
   display: inline-flex;
   align-items: center;

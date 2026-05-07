@@ -20,6 +20,7 @@ This repository currently includes:
 - Phase 8.1 per-printer camera view selector
 - Phase 8.2 printer dashboard monitoring polish
 - Phase 8.3 printer card recording controls
+- Phase 8.4 printer card latest clip shortcuts
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -391,6 +392,7 @@ Current behavior:
 - printer-state badges and per-card freshness text
 - page-level and per-card status refresh buttons
 - Start, Stop, and Record 30s controls on each printer card
+- latest clip shortcuts for the currently selected camera/view
 
 View selection behavior:
 - the backend still computes the default live camera using `default_live_view`, enabled state, preview availability, and `display_order`
@@ -423,6 +425,13 @@ Printer-card recording notes:
 - RTSP/go2rtc cameras still use ffmpeg, and GoPro cameras still use the GoPro recording manager and download workflow
 - clips still appear in `/clips` through the existing filesystem-based storage model
 
+Latest clip shortcut notes:
+- each printer card shows the newest completed clip for the currently selected camera/view
+- Preview Latest opens a lightweight video modal using the existing clip preview endpoint
+- Download Latest uses the existing secure clip download endpoint
+- View All Clips opens `/clips` filtered to the selected camera when possible
+- latest clip data is filesystem-derived; no database or clip index is added
+
 ## API Endpoints
 
 - `GET /health`
@@ -445,6 +454,7 @@ Printer-card recording notes:
 - `GET /api/storage/status`
 - `POST /api/storage/cleanup`
 - `GET /api/clips`
+- `GET /api/clips/latest/{camera_id}`
 - `GET /api/clips/preview/{camera_id}/{filename}`
 - `GET /api/clips/download/{camera_id}/{filename}`
 - `DELETE /api/clips/{camera_id}/{filename}`

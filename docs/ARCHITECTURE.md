@@ -122,8 +122,12 @@ Retention config:
 12. Enlarged preview uses a client-side modal overlay that reuses the currently selected view for the clicked printer card.
 13. Printer-card recording controls resolve the current selected `camera_id` in the browser, then call the existing camera-based `/api/record` endpoints.
 14. The page polls `GET /api/record/status` and maps camera runtime state back onto the printer card for the currently selected view.
-15. If a printer has `moonraker_url`, `MoonrakerService` queries it directly for status data.
-16. If Moonraker is unavailable or not configured, the card still renders with:
+15. Each printer card shows latest clip shortcuts for the currently selected camera/view.
+16. Latest clip data is discovered from the local recordings filesystem through `ClipStore.latest_clip`.
+17. View changes update the live preview, recording target, clips link, and latest clip section together.
+18. Recording transitions from busy to idle trigger a lightweight latest-clip refresh for the affected selected camera.
+19. If a printer has `moonraker_url`, `MoonrakerService` queries it directly for status data.
+20. If Moonraker is unavailable or not configured, the card still renders with:
 - printer name
 - selected preview
 - placeholder status details
@@ -134,6 +138,7 @@ Current phase limits:
 - multi-preview layouts and explicit per-view config preferences are intentionally deferred to a follow-up phase
 - polling-based status refresh remains intentionally simple; no websocket or push-based monitoring path was added
 - printer-card recording controls are a frontend entry point into the existing camera recording APIs, not a new recording backend
+- latest clip shortcuts are read-only convenience actions over the existing clip filesystem APIs
 
 ## Recording Flow
 
@@ -164,6 +169,7 @@ Printer-card recording behavior:
 - Start, Stop, and Record 30s controls on `/printers` use the selected view's camera id.
 - Timed printer-card recording sends `{"duration": 30}` to the same start endpoint.
 - The printer card reads `GET /api/record/status` and displays the runtime state for the currently selected camera only.
+- When a recording finishes, the frontend refreshes latest clip metadata for matching visible printer cards.
 - Clips still land in the normal `recordings/<output_subdir>/` directory and remain visible through `/clips`.
 
 This recording profile is intentionally conservative for printer cameras:
@@ -222,10 +228,12 @@ GoPro v1 preview behavior:
 - size
 - active/in-use state
 5. Inline preview uses `GET /api/clips/preview/{camera_id}/{filename}` with safe file resolution and browser-friendly media type handling.
-6. Download uses `GET /api/clips/download/{camera_id}/{filename}` with `FileResponse`.
-7. Manual delete uses `DELETE /api/clips/{camera_id}/{filename}` and is blocked for active recording outputs.
-8. Bulk direct download is handled client-side in `/clips` by iterating selected clip download URLs from one user action; the backend still validates each file request individually.
-9. Optional chosen-folder saves use the browser File System Access API entirely client-side:
+6. Latest clip lookup uses `GET /api/clips/latest/{camera_id}` and returns preview/download URLs for the newest completed local clip.
+7. Printer cards use latest clip lookup for quick Preview, Download, and View All actions tied to the selected camera/view.
+8. Download uses `GET /api/clips/download/{camera_id}/{filename}` with `FileResponse`.
+9. Manual delete uses `DELETE /api/clips/{camera_id}/{filename}` and is blocked for active recording outputs.
+10. Bulk direct download is handled client-side in `/clips` by iterating selected clip download URLs from one user action; the backend still validates each file request individually.
+11. Optional chosen-folder saves use the browser File System Access API entirely client-side:
 - the browser prompts the user to choose a directory
 - the frontend may persist the directory handle in IndexedDB when the browser allows it
 - the backend never receives local filesystem path data

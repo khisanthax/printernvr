@@ -12,5 +12,7 @@ def get_printer_cards(request: Request) -> dict:
     cards = build_printer_cards(
         request.app.state.cameras,
         request.app.state.moonraker_service,
+        request.app.state.clip_store,
+        request.app.state.runtime_state.active_output_paths(),
     )
     return {"printers": [card.model_dump(mode="json") for card in cards]}

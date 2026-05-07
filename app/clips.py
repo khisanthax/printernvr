@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 
-from app.models import ClipItem, OUTPUT_SUBDIR_RE, ResolvedCamera
+from app.models import ClipItem, LatestClipInfo, OUTPUT_SUBDIR_RE, ResolvedCamera
 
 LOGGER = logging.getLogger(__name__)
 
@@ -71,6 +72,32 @@ class ClipStore:
         clips.sort(key=lambda item: item.created_at, reverse=True)
         return clips
 
+    def latest_clip(
+        self,
+        cameras: list[ResolvedCamera],
+        active_output_paths: set[str],
+        camera_id: str,
+    ) -> LatestClipInfo:
+        clips = [
+            clip
+            for clip in self.list_clips(cameras, active_output_paths, camera_id=camera_id)
+            if not clip.active
+        ]
+        if not clips:
+            return LatestClipInfo(camera_id=camera_id, has_latest_clip=False)
+
+        latest = clips[0]
+        return LatestClipInfo(
+            camera_id=latest.camera_id,
+            has_latest_clip=True,
+            filename=latest.filename,
+            created_at=latest.created_at,
+            size_bytes=latest.size_bytes,
+            size_human=latest.size_human,
+            preview_url=_clip_url("preview", latest.camera_id, latest.filename),
+            download_url=_clip_url("download", latest.camera_id, latest.filename),
+        )
+
     def resolve_clip_path(
         self,
         camera_id: str,
@@ -135,3 +162,11 @@ def _human_size(size_bytes: int) -> str:
         if size < 1024.0:
             return f"{size:.2f} {unit}"
     return f"{size:.2f} PB"
+
+
+def _clip_url(action: str, camera_id: str, filename: str) -> str:
+    return (
+        f"/api/clips/{action}/"
+        f"{quote(camera_id, safe='')}/"
+        f"{quote(filename, safe='')}"
+    )
