@@ -21,6 +21,7 @@ This repository currently includes:
 - Phase 8.2 printer dashboard monitoring polish
 - Phase 8.3 printer card recording controls
 - Phase 8.4 printer card latest clip shortcuts
+- Phase 8.5 custom printer card recording durations
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -391,7 +392,7 @@ Current behavior:
 - optional Moonraker polling for printer status/details
 - printer-state badges and per-card freshness text
 - page-level and per-card status refresh buttons
-- Start, Stop, and Record 30s controls on each printer card
+- Start, Stop, quick timed recording buttons, and a custom duration field on each printer card
 - latest clip shortcuts for the currently selected camera/view
 
 View selection behavior:
@@ -421,7 +422,9 @@ Monitoring polish notes:
 
 Printer-card recording notes:
 - `/printers` reuses the same `/api/record/start/{camera_id}`, `/api/record/stop/{camera_id}`, and `/api/record/status` endpoints used by the camera dashboard
-- Record 30s sends the existing timed recording payload for the selected camera
+- quick duration buttons support 10s, 15s, 20s, 30s, and 60s clips
+- custom duration recording accepts 1-600 seconds from the card input
+- all timed controls send the existing timed recording payload for the selected camera
 - RTSP/go2rtc cameras still use ffmpeg, and GoPro cameras still use the GoPro recording manager and download workflow
 - clips still appear in `/clips` through the existing filesystem-based storage model
 

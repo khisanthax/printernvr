@@ -425,6 +425,25 @@ Deliverables:
 - Preview Latest, Download Latest, and View All Clips actions on printer cards
 - Filesystem-based clip discovery reused from the clip browser
 
+### Phase 8E / 8.5 - Custom Recording Durations on Printer Cards [x]
+
+Goals:
+- Add flexible short-clip recording durations directly to printer cards
+- Keep timed recording actions tied to the currently selected camera/view
+- Support both common social-media clip lengths and custom seconds
+
+Tasks:
+- Add compact 10s, 15s, 20s, 30s, and 60s duration buttons to printer cards
+- Add a per-card custom duration input with browser-side validation
+- Reuse the existing timed `/api/record/start/{camera_id}` payload
+- Keep recording buttons disabled while the selected camera is busy
+- Refresh latest clip metadata after timed recording finishes
+
+Deliverables:
+- Quick timed recording buttons on `/printers`
+- Custom 1-600 second recording input per printer card
+- Existing RTSP and GoPro recording backends reused without a new subsystem
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:
@@ -505,6 +524,7 @@ Completed:
 - Phase 8B printer dashboard monitoring polish
 - Phase 8C printer card recording controls
 - Phase 8D printer card latest clip shortcuts
+- Phase 8E printer card custom recording durations
 - Phase 6 retention and storage protection
 
 In progress:
@@ -534,8 +554,9 @@ Implemented highlights:
 - `/printers` live dashboard with top printer toggles, one default live view per printer, and status/details beneath each preview
 - Per-printer camera/view selector on `/printers` with browser-side selection persistence and backend default fallback
 - Enlarged preview modal, printer-state badges, degraded-state placeholders, freshness text, and lightweight manual refresh controls on `/printers`
-- Printer-card Start, Stop, and Record 30s controls that target the currently selected camera/view and reuse existing RTSP/GoPro recording APIs
+- Printer-card Start, Stop, quick duration, and custom duration controls that target the currently selected camera/view and reuse existing RTSP/GoPro recording APIs
 - Printer-card latest clip shortcuts that preview, download, or open clips for the currently selected camera/view
+- Printer-card quick duration buttons and custom duration input for selected-view timed recordings
 - Optional Moonraker-backed status polling for printer status, file name, progress, temperatures, and ETA
 - Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `POST /api/gopro/test`, `GET /api/gopro/{camera_id}/status`, `POST /api/gopro/{camera_id}/record_for`, `POST /api/gopro/{camera_id}/download_latest`, `GET /api/gopro/{camera_id}/preview`, `GET /api/gopro/{camera_id}/media`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/latest/{camera_id}`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /printers`, `GET /cameras`, `GET /clips`
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip

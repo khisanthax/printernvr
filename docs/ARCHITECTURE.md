@@ -166,8 +166,9 @@ Current phase limits:
 8. A monitor thread captures full ffmpeg stderr and updates final state on exit.
 
 Printer-card recording behavior:
-- Start, Stop, and Record 30s controls on `/printers` use the selected view's camera id.
-- Timed printer-card recording sends `{"duration": 30}` to the same start endpoint.
+- Start and Stop controls on `/printers` use the selected view's camera id.
+- Quick timed controls for 10s, 15s, 20s, 30s, and 60s send `{"duration": seconds}` to the same start endpoint.
+- Custom printer-card duration input validates 1-600 seconds in the browser before sending the existing timed recording payload.
 - The printer card reads `GET /api/record/status` and displays the runtime state for the currently selected camera only.
 - When a recording finishes, the frontend refreshes latest clip metadata for matching visible printer cards.
 - Clips still land in the normal `recordings/<output_subdir>/` directory and remain visible through `/clips`.

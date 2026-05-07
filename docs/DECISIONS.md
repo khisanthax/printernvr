@@ -305,3 +305,19 @@ Impact:
 - The newest completed local clip is discovered from `recordings/<output_subdir>/`.
 - Active recording outputs are excluded from latest clip results.
 - Preview and download still use the existing secure clip endpoints.
+
+## 2026-05-07 - Reuse Existing Timed Recording API for Printer Duration Buttons
+
+Decision:
+- Add quick printer-card durations and custom seconds as frontend controls over `POST /api/record/start/{camera_id}`.
+- Keep duration validation lightweight and browser-side for the custom input.
+- Do not add separate duration endpoints or a new recording path for printer cards.
+
+Why:
+- The existing recording API already supports arbitrary `duration` seconds for RTSP and dispatches GoPro timed recording through the same camera id flow.
+- Keeping durations as UI affordances avoids duplicating backend logic.
+
+Impact:
+- `/printers` supports 10s, 15s, 20s, 30s, 60s, and custom 1-600 second timed recordings.
+- All timed actions continue to target the currently selected camera/view for the printer card.
+- Latest clip refresh remains driven by recording state transitions.

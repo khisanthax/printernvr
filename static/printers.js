@@ -8,6 +8,8 @@ let refreshInFlight = false;
 const recordingStates = new Map();
 const localRecordingErrors = new Map();
 const latestClipStates = new Map();
+const CUSTOM_DURATION_MIN_SECONDS = 1;
+const CUSTOM_DURATION_MAX_SECONDS = 600;
 
 function query(selector) {
   return document.querySelector(selector);
@@ -555,6 +557,28 @@ function getSelectedCameraId(printerId) {
   return view && view.camera_id ? view.camera_id : null;
 }
 
+function getCustomDurationInput(printerId) {
+  return query(`[data-printer-custom-duration="${printerId}"]`);
+}
+
+function readCustomDuration(printerId) {
+  const input = getCustomDurationInput(printerId);
+  if (!(input instanceof HTMLInputElement)) {
+    throw new Error("Custom duration input is unavailable.");
+  }
+
+  const duration = Number(input.value);
+  if (!Number.isInteger(duration)) {
+    throw new Error("Custom duration must be a whole number of seconds.");
+  }
+  if (duration < CUSTOM_DURATION_MIN_SECONDS || duration > CUSTOM_DURATION_MAX_SECONDS) {
+    throw new Error(
+      `Custom duration must be between ${CUSTOM_DURATION_MIN_SECONDS} and ${CUSTOM_DURATION_MAX_SECONDS} seconds.`,
+    );
+  }
+  return duration;
+}
+
 function updatePrinterClipsLink(printerId, cameraId) {
   const link = query(`[data-printer-clips-link="${printerId}"]`);
   if (!link) {
@@ -735,6 +759,11 @@ function updatePrinterRecordingState(printerId) {
 
     button.disabled = busy;
   });
+
+  const customInput = getCustomDurationInput(printerId);
+  if (customInput instanceof HTMLInputElement) {
+    customInput.disabled = busy || !canRecord;
+  }
 }
 
 function updateAllPrinterRecordingStates() {
@@ -1098,6 +1127,10 @@ function bindRecordingControls() {
           await stopRecording(cameraId);
         } else if (action === "timed") {
           const duration = Number(button.dataset.duration || 30);
+          setRecordingMessage(printerId, `${duration}-second clip starting...`);
+          await startRecording(cameraId, duration);
+        } else if (action === "custom") {
+          const duration = readCustomDuration(printerId);
           setRecordingMessage(printerId, `${duration}-second clip starting...`);
           await startRecording(cameraId, duration);
         }

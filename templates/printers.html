@@ -180,14 +180,35 @@
             </div>
             <div class="printer-recording__controls">
               <button type="button" class="control-button" data-printer-record-action="start" data-printer-record-printer="{{ printer.printer_id }}">
-                Start Recording
-              </button>
-              <button type="button" class="control-button control-button--secondary" data-printer-record-action="timed" data-duration="30" data-printer-record-printer="{{ printer.printer_id }}">
-                Record 30s
+                Start
               </button>
               <button type="button" class="control-button control-button--secondary" data-printer-record-action="stop" data-printer-record-printer="{{ printer.printer_id }}" disabled>
                 Stop
               </button>
+            </div>
+            <div class="printer-recording__durations" aria-label="Quick recording durations">
+              {% for duration in [10, 15, 20, 30, 60] %}
+              <button type="button" class="control-button control-button--secondary control-button--compact" data-printer-record-action="timed" data-duration="{{ duration }}" data-printer-record-printer="{{ printer.printer_id }}">
+                {{ duration }}s
+              </button>
+              {% endfor %}
+            </div>
+            <div class="printer-recording__custom">
+              <label for="custom-duration-{{ printer.printer_id }}">Custom seconds</label>
+              <div>
+                <input
+                  id="custom-duration-{{ printer.printer_id }}"
+                  type="number"
+                  min="1"
+                  max="600"
+                  step="1"
+                  inputmode="numeric"
+                  placeholder="1-600"
+                  data-printer-custom-duration="{{ printer.printer_id }}">
+                <button type="button" class="control-button control-button--secondary" data-printer-record-action="custom" data-printer-record-printer="{{ printer.printer_id }}">
+                  Record Custom
+                </button>
+              </div>
             </div>
             <p class="printer-recording__message" data-printer-recording-message="{{ printer.printer_id }}">Selected view: {{ printer.camera_name or printer.default_camera_id or "--" }}</p>
             <p class="camera-error" data-printer-recording-error="{{ printer.printer_id }}" hidden></p>

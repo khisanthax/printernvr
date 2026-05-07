@@ -818,6 +818,44 @@ body {
   justify-content: flex-start;
 }
 
+.printer-recording__durations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.printer-recording__custom {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.printer-recording__custom label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.printer-recording__custom div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+}
+
+.printer-recording__custom input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.52rem 0.6rem;
+  color: var(--text);
+  background: #fff;
+  font-size: 0.92rem;
+}
+
+.printer-recording__custom input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .printer-recording__message {
   margin: 0;
   color: var(--muted);
@@ -1183,6 +1221,10 @@ body {
 
   .printer-stats {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .printer-recording__custom div {
+    grid-template-columns: 1fr;
   }
 }
 
