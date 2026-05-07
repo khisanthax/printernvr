@@ -272,3 +272,19 @@ Impact:
 - `/printers` now provides a modal enlarged-view experience without replacing the card grid.
 - Printer status is normalized into a small badge vocabulary for clearer scanning.
 - Metadata freshness is shown from Moonraker polling timestamps, while printers without metadata sources stay readable with explicit fallback text.
+
+## 2026-05-07 - Reuse Camera Recording APIs from Printer Cards
+
+Decision:
+- Add Start, Stop, and Record 30s controls to `/printers` cards.
+- Resolve the current selected printer view to a `camera_id` in the browser.
+- Call the existing `/api/record/start/{camera_id}`, `/api/record/stop/{camera_id}`, and `/api/record/status` endpoints.
+
+Why:
+- The recording engine already handles ffmpeg and GoPro dispatch correctly by camera backend type.
+- Printer cards should be a watch-and-capture UI over existing camera workflows, not a second recording subsystem.
+
+Impact:
+- Recording from `/printers` targets the currently selected camera/view for each printer card.
+- Runtime recording state remains camera-based and is projected onto the relevant printer card in the frontend.
+- Clip storage and the `/clips` browser remain unchanged.

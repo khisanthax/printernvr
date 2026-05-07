@@ -120,8 +120,10 @@ Retention config:
 10. The page also tracks per-card metadata freshness from Moonraker responses and renders relative text such as `Updated just now` or `Stale`.
 11. Manual refresh remains lightweight and reuses the same polling endpoint rather than introducing websockets or a separate real-time channel.
 12. Enlarged preview uses a client-side modal overlay that reuses the currently selected view for the clicked printer card.
-13. If a printer has `moonraker_url`, `MoonrakerService` queries it directly for status data.
-14. If Moonraker is unavailable or not configured, the card still renders with:
+13. Printer-card recording controls resolve the current selected `camera_id` in the browser, then call the existing camera-based `/api/record` endpoints.
+14. The page polls `GET /api/record/status` and maps camera runtime state back onto the printer card for the currently selected view.
+15. If a printer has `moonraker_url`, `MoonrakerService` queries it directly for status data.
+16. If Moonraker is unavailable or not configured, the card still renders with:
 - printer name
 - selected preview
 - placeholder status details
@@ -131,10 +133,11 @@ Current phase limits:
 - selector state is browser-local and not stored in config
 - multi-preview layouts and explicit per-view config preferences are intentionally deferred to a follow-up phase
 - polling-based status refresh remains intentionally simple; no websocket or push-based monitoring path was added
+- printer-card recording controls are a frontend entry point into the existing camera recording APIs, not a new recording backend
 
 ## Recording Flow
 
-1. Client calls `POST /api/record/start/{camera_id}`.
+1. Client calls `POST /api/record/start/{camera_id}` from either the camera dashboard or the selected view on a printer card.
 2. Backend validates camera existence, enabled state, and current recording state.
 3. `RecordingManager` creates `/app/recordings/<output_subdir>/<camera_id>_YYYYMMDD_HHMMSS.mp4`, where `output_subdir` defaults to the camera id.
 4. ffmpeg starts as a subprocess using the camera's resolved `record_url`.
@@ -156,6 +159,12 @@ Current phase limits:
 - `last_ffmpeg_exit_code`
 - `last_completed_output`
 8. A monitor thread captures full ffmpeg stderr and updates final state on exit.
+
+Printer-card recording behavior:
+- Start, Stop, and Record 30s controls on `/printers` use the selected view's camera id.
+- Timed printer-card recording sends `{"duration": 30}` to the same start endpoint.
+- The printer card reads `GET /api/record/status` and displays the runtime state for the currently selected camera only.
+- Clips still land in the normal `recordings/<output_subdir>/` directory and remain visible through `/clips`.
 
 This recording profile is intentionally conservative for printer cameras:
 - RTSP over TCP improves compatibility with go2rtc and camera streams that are unreliable over default transport settings

@@ -1,9 +1,12 @@
 const PRINTER_POLL_INTERVAL_MS = 7000;
 const PRINTER_FRESHNESS_INTERVAL_MS = 5000;
+const PRINTER_RECORDING_POLL_INTERVAL_MS = 4000;
 const PRINTER_VISIBILITY_KEY = "printernvr-visible-printers";
 const PRINTER_VIEW_SELECTION_KEY = "printernvr-printer-view-selections";
 
 let refreshInFlight = false;
+const recordingStates = new Map();
+const localRecordingErrors = new Map();
 
 function query(selector) {
   return document.querySelector(selector);
@@ -81,6 +84,15 @@ function formatTemp(current, target) {
     ? "--"
     : Number(target).toFixed(1);
   return `${currentText} / ${targetText} C`;
+}
+
+function humanFileName(value) {
+  if (!value) {
+    return "";
+  }
+
+  const parts = String(value).split(/[\\/]/);
+  return parts[parts.length - 1] || String(value);
 }
 
 function normalizeVisiblePrinterIds() {
@@ -204,6 +216,7 @@ function getCurrentView(printerId) {
       preview_url: getPreviewContainer(printerId)?.dataset.previewUrl || "",
       preview_mode: getPreviewContainer(printerId)?.dataset.previewMode || "none",
       preview_available: getPreviewContainer(printerId)?.dataset.previewAvailable === "true",
+      enabled: card.dataset.defaultCameraEnabled !== "false",
     };
   }
 
@@ -221,6 +234,7 @@ function getViewFromOption(option) {
     preview_url: option.dataset.previewUrl || "",
     preview_mode: option.dataset.previewMode || "none",
     preview_available: option.dataset.previewAvailable === "true",
+    enabled: option.dataset.enabled !== "false",
   };
 }
 
@@ -293,7 +307,9 @@ function renderPreview(printerId, view) {
   container.dataset.previewUrl = view && view.preview_url ? view.preview_url : "";
   container.dataset.previewMode = view && view.preview_mode ? view.preview_mode : "none";
   container.dataset.previewAvailable = view && view.preview_available ? "true" : "false";
+  container.dataset.viewEnabled = view && view.enabled === false ? "false" : "true";
   container.replaceChildren(createPreviewNode(printerName, view));
+  updatePrinterRecordingState(printerId);
 }
 
 function restoreStoredViewForPrinter(printerId) {
@@ -457,6 +473,166 @@ function setRefreshBusy(isBusy) {
   });
 }
 
+function getRecordingStatusTone(status) {
+  const normalized = String(status || "idle").toLowerCase();
+  return ["starting", "recording", "stopping", "downloading", "error"].includes(normalized)
+    ? normalized
+    : "idle";
+}
+
+function getRecordingStatusLabel(status) {
+  const tone = getRecordingStatusTone(status);
+  if (tone === "idle") {
+    return "Idle";
+  }
+  return tone.charAt(0).toUpperCase() + tone.slice(1);
+}
+
+function setRecordingBadge(printerId, status) {
+  const badge = query(`[data-printer-recording-badge="${printerId}"]`);
+  if (!badge) {
+    return;
+  }
+
+  const tone = getRecordingStatusTone(status);
+  badge.textContent = getRecordingStatusLabel(tone);
+  badge.classList.remove(
+    "recording-state-pill--idle",
+    "recording-state-pill--starting",
+    "recording-state-pill--recording",
+    "recording-state-pill--stopping",
+    "recording-state-pill--downloading",
+    "recording-state-pill--error",
+  );
+  badge.classList.add(`recording-state-pill--${tone}`);
+}
+
+function setRecordingError(printerId, message) {
+  const errorNode = query(`[data-printer-recording-error="${printerId}"]`);
+  if (!errorNode) {
+    return;
+  }
+
+  if (message) {
+    errorNode.hidden = false;
+    errorNode.textContent = message;
+  } else {
+    errorNode.hidden = true;
+    errorNode.textContent = "";
+  }
+}
+
+function setRecordingMessage(printerId, message) {
+  updateText(`[data-printer-recording-message="${printerId}"]`, message);
+}
+
+function getSelectedCameraId(printerId) {
+  const view = getCurrentView(printerId);
+  return view && view.camera_id ? view.camera_id : null;
+}
+
+function updatePrinterClipsLink(printerId, cameraId) {
+  const link = query(`[data-printer-clips-link="${printerId}"]`);
+  if (!link) {
+    return;
+  }
+
+  link.href = cameraId ? `/clips?camera_id=${encodeURIComponent(cameraId)}` : "/clips";
+}
+
+function describeRecordingState(printerId, view, state) {
+  const viewName = view && view.camera_name ? view.camera_name.trim() : "selected view";
+  if (!view || !view.camera_id) {
+    return "No recording target selected.";
+  }
+  if (view.enabled === false) {
+    return `${viewName} is disabled.`;
+  }
+  if (!state) {
+    return `Selected view: ${viewName}`;
+  }
+
+  const status = getRecordingStatusTone(state.status);
+  if (status === "starting") {
+    return `Starting recording from ${viewName}...`;
+  }
+  if (status === "recording") {
+    if (state.requested_duration_seconds) {
+      return `${state.requested_duration_seconds}-second clip in progress from ${viewName}...`;
+    }
+    return `Recording from ${viewName}...`;
+  }
+  if (status === "stopping") {
+    return `Stopping recording from ${viewName}...`;
+  }
+  if (status === "downloading") {
+    return "Downloading clip...";
+  }
+  if (status === "error") {
+    return state.last_action_message || state.last_error || "Recording error";
+  }
+
+  const lastClip = humanFileName(state.last_completed_output || state.last_downloaded_filename);
+  if (lastClip) {
+    return `Last clip: ${lastClip}`;
+  }
+  return `Idle. Selected view: ${viewName}`;
+}
+
+function updatePrinterRecordingState(printerId) {
+  const view = getCurrentView(printerId);
+  const cameraId = view && view.camera_id ? view.camera_id : null;
+  const state = cameraId ? recordingStates.get(cameraId) : null;
+  const status = state ? state.status : "idle";
+  const busy = ["starting", "recording", "stopping", "downloading"].includes(
+    getRecordingStatusTone(status),
+  );
+  const canRecord = Boolean(cameraId) && view && view.enabled !== false;
+
+  setRecordingBadge(printerId, status);
+  setRecordingMessage(printerId, describeRecordingState(printerId, view, state));
+  const localError = localRecordingErrors.get(printerId);
+  setRecordingError(
+    printerId,
+    localError || (state && state.last_error ? `Error: ${state.last_error}` : ""),
+  );
+  updatePrinterClipsLink(printerId, cameraId);
+
+  queryAll(`[data-printer-record-printer="${printerId}"]`).forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    const action = button.dataset.printerRecordAction;
+    if (!canRecord) {
+      button.disabled = true;
+      return;
+    }
+
+    if (action === "stop") {
+      button.disabled = !["starting", "recording"].includes(getRecordingStatusTone(status));
+      return;
+    }
+
+    button.disabled = busy;
+  });
+}
+
+function updateAllPrinterRecordingStates() {
+  queryAll("[data-printer-card]").forEach((card) => {
+    const printerId = card.dataset.printerCard;
+    if (printerId) {
+      updatePrinterRecordingState(printerId);
+    }
+  });
+}
+
+function mergeRecordingState(state) {
+  if (state && state.camera_id) {
+    recordingStates.set(state.camera_id, state);
+  }
+}
+
 function updateCard(printer) {
   setConnectionBadge(printer.printer_id, printer.connection_state);
   setStatusBadge(printer);
@@ -553,6 +729,35 @@ async function refreshPrinterCards() {
   }
 }
 
+async function refreshRecordingStates() {
+  const payload = await fetchJson("/api/record/status");
+  (payload.cameras || []).forEach(mergeRecordingState);
+  updateAllPrinterRecordingStates();
+}
+
+async function startRecording(cameraId, duration) {
+  const options = { method: "POST" };
+  if (duration !== undefined && duration !== null) {
+    options.body = JSON.stringify({ duration });
+  }
+
+  const payload = await fetchJson(`/api/record/start/${cameraId}`, options);
+  if (payload.camera) {
+    mergeRecordingState(payload.camera);
+  }
+  updateAllPrinterRecordingStates();
+}
+
+async function stopRecording(cameraId) {
+  const payload = await fetchJson(`/api/record/stop/${cameraId}`, {
+    method: "POST",
+  });
+  if (payload.camera) {
+    mergeRecordingState(payload.camera);
+  }
+  updateAllPrinterRecordingStates();
+}
+
 function openPreviewModal(printerId) {
   const modal = query("#printer-preview-modal");
   const modalTitle = query("#printer-preview-modal-title");
@@ -603,6 +808,7 @@ function bindViewSelectors() {
       }
 
       persistViewSelection(printerId, option.value);
+      localRecordingErrors.delete(printerId);
       renderPreview(printerId, getViewFromOption(option));
 
       const modal = query("#printer-preview-modal");
@@ -650,6 +856,54 @@ function bindPreviewInteractions() {
   }
 }
 
+function bindRecordingControls() {
+  queryAll("[data-printer-record-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const printerId = button.dataset.printerRecordPrinter;
+      const action = button.dataset.printerRecordAction;
+      if (!printerId || !action) {
+        return;
+      }
+
+      const cameraId = getSelectedCameraId(printerId);
+      if (!cameraId) {
+        localRecordingErrors.set(printerId, "Error: no recording target selected");
+        updatePrinterRecordingState(printerId);
+        return;
+      }
+
+      const view = getCurrentView(printerId);
+      if (view && view.enabled === false) {
+        localRecordingErrors.set(printerId, `Error: ${view.camera_name || cameraId} is disabled`);
+        updatePrinterRecordingState(printerId);
+        return;
+      }
+
+      localRecordingErrors.delete(printerId);
+      setRecordingError(printerId, "");
+      try {
+        if (action === "start") {
+          setRecordingMessage(printerId, "Starting recording...");
+          await startRecording(cameraId);
+        } else if (action === "stop") {
+          setRecordingMessage(printerId, "Stopping recording...");
+          await stopRecording(cameraId);
+        } else if (action === "timed") {
+          const duration = Number(button.dataset.duration || 30);
+          setRecordingMessage(printerId, `${duration}-second clip starting...`);
+          await startRecording(cameraId, duration);
+        }
+        await refreshRecordingStates();
+      } catch (error) {
+        console.error(error);
+        localRecordingErrors.set(printerId, `Error: ${error.message}`);
+        updatePrinterRecordingState(printerId);
+        await refreshRecordingStates().catch((refreshError) => console.error(refreshError));
+      }
+    });
+  });
+}
+
 function bindControls() {
   queryAll("[data-printer-toggle]").forEach((input) => {
     input.addEventListener("change", () => {
@@ -685,11 +939,16 @@ function bindControls() {
 bindControls();
 bindViewSelectors();
 bindPreviewInteractions();
+bindRecordingControls();
 applySavedVisibility();
 restoreStoredViews();
 updateFreshnessLabels();
 refreshPrinterCards().catch((error) => console.error(error));
+refreshRecordingStates().catch((error) => console.error(error));
 setInterval(() => {
   refreshPrinterCards().catch((error) => console.error(error));
 }, PRINTER_POLL_INTERVAL_MS);
+setInterval(() => {
+  refreshRecordingStates().catch((error) => console.error(error));
+}, PRINTER_RECORDING_POLL_INTERVAL_MS);
 setInterval(updateFreshnessLabels, PRINTER_FRESHNESS_INTERVAL_MS);

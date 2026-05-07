@@ -51,10 +51,11 @@
       {% for printer in printers %}
       <article
         class="printer-card"
-        data-printer-card="{{ printer.printer_id }}"
-        data-printer-name="{{ printer.printer_name }}"
-        data-default-camera-id="{{ printer.default_camera_id or '' }}"
-        data-has-metadata-source="{{ 'true' if printer.has_metadata_source else 'false' }}"
+          data-printer-card="{{ printer.printer_id }}"
+          data-printer-name="{{ printer.printer_name }}"
+          data-default-camera-id="{{ printer.default_camera_id or '' }}"
+          data-default-camera-enabled="{{ 'true' if printer.camera_enabled else 'false' }}"
+          data-has-metadata-source="{{ 'true' if printer.has_metadata_source else 'false' }}"
         data-last-metadata-attempt-at="{{ printer.last_metadata_attempt_at or '' }}"
         data-last-metadata-success-at="{{ printer.last_metadata_success_at or '' }}">
         <header class="printer-card__header">
@@ -109,7 +110,8 @@
           data-current-camera-id="{{ printer.default_camera_id or '' }}"
           data-preview-url="{{ printer.preview_url or '' }}"
           data-preview-mode="{{ printer.preview_mode }}"
-          data-preview-available="{{ 'true' if printer.preview_available else 'false' }}">
+          data-preview-available="{{ 'true' if printer.preview_available else 'false' }}"
+          data-view-enabled="{{ 'true' if printer.camera_enabled else 'false' }}">
           {% if printer.preview_mode == "embedded" and printer.preview_url %}
           <iframe
             title="{{ printer.printer_name }} live view"
@@ -170,6 +172,26 @@
               <dd data-printer-eta="{{ printer.printer_id }}">{{ printer.eta_text or "--" }}</dd>
             </div>
           </dl>
+
+          <section class="printer-recording" data-printer-recording="{{ printer.printer_id }}">
+            <div class="printer-recording__head">
+              <span class="recording-state-pill recording-state-pill--idle" data-printer-recording-badge="{{ printer.printer_id }}">Idle</span>
+              <a class="inline-link" href="/clips?camera_id={{ printer.default_camera_id or '' }}" data-printer-clips-link="{{ printer.printer_id }}">View Clips</a>
+            </div>
+            <div class="printer-recording__controls">
+              <button type="button" class="control-button" data-printer-record-action="start" data-printer-record-printer="{{ printer.printer_id }}">
+                Start Recording
+              </button>
+              <button type="button" class="control-button control-button--secondary" data-printer-record-action="timed" data-duration="30" data-printer-record-printer="{{ printer.printer_id }}">
+                Record 30s
+              </button>
+              <button type="button" class="control-button control-button--secondary" data-printer-record-action="stop" data-printer-record-printer="{{ printer.printer_id }}" disabled>
+                Stop
+              </button>
+            </div>
+            <p class="printer-recording__message" data-printer-recording-message="{{ printer.printer_id }}">Selected view: {{ printer.camera_name or printer.default_camera_id or "--" }}</p>
+            <p class="camera-error" data-printer-recording-error="{{ printer.printer_id }}" hidden></p>
+          </section>
 
           <div class="printer-card__footer">
             <span data-printer-updated-text="{{ printer.printer_id }}">

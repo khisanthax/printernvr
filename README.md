@@ -19,6 +19,7 @@ This repository currently includes:
 - Phase 8 live multi-printer dashboard
 - Phase 8.1 per-printer camera view selector
 - Phase 8.2 printer dashboard monitoring polish
+- Phase 8.3 printer card recording controls
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -389,11 +390,13 @@ Current behavior:
 - optional Moonraker polling for printer status/details
 - printer-state badges and per-card freshness text
 - page-level and per-card status refresh buttons
+- Start, Stop, and Record 30s controls on each printer card
 
 View selection behavior:
 - the backend still computes the default live camera using `default_live_view`, enabled state, preview availability, and `display_order`
 - the browser may temporarily override that preview per printer card without changing config
 - if the stored camera id is no longer valid, the card falls back to the backend default view
+- recording controls always target the currently selected camera/view on that printer card
 
 If `moonraker_url` is configured for a printer, the page attempts to show:
 - printer status
@@ -413,6 +416,12 @@ Monitoring polish notes:
 - enlarged preview uses a lightweight modal overlay; it does not replace the card grid
 - status badges are normalized to `Printing`, `Idle`, `Complete`, `Paused`, `Error`, `Offline`, or `Status unavailable`
 - preview-unavailable and offline states are handled per card and do not affect other printers
+
+Printer-card recording notes:
+- `/printers` reuses the same `/api/record/start/{camera_id}`, `/api/record/stop/{camera_id}`, and `/api/record/status` endpoints used by the camera dashboard
+- Record 30s sends the existing timed recording payload for the selected camera
+- RTSP/go2rtc cameras still use ffmpeg, and GoPro cameras still use the GoPro recording manager and download workflow
+- clips still appear in `/clips` through the existing filesystem-based storage model
 
 ## API Endpoints
 

@@ -384,6 +384,27 @@ Deliverables:
 - Per-card freshness text such as `Updated just now` or `Stale`
 - Page-level and per-card refresh controls
 
+### Phase 8C - Recording Controls on Printer Cards [x]
+
+Goals:
+- Make `/printers` the main watch-and-capture dashboard
+- Start and stop recording from each printer card
+- Record a one-click 30-second clip from the selected printer view
+- Keep recording controls below the preview and tied to the selected camera/view
+
+Tasks:
+- Add compact Start, Stop, and Record 30s controls to printer cards
+- Resolve the selected camera id from the current per-printer view selector
+- Reuse the existing `/api/record` start, stop, and status endpoints
+- Show per-card recording state and local action errors
+- Keep clip storage and `/clips` behavior unchanged
+
+Deliverables:
+- Printer-card recording controls on `/printers`
+- Selected-view recording targeting for grouped printers
+- Per-card runtime recording state for idle, starting, recording, stopping, downloading, and error
+- Direct link from each printer card to clips for the selected camera
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:
@@ -462,6 +483,7 @@ Completed:
 - Phase 8 live multi-printer dashboard
 - Phase 8A per-printer multi-view selector
 - Phase 8B printer dashboard monitoring polish
+- Phase 8C printer card recording controls
 - Phase 6 retention and storage protection
 
 In progress:
@@ -491,6 +513,7 @@ Implemented highlights:
 - `/printers` live dashboard with top printer toggles, one default live view per printer, and status/details beneath each preview
 - Per-printer camera/view selector on `/printers` with browser-side selection persistence and backend default fallback
 - Enlarged preview modal, printer-state badges, degraded-state placeholders, freshness text, and lightweight manual refresh controls on `/printers`
+- Printer-card Start, Stop, and Record 30s controls that target the currently selected camera/view and reuse existing RTSP/GoPro recording APIs
 - Optional Moonraker-backed status polling for printer status, file name, progress, temperatures, and ETA
 - Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `POST /api/gopro/test`, `GET /api/gopro/{camera_id}/status`, `POST /api/gopro/{camera_id}/record_for`, `POST /api/gopro/{camera_id}/download_latest`, `GET /api/gopro/{camera_id}/preview`, `GET /api/gopro/{camera_id}/media`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /printers`, `GET /cameras`, `GET /clips`
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip

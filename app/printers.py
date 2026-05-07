@@ -30,6 +30,7 @@ def build_printer_cards(
                 printer_name=primary.printer_name,
                 camera_id=primary.id,
                 camera_name=primary.name,
+                camera_enabled=primary.enabled,
                 default_camera_id=primary.id,
                 default_camera_name=primary.name,
                 preview_url=primary.preview_url,

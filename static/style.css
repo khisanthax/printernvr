@@ -796,6 +796,71 @@ body {
   font-size: 0.85rem;
 }
 
+.printer-recording {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-alt);
+}
+
+.printer-recording__head,
+.printer-recording__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.printer-recording__controls {
+  justify-content: flex-start;
+}
+
+.printer-recording__message {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  word-break: break-word;
+}
+
+.recording-state-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.24rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: rgba(115, 130, 151, 0.14);
+  color: var(--idle);
+}
+
+.recording-state-pill--starting {
+  background: rgba(29, 110, 222, 0.1);
+  color: var(--starting);
+}
+
+.recording-state-pill--recording {
+  background: rgba(193, 48, 62, 0.12);
+  color: var(--recording);
+}
+
+.recording-state-pill--stopping {
+  background: rgba(179, 122, 24, 0.12);
+  color: var(--stopping);
+}
+
+.recording-state-pill--downloading {
+  background: rgba(38, 115, 106, 0.12);
+  color: var(--downloading);
+}
+
+.recording-state-pill--error {
+  background: rgba(162, 31, 53, 0.1);
+  color: var(--error);
+}
+
 .printer-preview-modal {
   width: min(1120px, calc(100vw - 2rem));
   max-width: 100%;

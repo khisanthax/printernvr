@@ -360,6 +360,7 @@ class PrinterCard(BaseModel):
     printer_name: str
     camera_id: str | None = None
     camera_name: str | None = None
+    camera_enabled: bool = True
     default_camera_id: str | None = None
     default_camera_name: str | None = None
     preview_url: str | None = None
