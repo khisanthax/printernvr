@@ -12,6 +12,7 @@ from app.models import CleanupSummary, RetentionConfig, StorageStatus
 LOGGER = logging.getLogger(__name__)
 
 BYTES_PER_GB = 1024 * 1024 * 1024
+CLIP_METADATA_FILENAMES = {".clip_metadata.json", ".clip_metadata.json.tmp"}
 
 
 @dataclass
@@ -209,6 +210,8 @@ class RetentionManager:
         files: list[RecordingFile] = []
         for path in self._recordings_root.rglob("*"):
             if not path.is_file():
+                continue
+            if path.name in CLIP_METADATA_FILENAMES:
                 continue
             try:
                 stat_result = path.stat()

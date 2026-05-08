@@ -1037,7 +1037,8 @@ body {
   color: var(--muted);
 }
 
-.clips-toolbar select {
+.clips-toolbar select,
+.clips-toolbar input {
   min-width: 220px;
   margin-top: 0.3rem;
   border: 1px solid var(--border);
@@ -1146,6 +1147,38 @@ body {
 .status-chip--active {
   background: rgba(193, 48, 62, 0.12);
   color: var(--recording);
+}
+
+.review-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.review-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.22rem 0.62rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(115, 130, 151, 0.14);
+  color: var(--idle);
+}
+
+.review-chip--favorite {
+  background: rgba(179, 122, 24, 0.14);
+  color: var(--stopping);
+}
+
+.review-chip--rejected {
+  background: rgba(162, 31, 53, 0.1);
+  color: var(--error);
+}
+
+.review-action-active {
+  border-color: rgba(29, 110, 222, 0.32);
+  background: rgba(29, 110, 222, 0.1);
 }
 
 .table-actions {

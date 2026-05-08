@@ -64,6 +64,14 @@ function deleteUrl(cameraId, filename) {
   return `/api/clips/${encodeURIComponent(cameraId)}/${encodeURIComponent(filename)}`;
 }
 
+function metadataUrl(cameraId, filename) {
+  return `/api/clips/${encodeURIComponent(cameraId)}/${encodeURIComponent(filename)}/metadata`;
+}
+
+function renameUrl(cameraId, filename) {
+  return `/api/clips/${encodeURIComponent(cameraId)}/${encodeURIComponent(filename)}/rename`;
+}
+
 function updateFeedback(message = "", isError = false) {
   const node = bySelector("#clips-feedback");
   if (!node) {
@@ -337,6 +345,31 @@ function renderClips(clips) {
     statusCell.appendChild(status);
     row.appendChild(statusCell);
 
+    const reviewCell = document.createElement("td");
+    reviewCell.dataset.label = "Review";
+    const reviewWrap = document.createElement("div");
+    reviewWrap.className = "review-tags";
+    if (clip.favorite) {
+      const favorite = document.createElement("span");
+      favorite.className = "review-chip review-chip--favorite";
+      favorite.textContent = "Favorite";
+      reviewWrap.appendChild(favorite);
+    }
+    if (clip.rejected) {
+      const rejected = document.createElement("span");
+      rejected.className = "review-chip review-chip--rejected";
+      rejected.textContent = "Rejected";
+      reviewWrap.appendChild(rejected);
+    }
+    if (!clip.favorite && !clip.rejected) {
+      const unreviewed = document.createElement("span");
+      unreviewed.className = "review-chip";
+      unreviewed.textContent = "Unreviewed";
+      reviewWrap.appendChild(unreviewed);
+    }
+    reviewCell.appendChild(reviewWrap);
+    row.appendChild(reviewCell);
+
     const actionsCell = document.createElement("td");
     actionsCell.dataset.label = "Actions";
     const actions = document.createElement("div");
@@ -356,6 +389,34 @@ function renderClips(clips) {
     download.dataset.downloadFilename = clip.filename;
     download.textContent = "Download";
 
+    const favoriteButton = document.createElement("button");
+    favoriteButton.type = "button";
+    favoriteButton.className = clip.favorite
+      ? "control-button control-button--secondary review-action-active"
+      : "control-button control-button--secondary";
+    favoriteButton.dataset.favoriteCameraId = clip.camera_id;
+    favoriteButton.dataset.favoriteFilename = clip.filename;
+    favoriteButton.dataset.favoriteValue = clip.favorite ? "false" : "true";
+    favoriteButton.textContent = clip.favorite ? "Unfavorite" : "Favorite";
+
+    const rejectButton = document.createElement("button");
+    rejectButton.type = "button";
+    rejectButton.className = clip.rejected
+      ? "control-button control-button--danger review-action-active"
+      : "control-button control-button--secondary";
+    rejectButton.dataset.rejectCameraId = clip.camera_id;
+    rejectButton.dataset.rejectFilename = clip.filename;
+    rejectButton.dataset.rejectValue = clip.rejected ? "false" : "true";
+    rejectButton.textContent = clip.rejected ? "Restore" : "Reject";
+
+    const renameButton = document.createElement("button");
+    renameButton.type = "button";
+    renameButton.className = "control-button control-button--secondary";
+    renameButton.dataset.renameCameraId = clip.camera_id;
+    renameButton.dataset.renameFilename = clip.filename;
+    renameButton.textContent = "Rename";
+    renameButton.disabled = clip.active;
+
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "control-button control-button--danger";
@@ -364,7 +425,7 @@ function renderClips(clips) {
     remove.textContent = "Delete";
     remove.disabled = clip.active;
 
-    actions.append(previewButton, download, remove);
+    actions.append(previewButton, download, favoriteButton, rejectButton, renameButton, remove);
     actionsCell.appendChild(actions);
     row.appendChild(actionsCell);
 
@@ -374,7 +435,7 @@ function renderClips(clips) {
     previewRow.hidden = true;
 
     const previewCell = document.createElement("td");
-    previewCell.colSpan = 7;
+    previewCell.colSpan = 8;
     previewCell.dataset.label = "Preview";
     previewCell.className = "clip-preview-row__cell";
     previewRow.appendChild(previewCell);
@@ -386,15 +447,30 @@ function renderClips(clips) {
 }
 
 async function loadClips() {
-  const select = bySelector("#clip-camera-filter");
-  const cameraId = select ? select.value : "";
-  const query = cameraId ? `?camera_id=${encodeURIComponent(cameraId)}` : "";
+  const cameraSelect = bySelector("#clip-camera-filter");
+  const reviewSelect = bySelector("#clip-review-filter");
+  const searchInput = bySelector("#clip-search-filter");
+  const cameraId = cameraSelect ? cameraSelect.value : "";
+  const reviewStatus = reviewSelect ? reviewSelect.value : "all";
+  const search = searchInput ? searchInput.value.trim() : "";
+  const params = new URLSearchParams();
+  if (cameraId) {
+    params.set("camera_id", cameraId);
+  }
+  if (reviewStatus && reviewStatus !== "all") {
+    params.set("review_status", reviewStatus);
+  }
+  if (search) {
+    params.set("q", search);
+  }
+
+  const query = params.toString() ? `?${params.toString()}` : "";
   const payload = await fetchJson(`/api/clips${query}`);
   const clips = payload.clips || [];
   populateFilter(clips);
   renderClips(clips);
 
-  const nextUrl = cameraId ? `/clips?camera_id=${encodeURIComponent(cameraId)}` : "/clips";
+  const nextUrl = query ? `/clips${query}` : "/clips";
   window.history.replaceState({}, "", nextUrl);
   updateFeedback("");
 }
@@ -402,6 +478,20 @@ async function loadClips() {
 async function deleteClip(cameraId, filename) {
   await fetchJson(deleteUrl(cameraId, filename), {
     method: "DELETE",
+  });
+}
+
+async function updateClipReview(cameraId, filename, payload) {
+  await fetchJson(metadataUrl(cameraId, filename), {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+async function renameClip(cameraId, filename, newFilename) {
+  await fetchJson(renameUrl(cameraId, filename), {
+    method: "POST",
+    body: JSON.stringify({ filename: newFilename }),
   });
 }
 
@@ -674,12 +764,69 @@ async function handleBulkDownload(clips) {
 
 function bindFilters() {
   const select = bySelector("#clip-camera-filter");
+  const reviewSelect = bySelector("#clip-review-filter");
+  const searchInput = bySelector("#clip-search-filter");
   const refreshButton = bySelector("#refresh-clips-button");
-  const initial = document.body.dataset.initialCameraFilter || "";
+  const clearFiltersButton = bySelector("#clear-clip-filters-button");
+  const initialParams = new URLSearchParams(window.location.search);
+  const initial = document.body.dataset.initialCameraFilter || initialParams.get("camera_id") || "";
+  const initialReview = initialParams.get("review_status") || "all";
+  const initialSearch = initialParams.get("q") || "";
 
   if (select) {
     select.value = initial;
     select.addEventListener("change", async () => {
+      try {
+        await loadClips();
+      } catch (error) {
+        updateFeedback(error.message, true);
+      }
+    });
+  }
+
+  if (reviewSelect) {
+    reviewSelect.value = initialReview;
+    reviewSelect.addEventListener("change", async () => {
+      try {
+        await loadClips();
+      } catch (error) {
+        updateFeedback(error.message, true);
+      }
+    });
+  }
+
+  if (searchInput) {
+    searchInput.value = initialSearch;
+    searchInput.addEventListener("keydown", async (event) => {
+      if (event.key !== "Enter") {
+        return;
+      }
+      try {
+        await loadClips();
+      } catch (error) {
+        updateFeedback(error.message, true);
+      }
+    });
+    searchInput.addEventListener("search", async () => {
+      try {
+        await loadClips();
+      } catch (error) {
+        updateFeedback(error.message, true);
+      }
+    });
+  }
+
+  if (clearFiltersButton) {
+    clearFiltersButton.addEventListener("click", async () => {
+      if (select) {
+        select.value = "";
+      }
+      if (reviewSelect) {
+        reviewSelect.value = "all";
+      }
+      if (searchInput) {
+        searchInput.value = "";
+      }
       try {
         await loadClips();
       } catch (error) {
@@ -834,6 +981,72 @@ function bindTableActions() {
     }
 
     if (!(target instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    if (target.dataset.favoriteCameraId && target.dataset.favoriteFilename) {
+      target.disabled = true;
+      const nextFavorite = target.dataset.favoriteValue === "true";
+      try {
+        await updateClipReview(
+          target.dataset.favoriteCameraId,
+          target.dataset.favoriteFilename,
+          {
+            favorite: nextFavorite,
+            rejected: nextFavorite ? false : undefined,
+          },
+        );
+        updateFeedback(nextFavorite ? "Marked clip as favorite." : "Removed favorite mark.");
+        await loadClips();
+      } catch (error) {
+        target.disabled = false;
+        updateFeedback(error.message, true);
+      }
+      return;
+    }
+
+    if (target.dataset.rejectCameraId && target.dataset.rejectFilename) {
+      target.disabled = true;
+      const nextRejected = target.dataset.rejectValue === "true";
+      try {
+        await updateClipReview(
+          target.dataset.rejectCameraId,
+          target.dataset.rejectFilename,
+          {
+            rejected: nextRejected,
+            favorite: nextRejected ? false : undefined,
+          },
+        );
+        updateFeedback(nextRejected ? "Marked clip as rejected." : "Restored clip from rejected.");
+        await loadClips();
+      } catch (error) {
+        target.disabled = false;
+        updateFeedback(error.message, true);
+      }
+      return;
+    }
+
+    if (target.dataset.renameCameraId && target.dataset.renameFilename) {
+      const newFilename = window.prompt("New clip filename", target.dataset.renameFilename);
+      if (newFilename === null) {
+        return;
+      }
+
+      const trimmed = newFilename.trim();
+      if (!trimmed || trimmed === target.dataset.renameFilename) {
+        return;
+      }
+
+      target.disabled = true;
+      try {
+        await renameClip(target.dataset.renameCameraId, target.dataset.renameFilename, trimmed);
+        selectedClipKeys.delete(clipKey(target.dataset.renameCameraId, target.dataset.renameFilename));
+        updateFeedback(`Renamed ${target.dataset.renameFilename}.`);
+        await loadClips();
+      } catch (error) {
+        target.disabled = false;
+        updateFeedback(error.message, true);
+      }
       return;
     }
 

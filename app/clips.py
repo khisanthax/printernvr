@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,7 @@ LOGGER = logging.getLogger(__name__)
 class ClipStore:
     def __init__(self, recordings_root: str) -> None:
         self._recordings_root = Path(recordings_root)
+        self._metadata_filename = ".clip_metadata.json"
 
     def list_clips(
         self,
@@ -30,12 +32,15 @@ class ClipStore:
             for path in active_output_paths
             if path
         }
+        metadata = self._load_metadata()
 
         clips: list[ClipItem] = []
         for path in root.rglob("*"):
             if not path.is_file():
                 continue
             if path.name.endswith(".part"):
+                continue
+            if path.name == self._metadata_filename:
                 continue
 
             try:
@@ -50,6 +55,7 @@ class ClipStore:
             clip_camera_id = known_output_dirs.get(storage_dir) or storage_dir
             if camera_id and clip_camera_id != camera_id:
                 continue
+            clip_metadata = metadata.get(_metadata_key(clip_camera_id, path.name), {})
 
             try:
                 stat = path.stat()
@@ -66,6 +72,8 @@ class ClipStore:
                     size_bytes=stat.st_size,
                     size_human=_human_size(stat.st_size),
                     active=str(path.resolve(strict=False)) in active_paths,
+                    favorite=bool(clip_metadata.get("favorite")),
+                    rejected=bool(clip_metadata.get("rejected")),
                 )
             )
 
@@ -119,7 +127,50 @@ class ClipStore:
 
         clip_path.unlink()
         LOGGER.info("Deleted clip %s", clip_path)
+        self._delete_metadata(camera_id, filename)
         return clip_path
+
+    def update_clip_metadata(
+        self,
+        camera_id: str,
+        filename: str,
+        favorite: bool | None = None,
+        rejected: bool | None = None,
+    ) -> dict:
+        metadata = self._load_metadata()
+        key = _metadata_key(camera_id, filename)
+        entry = dict(metadata.get(key, {}))
+
+        if favorite is not None:
+            entry["favorite"] = favorite
+        if rejected is not None:
+            entry["rejected"] = rejected
+
+        entry["updated_at"] = datetime.now().isoformat()
+        metadata[key] = entry
+        self._write_metadata(metadata)
+        return entry
+
+    def rename_clip(
+        self,
+        camera_id: str,
+        filename: str,
+        new_filename: str,
+        cameras: list[ResolvedCamera],
+    ) -> Path:
+        source = self.resolve_clip_path(camera_id, filename, cameras)
+        target_name = _normalize_clip_filename(filename, new_filename)
+        target = self._resolve_storage_path(source.parent.name, target_name)
+
+        if not source.exists() or not source.is_file():
+            raise FileNotFoundError(str(source))
+        if target.exists():
+            raise FileExistsError(str(target))
+
+        source.rename(target)
+        self._rename_metadata(camera_id, filename, target.name)
+        LOGGER.info("Renamed clip %s to %s", source, target)
+        return target
 
     def _storage_dir_for_camera(
         self,
@@ -151,6 +202,49 @@ class ClipStore:
 
         return clip_path
 
+    def _metadata_path(self) -> Path:
+        return self._recordings_root.resolve(strict=False) / self._metadata_filename
+
+    def _load_metadata(self) -> dict:
+        path = self._metadata_path()
+        if not path.exists():
+            return {}
+
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:
+            LOGGER.warning("Unable to read clip metadata %s: %s", path, exc)
+            return {}
+
+        return data if isinstance(data, dict) else {}
+
+    def _write_metadata(self, metadata: dict) -> None:
+        path = self._metadata_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = path.with_suffix(".json.tmp")
+        with temp_path.open("w", encoding="utf-8") as handle:
+            json.dump(metadata, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        temp_path.replace(path)
+
+    def _delete_metadata(self, camera_id: str, filename: str) -> None:
+        metadata = self._load_metadata()
+        key = _metadata_key(camera_id, filename)
+        if key not in metadata:
+            return
+        del metadata[key]
+        self._write_metadata(metadata)
+
+    def _rename_metadata(self, camera_id: str, old_filename: str, new_filename: str) -> None:
+        metadata = self._load_metadata()
+        old_key = _metadata_key(camera_id, old_filename)
+        if old_key not in metadata:
+            return
+        metadata[_metadata_key(camera_id, new_filename)] = metadata.pop(old_key)
+        metadata[_metadata_key(camera_id, new_filename)]["updated_at"] = datetime.now().isoformat()
+        self._write_metadata(metadata)
+
 
 def _human_size(size_bytes: int) -> str:
     if size_bytes < 1024:
@@ -170,3 +264,28 @@ def _clip_url(action: str, camera_id: str, filename: str) -> str:
         f"{quote(camera_id, safe='')}/"
         f"{quote(filename, safe='')}"
     )
+
+
+def _metadata_key(camera_id: str, filename: str) -> str:
+    return f"{camera_id}::{filename}"
+
+
+def _normalize_clip_filename(original_filename: str, requested_filename: str) -> str:
+    normalized = requested_filename.strip()
+    if not normalized:
+        raise ValueError("Filename cannot be empty")
+
+    clip_name = Path(normalized)
+    if clip_name.name != normalized or normalized in {".", ".."}:
+        raise ValueError("Invalid filename")
+    if normalized.endswith(".part"):
+        raise ValueError("Invalid filename")
+
+    requested_suffix = Path(normalized).suffix
+    original_suffix = Path(original_filename).suffix
+    if requested_suffix:
+        if original_suffix and requested_suffix.lower() != original_suffix.lower():
+            raise ValueError(f"Filename must keep the {original_suffix} extension")
+        return normalized
+
+    return f"{normalized}{original_suffix}" if original_suffix else normalized

@@ -324,6 +324,8 @@ class ClipItem(BaseModel):
     size_bytes: int
     size_human: str
     active: bool = False
+    favorite: bool = False
+    rejected: bool = False
 
 
 class LatestClipInfo(BaseModel):
@@ -335,6 +337,15 @@ class LatestClipInfo(BaseModel):
     size_human: str | None = None
     preview_url: str | None = None
     download_url: str | None = None
+
+
+class ClipMetadataUpdate(BaseModel):
+    favorite: bool | None = None
+    rejected: bool | None = None
+
+
+class ClipRenameRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
 
 
 class PrinterStatusSnapshot(BaseModel):

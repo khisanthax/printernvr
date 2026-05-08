@@ -444,6 +444,31 @@ Deliverables:
 - Custom 1-600 second recording input per printer card
 - Existing RTSP and GoPro recording backends reused without a new subsystem
 
+### Phase 9 - Clip Review and Social Export Polish [x]
+
+Goals:
+- Improve the `/clips` review workflow for choosing short clips for social media
+- Track clip review state without adding a database
+- Preserve existing clip preview, download, bulk download, folder-targeted download, and delete behavior
+
+Scope:
+- Filesystem-based clip metadata using sidecar JSON
+- Mark clips as favorites/keepers
+- Mark clips as rejected without deleting them
+- Filter clips by favorite/rejected state
+- Filter clips by camera and filename/search text
+- Safely rename completed clips from `/clips`
+- No database
+- No ZIP downloads
+- No export/copy helper until favorite, reject, rename, and filter workflows are fully working
+
+Deliverables:
+- Favorite and rejected state visible in `/clips`
+- Review filters for all, favorites, rejected, and kept clips
+- Search filter for clip filename, camera id, and relative path
+- Safe rename action that keeps clips inside the same recordings folder
+- Sidecar metadata stored locally under the recordings root
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:
@@ -525,6 +550,7 @@ Completed:
 - Phase 8C printer card recording controls
 - Phase 8D printer card latest clip shortcuts
 - Phase 8E printer card custom recording durations
+- Phase 9 clip review and social export polish
 - Phase 6 retention and storage protection
 
 In progress:
@@ -547,6 +573,7 @@ Implemented highlights:
 - Config-backed camera management UI with live preview/external preview and mode-aware testing
 - Expanded ffmpeg and ffprobe diagnostics surfaced in the dashboard and camera management UI
 - Filesystem-based clip browser with camera filter, download, and manual delete
+- Filesystem-based clip review metadata for favorite/rejected state and safe clip rename
 - Inline clip preview endpoint and browser preview player on `/clips`
 - Client-side bulk direct download of selected clips as individual files with no ZIP packaging
 - Optional client-side chosen-folder clip saves using the browser File System Access API when available
@@ -558,7 +585,7 @@ Implemented highlights:
 - Printer-card latest clip shortcuts that preview, download, or open clips for the currently selected camera/view
 - Printer-card quick duration buttons and custom duration input for selected-view timed recordings
 - Optional Moonraker-backed status polling for printer status, file name, progress, temperatures, and ETA
-- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `POST /api/gopro/test`, `GET /api/gopro/{camera_id}/status`, `POST /api/gopro/{camera_id}/record_for`, `POST /api/gopro/{camera_id}/download_latest`, `GET /api/gopro/{camera_id}/preview`, `GET /api/gopro/{camera_id}/media`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/latest/{camera_id}`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /printers`, `GET /cameras`, `GET /clips`
+- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `POST /api/gopro/test`, `GET /api/gopro/{camera_id}/status`, `POST /api/gopro/{camera_id}/record_for`, `POST /api/gopro/{camera_id}/download_latest`, `GET /api/gopro/{camera_id}/preview`, `GET /api/gopro/{camera_id}/media`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/latest/{camera_id}`, `PATCH /api/clips/{camera_id}/{filename}/metadata`, `POST /api/clips/{camera_id}/{filename}/rename`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /printers`, `GET /cameras`, `GET /clips`
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip
 - GoPro camera cards with start/stop, Record 30s, Download Latest, and external preview fallback
 - Empty dashboard state when no cameras are configured

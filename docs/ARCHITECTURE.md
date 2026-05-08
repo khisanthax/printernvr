@@ -20,7 +20,7 @@ GoPro devices are a separate recorder class controlled over their HTTP API, but 
 - Local recordings retention manager
 - Config-backed camera management UI
 - Live multi-printer dashboard
-- Filesystem-based clip browser and preview/download/delete API
+- Filesystem-based clip browser, review metadata, and preview/download/delete API
 
 ## Current Module Layout
 
@@ -221,20 +221,25 @@ GoPro v1 preview behavior:
 1. `/clips` loads a lightweight template with an optional camera filter from the query string.
 2. Browser-side JavaScript calls `GET /api/clips` and optionally filters by `camera_id`.
 3. `ClipStore` scans the local recordings root directly from the filesystem.
-4. Clip metadata includes:
+4. Clip filesystem metadata includes:
 - logical camera id
 - filename
 - relative path
 - filesystem timestamp
 - size
 - active/in-use state
-5. Inline preview uses `GET /api/clips/preview/{camera_id}/{filename}` with safe file resolution and browser-friendly media type handling.
-6. Latest clip lookup uses `GET /api/clips/latest/{camera_id}` and returns preview/download URLs for the newest completed local clip.
-7. Printer cards use latest clip lookup for quick Preview, Download, and View All actions tied to the selected camera/view.
-8. Download uses `GET /api/clips/download/{camera_id}/{filename}` with `FileResponse`.
-9. Manual delete uses `DELETE /api/clips/{camera_id}/{filename}` and is blocked for active recording outputs.
-10. Bulk direct download is handled client-side in `/clips` by iterating selected clip download URLs from one user action; the backend still validates each file request individually.
-11. Optional chosen-folder saves use the browser File System Access API entirely client-side:
+- favorite state
+- rejected state
+5. Review metadata is stored in a sidecar JSON file under the local recordings root.
+6. Inline preview uses `GET /api/clips/preview/{camera_id}/{filename}` with safe file resolution and browser-friendly media type handling.
+7. Latest clip lookup uses `GET /api/clips/latest/{camera_id}` and returns preview/download URLs for the newest completed local clip.
+8. Printer cards use latest clip lookup for quick Preview, Download, and View All actions tied to the selected camera/view.
+9. Download uses `GET /api/clips/download/{camera_id}/{filename}` with `FileResponse`.
+10. Review updates use `PATCH /api/clips/{camera_id}/{filename}/metadata`.
+11. Safe rename uses `POST /api/clips/{camera_id}/{filename}/rename` and keeps the clip inside the same camera storage directory.
+12. Manual delete uses `DELETE /api/clips/{camera_id}/{filename}` and is blocked for active recording outputs.
+13. Bulk direct download is handled client-side in `/clips` by iterating selected clip download URLs from one user action; the backend still validates each file request individually.
+14. Optional chosen-folder saves use the browser File System Access API entirely client-side:
 - the browser prompts the user to choose a directory
 - the frontend may persist the directory handle in IndexedDB when the browser allows it
 - the backend never receives local filesystem path data
@@ -244,10 +249,12 @@ Clip browser safety rules:
 - only paths under the local recordings root are allowed
 - camera id to storage directory resolution uses current camera config when available
 - path traversal is rejected
-- active files are never deleted
+- active files are never deleted or renamed
 - missing files return a clean error instead of crashing the app
 - clip preview uses a separate inline-serving endpoint instead of changing the attachment behavior of the download route
+- clip review metadata is local sidecar state, not a database or clip index
 - bulk clip download does not generate ZIP archives or background jobs
+- export/copy helpers are deferred until favorite, reject, rename, and filter workflows are fully working
 - chosen-folder saves are a browser-only enhancement and require File System Access API support in a secure context
 
 ## Retention Flow

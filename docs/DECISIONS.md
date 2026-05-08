@@ -321,3 +321,19 @@ Impact:
 - `/printers` supports 10s, 15s, 20s, 30s, 60s, and custom 1-600 second timed recordings.
 - All timed actions continue to target the currently selected camera/view for the printer card.
 - Latest clip refresh remains driven by recording state transitions.
+
+## 2026-05-08 - Keep Clip Review Metadata as Sidecar JSON
+
+Decision:
+- Store favorite and rejected clip state in a local sidecar JSON file under the recordings root.
+- Add clip review filters and safe rename without adding a database or clip index.
+- Defer export/copy helper workflows until favorite, reject, rename, and filter workflows are complete.
+
+Why:
+- Clip review is lightweight local state and should follow the existing filesystem-first storage model.
+- Sidecar metadata is enough for social clip review without increasing deployment complexity.
+
+Impact:
+- `/clips` can mark clips as favorites or rejected without moving or deleting files.
+- Rename stays within the same camera recordings directory and active recordings remain protected.
+- Existing preview, download, bulk download, folder-targeted download, and delete behavior remains intact.

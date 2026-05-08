@@ -32,7 +32,21 @@
             {% endfor %}
           </select>
         </label>
+        <label for="clip-review-filter">
+          Review filter
+          <select id="clip-review-filter">
+            <option value="all">All clips</option>
+            <option value="favorites">Favorites</option>
+            <option value="kept">Kept</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </label>
+        <label for="clip-search-filter">
+          Search
+          <input id="clip-search-filter" type="search" placeholder="Filename, camera, or path">
+        </label>
         <div class="table-actions">
+          <button type="button" id="clear-clip-filters-button" class="control-button control-button--secondary">Clear Filters</button>
           <button type="button" id="refresh-clips-button" class="control-button control-button--secondary">Refresh</button>
         </div>
       </div>
@@ -77,6 +91,7 @@
               <th scope="col">Created</th>
               <th scope="col">Size</th>
               <th scope="col">Status</th>
+              <th scope="col">Review</th>
               <th scope="col">Actions</th>
             </tr>
           </thead>

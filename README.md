@@ -22,6 +22,7 @@ This repository currently includes:
 - Phase 8.3 printer card recording controls
 - Phase 8.4 printer card latest clip shortcuts
 - Phase 8.5 custom printer card recording durations
+- Phase 9 clip review and social export polish
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -352,10 +353,15 @@ The `/clips` page scans the local recordings directory directly and shows:
 - created timestamp
 - file size
 - active status
+- favorite/rejected review state
 
 Behavior:
 - newest clips are shown first
 - clips can be filtered by camera
+- clips can be filtered by review state and searched by filename/camera/path
+- clips can be marked as favorites/keepers
+- clips can be marked as rejected without deleting them
+- completed clips can be renamed safely inside their camera folder
 - clips can be previewed inline in the browser through a dedicated preview endpoint
 - clips can be selected and bulk-downloaded as individual files from one user action
 - clips can optionally be saved into a user-selected folder when the browser supports the File System Access API
@@ -375,6 +381,7 @@ Optional chosen-folder download notes:
 - if support, permission, or direct-save fails, Printer NVR falls back to the normal browser download flow
 
 Clip APIs operate only within the configured local recordings root and reject invalid paths.
+Review metadata is stored as sidecar JSON under the recordings root. Printer NVR does not add a database, ZIP packaging, or export/copy helper for this workflow.
 
 ## Live Printer Dashboard
 
@@ -458,6 +465,8 @@ Latest clip shortcut notes:
 - `POST /api/storage/cleanup`
 - `GET /api/clips`
 - `GET /api/clips/latest/{camera_id}`
+- `PATCH /api/clips/{camera_id}/{filename}/metadata`
+- `POST /api/clips/{camera_id}/{filename}/rename`
 - `GET /api/clips/preview/{camera_id}/{filename}`
 - `GET /api/clips/download/{camera_id}/{filename}`
 - `DELETE /api/clips/{camera_id}/{filename}`
