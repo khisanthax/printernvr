@@ -15,7 +15,6 @@ This repository currently includes:
 - Phase 4 clip browser
 - Phase 4B clip preview and bulk direct download
 - Phase 4C optional folder-targeted clip downloads
-- Phase 4A GoPro recorder support
 - Phase 8 live multi-printer dashboard
 - Phase 8.1 per-printer camera view selector
 - Phase 8.2 printer dashboard monitoring polish
@@ -215,32 +214,15 @@ Behavior:
 - if a printer has multiple configured cameras/views, `/printers` lets the browser choose between them while keeping the backend-computed default as the fallback
 - `moonraker_url` is optional and, when set, is used to populate printer status, progress, temperatures, and ETA on the live printer page
 
-### Mode 3: GoPro Mode
+### Legacy Compatibility: GoPro Mode
 
-Provide GoPro-specific settings:
+The codebase still contains legacy `mode: "gopro"` support for older configs, but it is deprecated and is not the recommended capture path for current deployments.
 
-```json
-{
-  "id": "hero7_top",
-  "name": "GoPro HERO7 Top",
-  "mode": "gopro",
-  "gopro_host": "10.5.5.9",
-  "preview_mode": "external_link",
-  "preview_url": "http://10.5.5.9:8080/live",
-  "auto_download_after_stop": true,
-  "download_timeout_seconds": 120,
-  "file_stabilization_wait_seconds": 5,
-  "enabled": true,
-  "output_subdir": "hero7_top"
-}
-```
-
-GoPro mode behavior:
-- start and stop recording use the GoPro HTTP API
-- clips are downloaded locally after stop
-- downloaded clips land in the same `recordings/<camera_id>/` structure used by RTSP cameras
-- preview is best-effort and currently supports `none` or `external_link`
-- in-app stream proxy preview is not implemented in this version
+Current project direction is:
+- go2rtc-assisted camera streams
+- manual preview/record URL cameras
+- live printer monitoring
+- filesystem-based clip review and export workflow
 
 ## Camera Management UI
 
@@ -325,12 +307,6 @@ Recording compatibility defaults:
 - audio and other side streams are not copied into printer clips by default
 
 These defaults improve compatibility with go2rtc and camera streams that fail when ffmpeg tries to mux every stream into MP4.
-
-GoPro recording behavior:
-- GoPro does not record through ffmpeg
-- the app sends GoPro shutter commands over HTTP
-- timed GoPro recording uses an in-process worker thread
-- after stop, the app waits briefly for file stabilization and downloads the resulting clip(s)
 
 Filename format:
 
@@ -432,7 +408,7 @@ Printer-card recording notes:
 - quick duration buttons support 10s, 15s, 20s, 30s, and 60s clips
 - custom duration recording accepts 1-600 seconds from the card input
 - all timed controls send the existing timed recording payload for the selected camera
-- RTSP/go2rtc cameras still use ffmpeg, and GoPro cameras still use the GoPro recording manager and download workflow
+- RTSP/go2rtc cameras still use the existing ffmpeg-based recording flow
 - clips still appear in `/clips` through the existing filesystem-based storage model
 
 Latest clip shortcut notes:
@@ -450,12 +426,6 @@ Latest clip shortcut notes:
 - `PUT /api/cameras/{camera_id}`
 - `DELETE /api/cameras/{camera_id}`
 - `POST /api/camera/probe`
-- `POST /api/gopro/test`
-- `GET /api/gopro/{camera_id}/status`
-- `POST /api/gopro/{camera_id}/record_for`
-- `POST /api/gopro/{camera_id}/download_latest`
-- `GET /api/gopro/{camera_id}/preview`
-- `GET /api/gopro/{camera_id}/media`
 - `GET /api/status`
 - `GET /api/printers/cards`
 - `GET /api/record/status`
@@ -482,6 +452,9 @@ Latest clip shortcut notes:
 `POST /api/storage/cleanup` performs manual cleanup only when retention is enabled and cleanup mode is not `disabled`.
 
 The dashboard also shows storage usage, warning state, cleanup mode, and a manual cleanup button when retention cleanup is enabled.
+
+Deprecated compatibility note:
+- Legacy GoPro endpoints still exist in the codebase for older configs, but they are not part of the active recommended workflow and are intentionally omitted from the main feature guidance above.
 
 ## Notes
 

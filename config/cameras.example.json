@@ -29,24 +29,6 @@
       "record_url": "rtsp://printer-right.local:8554/cam",
       "enabled": true,
       "output_subdir": "sv08_right"
-    },
-    {
-      "id": "hero7_top",
-      "name": "GoPro HERO7 Top Cam",
-      "printer_id": "ender5plus",
-      "printer_name": "Ender 5 Plus",
-      "default_live_view": true,
-      "display_order": 2,
-      "mode": "gopro",
-      "description": "External-preview GoPro example",
-      "gopro_host": "10.5.5.9",
-      "preview_mode": "external_link",
-      "preview_url": "http://10.5.5.9:8080/live",
-      "auto_download_after_stop": true,
-      "download_timeout_seconds": 120,
-      "file_stabilization_wait_seconds": 5,
-      "enabled": false,
-      "output_subdir": "hero7_top"
     }
   ]
 }

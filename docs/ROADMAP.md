@@ -6,7 +6,7 @@ This document tracks the implementation roadmap for **Printer NVR** and serves a
 
 Printer NVR is a lightweight web-based recording system for multiple 3D printer cameras.
 
-Each printer exposes its camera stream through go2rtc. Printer NVR provides a web UI where users can view printer cameras and manually record short clips.
+Each printer exposes one or more camera streams, typically through go2rtc or direct RTSP/manual URLs. Printer NVR provides a web UI where users can monitor printers, record short clips, and review those clips for downstream social-media use.
 
 Users should be able to:
 - View multiple printer camera streams
@@ -28,7 +28,7 @@ Printer NVR is not intended to be a general CCTV platform. It is designed specif
 
 ## Camera Input Model (Updated)
 
-Printer NVR supports three camera configuration modes.
+Printer NVR actively supports two camera configuration modes.
 
 ### Mode 1: go2rtc-assisted setup
 
@@ -72,7 +72,7 @@ User provides explicit URLs.
 
 Manual values override auto-generated ones.
 
-### Mode 3: GoPro API-controlled recording
+### Legacy Compatibility: GoPro API-controlled recording
 
 User provides explicit GoPro device settings.
 
@@ -92,11 +92,13 @@ User provides explicit GoPro device settings.
 }
 ```
 
-GoPro cameras:
+Legacy GoPro cameras:
 - do not record through ffmpeg
 - are controlled through the GoPro HTTP API
 - download clips back into the normal local recordings directory after stop
 - may use an external preview link when in-app live preview is not practical
+
+This backend is no longer part of the active project direction. It remains in the codebase only for backward compatibility until a dedicated cleanup pass removes it safely.
 
 ### Configuration Priority
 
@@ -128,6 +130,14 @@ Supported fields:
 - `download_timeout_seconds`
 - `file_stabilization_wait_seconds`
 - `output_subdir`
+
+Active project direction:
+- RTSP/go2rtc and manual URL camera capture
+- live multi-printer monitoring
+- filesystem-based clip review and export workflow
+
+Deprecated compatibility:
+- GoPro capture remains loadable in the codebase but is no longer a planned expansion path
 
 ## Updated Phased Roadmap
 
@@ -304,28 +314,22 @@ Deliverables:
 - Session or IndexedDB-backed folder-handle reuse depending on browser support
 - Graceful fallback to standard browser downloads
 
-### Phase 4A - GoPro Recorder Support [x]
+### Legacy Compatibility - GoPro Recorder Support [deprecated]
 
-Goals:
-- Support GoPro as a separate recording backend
-- Start and stop GoPro recording from the dashboard
-- Automatically download completed GoPro clips into local storage
-- Keep clip browsing and storage model unchanged
+Status:
+- Retained only for backward compatibility
+- Not part of the active roadmap
+- Not the recommended capture workflow for current deployments
 
-Tasks:
-- Extend camera config for `mode=gopro`
-- Add GoPro connectivity testing
-- Add GoPro start/stop/record-for/download API
-- Add in-process GoPro recording manager
-- Add GoPro dashboard controls
-- Add external preview fallback
+Compatibility scope already present in code:
+- `mode=gopro` config parsing
+- GoPro connectivity testing
+- GoPro start/stop/timed-record/download API routes
+- in-process GoPro recording manager
+- external preview fallback
 
-Deliverables:
-- GoPro camera management support
-- Shared `/api/record` dispatch for RTSP and GoPro cameras
-- Automatic clip download after GoPro stop
-- One-click 30-second GoPro recording
-- Existing clip browser listing downloaded GoPro clips
+Cleanup note:
+- Remove deprecated GoPro backend once no deployments depend on `mode=gopro`
 
 ### Phase 8 - Live Multi-Printer Dashboard [x]
 
@@ -442,7 +446,7 @@ Tasks:
 Deliverables:
 - Quick timed recording buttons on `/printers`
 - Custom 1-600 second recording input per printer card
-- Existing RTSP and GoPro recording backends reused without a new subsystem
+- Existing camera recording backends reused without a new subsystem
 
 ### Phase 9 - Clip Review and Social Export Polish [x]
 
@@ -468,6 +472,37 @@ Deliverables:
 - Search filter for clip filename, camera id, and relative path
 - Safe rename action that keeps clips inside the same recordings folder
 - Sidecar metadata stored locally under the recordings root
+
+Metadata behavior:
+- Review metadata is stored in a local sidecar JSON file under the recordings root
+- Metadata tracks non-destructive review state such as favorite/keeper and rejected
+- Rename stays inside the same camera recordings folder and follows safe filesystem rules
+- Metadata remains local to the app and filesystem-based
+
+Safety constraints:
+- No path traversal
+- No unsafe rename
+- No silent overwrite
+- No database
+- No ZIP packaging
+- Rejected clips are not deleted automatically
+- Existing clips remain normal files under `recordings/<camera_id>/`
+
+Validation:
+- `python -m compileall app`
+- `node --check static\\clips.js`
+- `git diff --check`
+
+### Phase 9.1 - Clip Review Quality-of-Life [ ]
+
+Possible follow-up items:
+- Download Favorites
+- Select all visible clips
+- Clear selection
+- Hide rejected by default, if not already done
+- Rename latest clip shortcut from `/printers`
+- Better camera, printer, and date filters
+- Optional export-folder copy workflow, still no ZIP
 
 ### Phase 5 - Operational Hardening [-]
 
@@ -543,7 +578,6 @@ Completed:
 - Phase 4 clip management
 - Phase 4B clip preview and bulk direct download
 - Phase 4C optional folder-targeted clip downloads
-- Phase 4A GoPro recorder support
 - Phase 8 live multi-printer dashboard
 - Phase 8A per-printer multi-view selector
 - Phase 8B printer dashboard monitoring polish
@@ -561,13 +595,12 @@ Note:
 
 Implemented highlights:
 - FastAPI app scaffold with startup validation and logging
-- JSON camera config loading with go2rtc helper mode and manual URL mode
-- JSON camera config loading with go2rtc helper, manual URL, and GoPro modes
+- JSON camera config loading with go2rtc helper and manual URL modes
+- Legacy compatibility remains for existing `mode=gopro` configs, but GoPro is no longer an active roadmap direction
 - Separate app config loading for retention settings
 - Resolution logic where manual URLs override generated URLs
 - Runtime camera state manager with recording metadata and error tracking
 - ffmpeg recording manager with start, stop, timed capture, and one-recording-per-camera enforcement
-- GoPro API recording manager with start, stop, timed record, media polling, and automatic download
 - RTSP-over-TCP recording and probing defaults for `rtsp://` inputs
 - Video-only MP4 recording profile using `-map 0:v:0 -an -c:v copy`
 - Config-backed camera management UI with live preview/external preview and mode-aware testing
@@ -581,16 +614,15 @@ Implemented highlights:
 - `/printers` live dashboard with top printer toggles, one default live view per printer, and status/details beneath each preview
 - Per-printer camera/view selector on `/printers` with browser-side selection persistence and backend default fallback
 - Enlarged preview modal, printer-state badges, degraded-state placeholders, freshness text, and lightweight manual refresh controls on `/printers`
-- Printer-card Start, Stop, quick duration, and custom duration controls that target the currently selected camera/view and reuse existing RTSP/GoPro recording APIs
+- Printer-card Start, Stop, quick duration, and custom duration controls that target the currently selected camera/view and reuse the existing camera recording APIs
 - Printer-card latest clip shortcuts that preview, download, or open clips for the currently selected camera/view
 - Printer-card quick duration buttons and custom duration input for selected-view timed recordings
 - Optional Moonraker-backed status polling for printer status, file name, progress, temperatures, and ETA
-- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `POST /api/gopro/test`, `GET /api/gopro/{camera_id}/status`, `POST /api/gopro/{camera_id}/record_for`, `POST /api/gopro/{camera_id}/download_latest`, `GET /api/gopro/{camera_id}/preview`, `GET /api/gopro/{camera_id}/media`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/latest/{camera_id}`, `PATCH /api/clips/{camera_id}/{filename}/metadata`, `POST /api/clips/{camera_id}/{filename}/rename`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /printers`, `GET /cameras`, `GET /clips`
+- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/latest/{camera_id}`, `PATCH /api/clips/{camera_id}/{filename}/metadata`, `POST /api/clips/{camera_id}/{filename}/rename`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /printers`, `GET /cameras`, `GET /clips`
+- Legacy compatibility endpoints remain for existing GoPro deployments but are deprecated and not part of the active workflow
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip
-- GoPro camera cards with start/stop, Record 30s, Download Latest, and external preview fallback
 - Empty dashboard state when no cameras are configured
 - Preview fallback rules: manual preview -> generated preview -> `no preview configured`
-- GoPro preview modes: `none` and `external_link`; `stream_proxy` remains deferred
 - Storage usage and free disk reporting in the UI
 - Retention thresholds with alert-only and delete-oldest cleanup modes
 - Automatic retention checks on startup and after recording completion
@@ -600,6 +632,7 @@ Implemented highlights:
 
 Next phase:
 - Phase 5 operational hardening
+- Phase 9.1 clip review quality-of-life
 - follow-up printer UX improvements such as clearer per-view labels or quick camera cycling
 
 ## Deployment Model

@@ -2,10 +2,10 @@
 
 ## Scope
 
-Printer NVR is a single-service, Docker-first application for 3D printer camera monitoring, recording, and local storage protection.
+Printer NVR is a single-service, Docker-first application for 3D printer camera monitoring, recording, clip review, and local storage protection.
 
 Printers are stream providers only. Recording and retention enforcement run on the central Printer NVR host.
-GoPro devices are a separate recorder class controlled over their HTTP API, but still write clips back into the same local storage tree.
+Legacy GoPro support still exists in the codebase for backward compatibility, but it is no longer part of the active project direction.
 
 ## Runtime Components
 
@@ -15,12 +15,12 @@ GoPro devices are a separate recorder class controlled over their HTTP API, but 
 - JSON configuration loader for camera config and app config
 - In-memory runtime camera state manager
 - ffmpeg subprocess recording manager
-- GoPro HTTP service and in-process recording manager
 - Moonraker status service for optional printer metadata
 - Local recordings retention manager
 - Config-backed camera management UI
 - Live multi-printer dashboard
 - Filesystem-based clip browser, review metadata, and preview/download/delete API
+- Legacy GoPro compatibility modules retained for existing configs
 
 ## Current Module Layout
 
@@ -31,8 +31,8 @@ GoPro devices are a separate recorder class controlled over their HTTP API, but 
 - `app/models.py`: Pydantic models for config, runtime state, and storage status
 - `app/state.py`: runtime state manager for camera recording state
 - `app/recorder.py`: ffmpeg command building, process lifecycle, monitor threads
-- `app/services/gopro_service.py`: HERO7 HTTP control, media listing, preview info, and clip download
-- `app/services/gopro_recording_manager.py`: in-process GoPro job orchestration and auto-download
+- `app/services/gopro_service.py`: deprecated compatibility module for legacy GoPro HTTP control
+- `app/services/gopro_recording_manager.py`: deprecated compatibility module for legacy GoPro jobs
 - `app/retention.py`: storage scanning, threshold evaluation, cleanup planning and deletion
 - `app/printers.py`: printer-card grouping and default-view selection
 - `app/probe.py`: ffprobe stream testing
@@ -41,7 +41,7 @@ GoPro devices are a separate recorder class controlled over their HTTP API, but 
 - `app/api/health.py`: health endpoint
 - `app/api/dashboard.py`: dashboard page
 - `app/api/cameras.py`: camera CRUD and probe API
-- `app/api/gopro.py`: GoPro test/status/media/preview/download endpoints
+- `app/api/gopro.py`: deprecated compatibility endpoints for legacy GoPro configs
 - `app/api/status.py`: legacy runtime status API
 - `app/api/record.py`: recording start, stop, and status API
 - `app/api/storage.py`: storage status and manual cleanup API
@@ -60,9 +60,11 @@ Camera definitions remain the source of truth even when edited through the web U
 The `/cameras` page writes back to `config/cameras.json` rather than introducing a database.
 The live `config/cameras.json` and `config/app.json` files are deployment-local and should remain untracked so host-specific edits do not block repository pulls.
 
-Camera modes:
+Active camera modes:
 - `go2rtc_helper`
 - `manual_urls`
+
+Deprecated compatibility mode:
 - `gopro`
 
 Camera-to-printer mapping fields:
@@ -79,11 +81,12 @@ RTSP camera URL resolution:
 - `record_url`: manual value, else generated go2rtc URL
 - `preview_url`: manual value, else generated go2rtc preview URL, else unset
 
-GoPro config behavior:
-- `gopro_host` identifies the HERO7 on the local network
+Deprecated GoPro config behavior:
+- `gopro_host` identifies the legacy HERO7 target on the local network
 - `preview_mode` currently supports `none` and `external_link`
 - `stream_proxy` is intentionally rejected until a clean in-app preview path exists
 - GoPro clips are still written into `recordings/<output_subdir>/`
+- this backend remains loadable for compatibility but is not the recommended capture path
 
 Preview and recording URLs are intentionally different concerns:
 - `preview_url` should be browser-compatible and is used only for UI preview rendering
@@ -177,23 +180,14 @@ This recording profile is intentionally conservative for printer cameras:
 - RTSP over TCP improves compatibility with go2rtc and camera streams that are unreliable over default transport settings
 - video-only MP4 output avoids mux failures caused by audio or non-video side streams
 
-## GoPro Recording Flow
+## Deprecated GoPro Compatibility Flow
 
-1. Client calls shared `POST /api/record/start/{camera_id}` or `POST /api/record/stop/{camera_id}` for a GoPro camera.
-2. The record API dispatches by `camera.backend_type`.
-3. `GoProRecordingManager` snapshots the pre-record media list, sends the HERO7 shutter command, and updates shared runtime state.
-4. Timed GoPro recording uses an in-process background thread rather than ffmpeg `-t`.
-5. Stop transitions through:
-- stopping
-- stabilization wait
-- downloading
-6. If `auto_download_after_stop` is enabled, media polling compares the new media list against the pre-record snapshot and downloads newly created video files into the normal recordings folder.
-7. If snapshot comparison cannot identify a new file, the newest available video file is used as a fallback.
+Legacy GoPro code is still present so older `mode=gopro` configs can continue to load, but this backend is no longer an active architecture target.
 
-GoPro v1 preview behavior:
-- no in-app stream proxy
-- external preview links only when configured
-- preview failures must not block record or download actions
+Current policy:
+- do not expand GoPro behavior in new phases
+- do not present GoPro as the recommended capture workflow
+- remove the deprecated backend in a future cleanup pass once no configs depend on it
 
 ## Camera Management Flow
 
@@ -210,7 +204,7 @@ GoPro v1 preview behavior:
 - runtime camera state entries
 5. RTSP stream probing uses `ffprobe` on the resolved `record_url` through `POST /api/camera/probe`.
 6. If the probe input is `rtsp://`, ffprobe also uses TCP transport by default.
-7. GoPro connectivity testing uses `POST /api/gopro/test`.
+7. Deprecated compatibility testing for legacy GoPro configs still uses `POST /api/gopro/test`.
 8. Probe results distinguish:
 - input/open failure
 - reachable stream with no video stream found
@@ -299,3 +293,4 @@ Environment defaults allow startup without `.env`.
 - Camera failures should set error state without crashing the app.
 - Retention checks run on startup and after recording completion.
 - No database, queue, scheduler, or NAS logic is included.
+- GoPro support remains deprecated compatibility code, not an active architectural direction.

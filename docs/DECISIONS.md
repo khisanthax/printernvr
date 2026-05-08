@@ -194,6 +194,10 @@ Impact:
 - GoPro clips still land in the same local recordings tree and appear in the existing clip browser.
 - Preview support for GoPro remains best-effort and external-link based in v1.
 
+Status:
+- Superseded as an active product direction on 2026-05-08.
+- The backend remains in code only as deprecated compatibility until safe removal.
+
 ## 2026-03-09 - Keep Bulk Clip Download Client-Side and Per-File
 
 Decision:
@@ -337,3 +341,24 @@ Impact:
 - `/clips` can mark clips as favorites or rejected without moving or deleting files.
 - Rename stays within the same camera recordings directory and active recordings remain protected.
 - Existing preview, download, bulk download, folder-targeted download, and delete behavior remains intact.
+
+Additional review constraints:
+- Rejected clips are non-destructive review state, not implicit deletion.
+- ZIP export remains intentionally out of scope.
+- Export/copy helpers stay deferred until core favorite, reject, rename, and filter workflows are stable.
+
+## 2026-05-08 - De-Scope GoPro from the Active Roadmap
+
+Decision:
+- Stop treating GoPro capture as an active project direction.
+- Keep the existing GoPro code only as backward-compatibility support for now.
+- Remove GoPro from the recommended workflow, roadmap sequencing, and example deployment guidance.
+
+Why:
+- Current project usage is focused on printer-attached camera streams, the live printer dashboard, and the filesystem-based clip review workflow.
+- The GoPro backend is still wired through config parsing, startup, record dispatch, and UI code, so a blind one-pass removal would be riskier than a de-scope pass.
+
+Impact:
+- Active docs and examples now center RTSP/go2rtc/manual camera capture.
+- Legacy GoPro endpoints and compatibility modules remain present but are deprecated.
+- A later cleanup pass can remove the backend once no deployed configs depend on `mode=gopro`.
