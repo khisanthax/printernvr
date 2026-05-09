@@ -466,3 +466,21 @@ Impact:
 - Future secondary live cards must not include recording controls.
 - Future secondary live cards must not affect `/printers` selected-view persistence.
 - Future secondary live cards must preserve iframe stability during `/live` polling.
+
+## 2026-05-09 - Plan Installer Without Requiring Bundled go2rtc
+
+Decision:
+- Plan Phase 11 around install/update helpers and optional go2rtc bundling.
+- Keep external go2rtc instances as a fully supported deployment path.
+- If bundled go2rtc is added, provide it as an optional Compose profile, override, or companion compose file.
+
+Why:
+- Some deployments already have go2rtc running on printers or another host.
+- Other deployments benefit from a single local Docker stack.
+- Installer convenience must not reduce deployment flexibility or risk existing local config and recordings.
+
+Impact:
+- Printer NVR remains Docker-first.
+- Future install/update scripts must preserve `config/`, `recordings/`, clip metadata, and review metadata.
+- No database is introduced for deployment management.
+- go2rtc remains a stream provider dependency pattern, not a hard in-stack service requirement.

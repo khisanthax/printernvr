@@ -630,6 +630,47 @@ Future implementation notes:
 - Do not rebuild or reload preview iframes during normal `/live` status refresh.
 - Keep `/printers` one-selected-view-per-printer because recording controls target that selected view.
 
+### Phase 11 - Installer and Optional go2rtc Bundle [ ]
+
+Purpose:
+- Make Printer NVR easier to install, update, and deploy by adding install/update scripts, clearer environment/config setup, and an optional go2rtc companion service for users who want a single Docker-based recording stack.
+
+Planned scope:
+- Install script for first-time setup
+- Update script for pulling, rebuilding, and restarting
+- `.env.example` coverage for common deployment settings
+- Clearer Docker volume handling for:
+  - `config/`
+  - `recordings/`
+  - optional `exports/`
+- Docker Compose cleanup if needed
+- Optional go2rtc Docker service via one of:
+  - compose profile
+  - override compose file
+  - documented optional companion compose file
+- Healthcheck or simple status verification if practical
+- Backup helper for config and metadata if practical
+- README installation section
+- Migration-safe setup that does not overwrite existing `config/cameras.json`
+- Support both external go2rtc and bundled go2rtc modes
+
+Suggested future files:
+- `scripts/install.sh`
+- `scripts/update.sh`
+- `scripts/backup-config.sh`
+- `.env.example`
+- `docker-compose.override.example.yml` or `docker-compose.go2rtc.yml`
+- `docs/INSTALL.md` if README installation docs become too large
+
+Design constraints:
+- Bundled go2rtc must be optional.
+- External go2rtc remains fully supported.
+- Printer NVR must not require go2rtc to run in the same Compose stack.
+- Installer scripts must not overwrite user camera/printer config without backup or confirmation.
+- Installer scripts must preserve local recordings, clip metadata, and review metadata.
+- Keep deployment lightweight and practical.
+- Do not add a database.
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:
@@ -769,6 +810,7 @@ Next phase:
 - Phase 5 operational hardening
 - Phase 9.1 clip review quality-of-life
 - Phase 10.4 optional secondary camera cards on `/live`
+- Phase 11 installer and optional go2rtc bundle
 - Phase 10 follow-ups such as fullscreen wall mode, drag/drop ordering, and additional compact mobile refinements
 
 ## Deployment Model
@@ -789,3 +831,9 @@ Docker bind mounts:
 - `config` -> `/app/config`
 - `recordings` -> `/app/recordings`
 - `logs` -> `/app/logs`
+
+Planned Phase 11 deployment work:
+- Add installer and updater scripts for common Docker deployments
+- Keep external go2rtc as the default-compatible path
+- Add optional bundled go2rtc Compose support for users who want one local stack
+- Ensure setup/update helpers back up or preserve existing config, recordings, and metadata

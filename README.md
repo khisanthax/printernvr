@@ -27,6 +27,7 @@ This repository currently includes:
 - Phase 10.2 printer-first config and live wall refresh stability
 - Phase 10.3 nested printers and cameras management UI
 - Planned: Phase 10.4 optional secondary camera cards on `/live`
+- Planned: Phase 11 installer and optional go2rtc bundle
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -80,6 +81,8 @@ Clip browsing is available at `http://localhost:8787/clips`.
 
 ## Docker Run Instructions
 
+Current deployment is still Docker-based and manual. A future Phase 11 installer/update workflow is planned but not implemented yet.
+
 1. Ensure `config/cameras.json` exists.
 2. Ensure `config/app.json` exists.
 3. Choose one option:
@@ -106,6 +109,12 @@ Compact camera wall viewing is available at `/live`.
 Live printer monitoring is available at `/printers`.
 Camera management is available at `/cameras`.
 Clip browsing is available at `/clips`.
+
+Planned installer direction:
+- install and update scripts for common Docker deployments
+- optional go2rtc companion container for users who want a single local stack
+- continued support for external go2rtc instances
+- migration-safe setup that does not overwrite existing config, recordings, or clip metadata without backup/confirmation
 
 ## Config Files and Git Pulls
 

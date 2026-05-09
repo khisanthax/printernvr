@@ -363,6 +363,24 @@ Docker Compose single container:
 
 Environment defaults allow startup without `.env`.
 
+Current deployment remains Docker-based and manual:
+- clone or pull the repository
+- ensure config files exist
+- run `docker compose up -d --build`
+
+Planned Phase 11 deployment direction:
+- add install/update helper scripts
+- add backup helper behavior for config and metadata if practical
+- document common `.env` settings
+- clarify volume handling for `config/`, `recordings/`, and optional `exports/`
+- optionally provide a go2rtc companion container through a Compose profile, override file, or companion compose file
+
+go2rtc deployment policy:
+- external go2rtc instances remain fully supported
+- bundled go2rtc must be optional
+- Printer NVR must not require go2rtc to run in the same Compose stack
+- setup/update helpers must not overwrite `config/cameras.json`, recordings, clip metadata, or review metadata without backup or confirmation
+
 ## Operational Notes
 
 - App can start with zero cameras configured.
