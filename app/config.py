@@ -91,9 +91,6 @@ def resolve_camera(camera: CameraConfigInput) -> ResolvedCamera:
     final_record_url = (camera.record_url or generated_record or "").strip() or None
     final_preview_url = (camera.preview_url or generated_preview or "").strip() or None
 
-    if not final_record_url:
-        raise ValueError(f"Camera '{camera.id}' could not resolve final record_url")
-
     return ResolvedCamera(
         id=camera.id,
         name=camera.name,
@@ -130,6 +127,13 @@ def load_camera_inputs(config_path: str) -> list[CameraConfigInput]:
     if config_uses_printer_first(config_path):
         return camera_inputs_from_printers(parsed.printers)
     return parsed.cameras
+
+
+def load_printer_config_inputs(config_path: str) -> list[PrinterConfigInput]:
+    parsed = load_camera_config_file(config_path)
+    if config_uses_printer_first(config_path):
+        return normalize_printer_config_inputs(parsed.printers)
+    return printer_configs_from_camera_inputs(parsed.cameras)
 
 
 def load_camera_config_file(config_path: str) -> CameraConfigFile:
@@ -172,6 +176,50 @@ def camera_inputs_from_printers(printers: list[PrinterConfigInput]) -> list[Came
             cameras.append(_camera_input_from_printer_camera(printer, nested_camera, default_camera_id))
 
     return cameras
+
+
+def normalize_printer_config_inputs(printers: list[PrinterConfigInput]) -> list[PrinterConfigInput]:
+    seen_printer_ids: set[str] = set()
+    seen_camera_ids: set[str] = set()
+    normalized: list[PrinterConfigInput] = []
+
+    for printer in printers:
+        if printer.id in seen_printer_ids:
+            raise ValueError(f"Printer ids must be unique: duplicate '{printer.id}'")
+        seen_printer_ids.add(printer.id)
+
+        sorted_cameras = sorted(printer.cameras, key=_printer_camera_sort_key)
+        for camera in sorted_cameras:
+            if camera.id in seen_camera_ids:
+                raise ValueError(f"Camera ids must be globally unique: duplicate '{camera.id}'")
+            seen_camera_ids.add(camera.id)
+
+        default_camera_id = _valid_default_camera_id(printer.default_camera_id, sorted_cameras)
+        normalized.append(
+            printer.model_copy(
+                update={
+                    "default_camera_id": default_camera_id,
+                    "cameras": sorted_cameras,
+                }
+            )
+        )
+
+    raw_cameras = camera_inputs_from_printers(normalized)
+    validate_camera_inputs(raw_cameras)
+    return sorted(normalized, key=_printer_config_sort_key)
+
+
+def _valid_default_camera_id(
+    default_camera_id: str | None,
+    cameras: list[PrinterCameraConfigInput],
+) -> str | None:
+    camera_ids = {camera.id for camera in cameras}
+    if default_camera_id and default_camera_id in camera_ids:
+        return default_camera_id
+    fallback = next((camera for camera in cameras if camera.enabled), None) or (
+        cameras[0] if cameras else None
+    )
+    return fallback.id if fallback else None
 
 
 def _camera_input_from_printer_camera(
@@ -318,6 +366,18 @@ def write_camera_inputs(
     temp_path.replace(path)
 
 
+def write_printer_config_inputs(config_path: str, printers: list[PrinterConfigInput]) -> None:
+    path = Path(config_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    normalized = normalize_printer_config_inputs(printers)
+    payload = {
+        "printers": [printer.model_dump(exclude_none=True) for printer in normalized],
+    }
+    temp_path = path.with_suffix(f"{path.suffix}.tmp")
+    temp_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    temp_path.replace(path)
+
+
 def printer_configs_from_camera_inputs(cameras: list[CameraConfigInput]) -> list[PrinterConfigInput]:
     grouped: dict[str, list[CameraConfigInput]] = {}
     order: list[str] = []
@@ -409,6 +469,15 @@ def _camera_input_sort_key(camera: CameraConfigInput) -> tuple:
         0 if camera.enabled else 1,
         0 if camera.default_live_view else 1,
         0 if (camera.preview_url or camera.go2rtc_base_url) else 1,
+        camera.display_order if camera.display_order is not None else 9999,
+        camera.name.lower(),
+        camera.id.lower(),
+    )
+
+
+def _printer_camera_sort_key(camera: PrinterCameraConfigInput) -> tuple:
+    return (
+        0 if camera.enabled else 1,
         camera.display_order if camera.display_order is not None else 9999,
         camera.name.lower(),
         camera.id.lower(),

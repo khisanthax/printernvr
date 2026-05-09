@@ -5,7 +5,7 @@ import os
 from fastapi import APIRouter, HTTPException, Request
 
 from app.config import build_camera_input, resolve_camera
-from app.models import CameraUpsertRequest
+from app.models import CameraConfigFile, CameraUpsertRequest
 from app.probe import probe_record_stream
 from app.util import ensure_directories
 
@@ -17,6 +17,42 @@ def get_cameras(request: Request) -> dict:
     camera_store = request.app.state.camera_store
     _raw_cameras, _resolved_cameras, items = camera_store.list_cameras()
     return {"cameras": [item.model_dump() for item in items]}
+
+
+@router.get("/cameras/config")
+def get_camera_config(request: Request) -> dict:
+    camera_store = request.app.state.camera_store
+    printers, _raw_cameras, _resolved_cameras = camera_store.list_printers()
+    return {"printers": [printer.model_dump(exclude_none=True) for printer in printers]}
+
+
+@router.put("/cameras/config")
+def save_camera_config(payload: CameraConfigFile, request: Request) -> dict:
+    camera_store = request.app.state.camera_store
+    recorder = request.app.state.recording_manager
+    gopro_recorder = request.app.state.gopro_recording_manager
+    _current_raw, _current_resolved, _items = camera_store.list_cameras()
+    busy_ids = [
+        camera.id
+        for camera in _current_raw
+        if recorder.is_recording(camera.id) or gopro_recorder.is_busy(camera.id)
+    ]
+    if busy_ids:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Stop active recordings before changing printer/camera config: "
+                + ", ".join(sorted(busy_ids))
+            ),
+        )
+
+    try:
+        printers, _raw_cameras, resolved_cameras = camera_store.save_printers(payload.printers)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    _refresh_runtime_camera_state(request, resolved_cameras)
+    return {"printers": [printer.model_dump(exclude_none=True) for printer in printers]}
 
 
 @router.post("/cameras")

@@ -1,95 +1,164 @@
-let cameras = [];
+let printers = [];
+let editingPrinterId = null;
 let editingCameraId = null;
 let idTouched = false;
 let outputSubdirTouched = false;
-let printerIdTouched = false;
-let printerNameTouched = false;
 
-const listNode = document.querySelector("#camera-list");
-const listEmptyNode = document.querySelector("#camera-list-empty");
-const form = document.querySelector("#camera-form");
-const formTitle = document.querySelector("#camera-form-title");
-const formError = document.querySelector("#camera-form-error");
-const probeError = document.querySelector("#probe-error");
-const probeSummary = document.querySelector(".probe-result__summary");
-const probeStatus = document.querySelector("#probe-status");
-const previewNode = document.querySelector("#editor-preview");
-const resolvedPreviewNode = document.querySelector("#resolved-preview-url");
-const resolvedRecordNode = document.querySelector("#resolved-record-url");
-const recordUrlWarning = document.querySelector("#record-url-warning");
-const probeDetailsWrap = document.querySelector("#probe-details-wrap");
-const probeDetails = document.querySelector("#probe-details");
-const probeCommand = document.querySelector("#probe-command");
-const probeDetail1Label = document.querySelector("#probe-detail-1-label");
-const probeDetail1Value = document.querySelector("#probe-detail-1-value");
-const probeDetail2Label = document.querySelector("#probe-detail-2-label");
-const probeDetail2Value = document.querySelector("#probe-detail-2-value");
-const probeDetail3Label = document.querySelector("#probe-detail-3-label");
-const probeDetail3Value = document.querySelector("#probe-detail-3-value");
-const probeButton = document.querySelector("#probe-camera-button");
-const goproPreviewUrlWrap = document.querySelector("#camera-preview-url-wrap");
+const $ = (selector) => document.querySelector(selector);
+const printerList = $("#printer-list");
+const printerEmpty = $("#printer-list-empty");
+const configError = $("#config-error");
+const printerEditor = $("#printer-editor");
+const cameraEditor = $("#camera-editor");
+const printerError = $("#printer-form-error");
+const cameraError = $("#camera-form-error");
+const recordUrlWarning = $("#record-url-warning");
+const previewNode = $("#editor-preview");
+const resolvedPreviewNode = $("#resolved-preview-url");
+const resolvedRecordNode = $("#resolved-record-url");
 
-const fields = {
-  editingCameraId: document.querySelector("#editing-camera-id"),
-  name: document.querySelector("#camera-name"),
-  id: document.querySelector("#camera-id"),
-  enabled: document.querySelector("#camera-enabled"),
-  outputSubdir: document.querySelector("#camera-output-subdir"),
-  description: document.querySelector("#camera-description"),
-  mode: document.querySelector("#camera-mode"),
-  printerName: document.querySelector("#camera-printer-name"),
-  printerId: document.querySelector("#camera-printer-id"),
-  defaultLiveView: document.querySelector("#camera-default-live-view"),
-  moonrakerUrl: document.querySelector("#camera-moonraker-url"),
-  displayOrder: document.querySelector("#camera-display-order"),
-  go2rtcBaseUrl: document.querySelector("#camera-go2rtc-base-url"),
-  streamName: document.querySelector("#camera-stream-name"),
-  previewUrl: document.querySelector("#camera-preview-url"),
-  recordUrl: document.querySelector("#camera-record-url"),
-  goproHost: document.querySelector("#camera-gopro-host"),
-  previewMode: document.querySelector("#camera-preview-mode"),
-  goproPreviewUrl: document.querySelector("#camera-gopro-preview-url"),
-  autoDownload: document.querySelector("#camera-auto-download"),
-  downloadTimeoutSeconds: document.querySelector("#camera-download-timeout"),
-  fileWaitSeconds: document.querySelector("#camera-file-wait"),
+const probe = {
+  summary: $(".probe-result__summary"),
+  status: $("#probe-status"),
+  reachable: $("#probe-reachable"),
+  error: $("#probe-error"),
+  detailsWrap: $("#probe-details-wrap"),
+  details: $("#probe-details"),
+  command: $("#probe-command"),
+  label1: $("#probe-detail-1-label"),
+  value1: $("#probe-detail-1-value"),
+  label2: $("#probe-detail-2-label"),
+  value2: $("#probe-detail-2-value"),
+  label3: $("#probe-detail-3-label"),
+  value3: $("#probe-detail-3-value"),
 };
 
-function slugifyCameraId(value) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "") || "camera";
+const printerFields = {
+  editingId: $("#editing-printer-id"),
+  name: $("#printer-name"),
+  id: $("#printer-id"),
+  enabled: $("#printer-enabled"),
+  moonrakerUrl: $("#printer-moonraker-url"),
+  displayOrder: $("#printer-display-order"),
+  defaultCamera: $("#printer-default-camera"),
+};
+
+const cameraFields = {
+  editingId: $("#editing-camera-id"),
+  editingPrinterId: $("#editing-camera-printer-id"),
+  printerId: $("#camera-printer-id"),
+  mode: $("#camera-mode"),
+  name: $("#camera-name"),
+  id: $("#camera-id"),
+  enabled: $("#camera-enabled"),
+  displayOrder: $("#camera-display-order"),
+  outputSubdir: $("#camera-output-subdir"),
+  description: $("#camera-description"),
+  go2rtcBaseUrl: $("#camera-go2rtc-base-url"),
+  streamName: $("#camera-stream-name"),
+  previewUrl: $("#camera-preview-url"),
+  recordUrl: $("#camera-record-url"),
+  goproHost: $("#camera-gopro-host"),
+  previewMode: $("#camera-preview-mode"),
+  goproPreviewUrl: $("#camera-gopro-preview-url"),
+  autoDownload: $("#camera-auto-download"),
+  downloadTimeoutSeconds: $("#camera-download-timeout"),
+  fileWaitSeconds: $("#camera-file-wait"),
+};
+
+function slugifyId(value, fallback = "item") {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "") || fallback;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function safeNumber(value) {
+  return value === "" || value === null || value === undefined ? null : Number(value);
+}
+
+function sortByOrderNameId(items) {
+  return [...items].sort((a, b) => {
+    const orderDiff = (a.display_order ?? 9999) - (b.display_order ?? 9999);
+    if (orderDiff !== 0) return orderDiff;
+    const nameDiff = String(a.name || "").localeCompare(String(b.name || ""));
+    return nameDiff || String(a.id || "").localeCompare(String(b.id || ""));
+  });
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, {
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    ...options,
+  });
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (_error) {
+    payload = null;
+  }
+  if (!response.ok) {
+    throw new Error(payload && payload.detail ? payload.detail : "Request failed");
+  }
+  return payload;
+}
+
+function showError(node, message) {
+  node.hidden = false;
+  node.textContent = message;
+}
+
+function clearError(node) {
+  node.hidden = true;
+  node.textContent = "";
+}
+
+function findPrinter(printerId) {
+  return printers.find((printer) => printer.id === printerId) || null;
+}
+
+function findCamera(cameraId) {
+  for (const printer of printers) {
+    const camera = (printer.cameras || []).find((item) => item.id === cameraId);
+    if (camera) return { printer, camera };
+  }
+  return null;
+}
+
+function allCameraIds(exceptCameraId = null) {
+  return new Set(
+    printers.flatMap((printer) => printer.cameras || [])
+      .filter((camera) => camera.id !== exceptCameraId)
+      .map((camera) => camera.id),
+  );
 }
 
 function normalizeGo2RtcBaseUrl(value) {
-  if (!value) {
-    return "";
-  }
-  if (value.includes("://")) {
-    return value.trim();
-  }
-  return `http://${value.trim()}`;
+  if (!value) return "";
+  return value.includes("://") ? value.trim() : `http://${value.trim()}`;
 }
 
-function resolveUrls(draft) {
-  if (draft.mode === "gopro") {
+function resolveUrls(camera) {
+  if (!camera) return { preview_url: "", record_url: "" };
+  if (camera.mode === "gopro") {
     return {
-      preview_url: draft.preview_mode === "external_link" ? (draft.preview_url || "").trim() : "",
+      preview_url: camera.preview_mode === "external_link" ? (camera.preview_url || "") : "",
       record_url: "GoPro API-controlled recording",
     };
   }
 
-  const previewUrlManual = (draft.preview_url || "").trim();
-  const recordUrlManual = (draft.record_url || "").trim();
   let generatedPreview = "";
   let generatedRecord = "";
-
-  if (draft.go2rtc_base_url) {
+  if (camera.go2rtc_base_url) {
     try {
-      const base = new URL(normalizeGo2RtcBaseUrl(draft.go2rtc_base_url));
-      const streamName = (draft.stream_name || "cam").trim() || "cam";
+      const base = new URL(normalizeGo2RtcBaseUrl(camera.go2rtc_base_url));
+      const streamName = (camera.stream_name || "cam").trim() || "cam";
       const basePath = base.pathname && base.pathname !== "/" ? base.pathname.replace(/\/$/, "") : "";
       generatedPreview = `${base.protocol}//${base.host}${basePath}/stream.html?src=${encodeURIComponent(streamName)}`;
       generatedRecord = `rtsp://${base.hostname}:8554/${streamName}`;
@@ -100,510 +169,597 @@ function resolveUrls(draft) {
   }
 
   return {
-    preview_url: previewUrlManual || generatedPreview || "",
-    record_url: recordUrlManual || generatedRecord || "",
+    preview_url: (camera.preview_url || "").trim() || generatedPreview,
+    record_url: (camera.record_url || "").trim() || generatedRecord,
   };
 }
 
 function looksLikePreviewStream(url) {
-  if (!url) {
-    return false;
-  }
-
-  const normalized = url.toLowerCase();
-  return [
-    "stream.html",
-    "mjpeg",
-    "snapshot",
-    "?src=",
-    "&src=",
-  ].some((pattern) => normalized.includes(pattern));
+  const normalized = String(url || "").toLowerCase();
+  return ["stream.html", "mjpeg", "snapshot", "?src=", "&src="].some((pattern) => normalized.includes(pattern));
 }
 
-function cameraPayload() {
-  const payload = {
-    name: fields.name.value.trim(),
-    id: fields.id.value.trim(),
-    enabled: fields.enabled.checked,
-    output_subdir: fields.outputSubdir.value.trim(),
-    description: fields.description.value.trim(),
-    mode: fields.mode.value,
-    printer_name: fields.printerName.value.trim(),
-    printer_id: fields.printerId.value.trim(),
-    default_live_view: fields.defaultLiveView.checked,
-    moonraker_url: fields.moonrakerUrl.value.trim(),
-    display_order: fields.displayOrder.value === "" ? null : Number(fields.displayOrder.value),
-    go2rtc_base_url: fields.go2rtcBaseUrl.value.trim(),
-    stream_name: fields.streamName.value.trim(),
-    preview_url: fields.previewUrl.value.trim(),
-    record_url: fields.recordUrl.value.trim(),
-    gopro_host: fields.goproHost.value.trim(),
-    preview_mode: fields.previewMode.value,
-    auto_download_after_stop: fields.autoDownload.checked,
-    download_timeout_seconds: Number(fields.downloadTimeoutSeconds.value || 120),
-    file_stabilization_wait_seconds: Number(fields.fileWaitSeconds.value || 5),
+function cameraFromForm() {
+  const mode = cameraFields.mode.value;
+  const camera = {
+    id: cameraFields.id.value.trim(),
+    name: cameraFields.name.value.trim(),
+    enabled: cameraFields.enabled.checked,
+    description: cameraFields.description.value.trim() || null,
+    mode,
+    display_order: safeNumber(cameraFields.displayOrder.value),
+    output_subdir: cameraFields.outputSubdir.value.trim() || cameraFields.id.value.trim(),
+    go2rtc_base_url: cameraFields.go2rtcBaseUrl.value.trim() || null,
+    stream_name: cameraFields.streamName.value.trim() || null,
+    preview_url: cameraFields.previewUrl.value.trim() || null,
+    record_url: cameraFields.recordUrl.value.trim() || null,
+    gopro_host: cameraFields.goproHost.value.trim() || null,
+    preview_mode: cameraFields.previewMode.value || "none",
+    auto_download_after_stop: cameraFields.autoDownload.checked,
+    download_timeout_seconds: Number(cameraFields.downloadTimeoutSeconds.value || 120),
+    file_stabilization_wait_seconds: Number(cameraFields.fileWaitSeconds.value || 5),
   };
 
-  if (payload.mode === "go2rtc_helper") {
-    payload.preview_url = "";
-    payload.record_url = "";
-    payload.gopro_host = "";
-    payload.preview_mode = "none";
-  } else if (payload.mode === "manual_urls") {
-    payload.go2rtc_base_url = "";
-    payload.stream_name = "";
-    payload.gopro_host = "";
-    payload.preview_mode = "none";
-  } else if (payload.mode === "gopro") {
-    payload.go2rtc_base_url = "";
-    payload.stream_name = "";
-    payload.record_url = "";
-    payload.preview_url = fields.goproPreviewUrl.value.trim();
+  if (mode === "go2rtc_helper") {
+    camera.preview_url = null;
+    camera.record_url = null;
+    camera.gopro_host = null;
+    camera.preview_mode = null;
+  } else if (mode === "manual_urls") {
+    camera.go2rtc_base_url = null;
+    camera.stream_name = null;
+    camera.gopro_host = null;
+    camera.preview_mode = null;
+  } else if (mode === "gopro") {
+    camera.go2rtc_base_url = null;
+    camera.stream_name = null;
+    camera.record_url = null;
+    camera.preview_url = cameraFields.goproPreviewUrl.value.trim() || null;
   }
-
-  return payload;
+  return camera;
 }
 
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
-
-  let payload = null;
-  try {
-    payload = await response.json();
-  } catch (_error) {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    throw new Error(payload && payload.detail ? payload.detail : "Request failed");
-  }
-
-  return payload;
+function probePayloadFromCamera(printer, camera) {
+  return {
+    name: camera.name,
+    id: camera.id,
+    enabled: camera.enabled !== false,
+    output_subdir: camera.output_subdir || camera.id,
+    description: camera.description || "",
+    mode: camera.mode || "manual_urls",
+    printer_name: printer.name,
+    printer_id: printer.id,
+    default_live_view: printer.default_camera_id === camera.id,
+    moonraker_url: printer.moonraker_url || "",
+    display_order: camera.display_order ?? null,
+    go2rtc_base_url: camera.go2rtc_base_url || "",
+    stream_name: camera.stream_name || "",
+    preview_url: camera.preview_url || "",
+    record_url: camera.record_url || "",
+    gopro_host: camera.gopro_host || "",
+    preview_mode: camera.preview_mode || "none",
+    auto_download_after_stop: camera.auto_download_after_stop !== false,
+    download_timeout_seconds: camera.download_timeout_seconds || 120,
+    file_stabilization_wait_seconds: camera.file_stabilization_wait_seconds || 5,
+  };
 }
 
 function setModeVisibility() {
-  const go2rtcFields = document.querySelector("#go2rtc-fields");
-  const manualFields = document.querySelector("#manual-fields");
-  const goproFields = document.querySelector("#gopro-fields");
-  const mode = fields.mode.value;
-
-  go2rtcFields.hidden = mode !== "go2rtc_helper";
-  manualFields.hidden = mode !== "manual_urls";
-  goproFields.hidden = mode !== "gopro";
-  goproPreviewUrlWrap.hidden = mode !== "gopro" || fields.previewMode.value !== "external_link";
-  updateProbeButtonLabel();
+  const mode = cameraFields.mode.value;
+  $("#go2rtc-fields").hidden = mode !== "go2rtc_helper";
+  $("#manual-fields").hidden = mode !== "manual_urls";
+  $("#gopro-fields").hidden = mode !== "gopro";
+  $("#camera-preview-url-wrap").hidden = mode !== "gopro" || cameraFields.previewMode.value !== "external_link";
+  $("#probe-camera-button").textContent = mode === "gopro" ? "Test GoPro" : "Test Stream";
 }
 
-function updateProbeButtonLabel() {
-  probeButton.textContent = fields.mode.value === "gopro" ? "Test GoPro" : "Test Stream";
+function updateRecordUrlWarning(recordUrl) {
+  if (recordUrlWarning) {
+    recordUrlWarning.hidden = cameraFields.mode.value !== "manual_urls" || !looksLikePreviewStream(recordUrl);
+  }
 }
 
-function updatePreviewPanel() {
-  const draft = cameraPayload();
-  const resolved = resolveUrls(draft);
+function updatePreviewPanel(camera = cameraFromForm()) {
+  const resolved = resolveUrls(camera);
   resolvedPreviewNode.textContent = resolved.preview_url || "Preview unavailable";
   resolvedRecordNode.textContent = resolved.record_url || "--";
   updateRecordUrlWarning(resolved.record_url);
 
-  if (draft.mode === "gopro") {
-    if (draft.preview_mode === "external_link" && resolved.preview_url) {
-      previewNode.innerHTML = `
-        <div class="preview-link-state">
-          <p>GoPro preview opens externally for this configuration.</p>
-          <a class="control-button control-button--secondary table-link" href="${resolved.preview_url}" target="_blank" rel="noopener noreferrer">
-            Open Preview
-          </a>
-        </div>
-      `;
+  if (camera.mode === "gopro") {
+    if (camera.preview_mode === "external_link" && resolved.preview_url) {
+      previewNode.innerHTML = `<div class="preview-link-state"><p>Deprecated GoPro preview opens externally.</p><a class="control-button control-button--secondary table-link" href="${escapeHtml(resolved.preview_url)}" target="_blank" rel="noopener noreferrer">Open Preview</a></div>`;
     } else {
-      previewNode.innerHTML = '<div class="no-preview">Preview unavailable in-app for this GoPro configuration</div>';
+      previewNode.innerHTML = '<div class="no-preview">Preview unavailable for this deprecated GoPro configuration</div>';
     }
     return;
   }
 
-  if (resolved.preview_url) {
-    previewNode.innerHTML = `<iframe title="Camera preview" src="${resolved.preview_url}" loading="lazy" allowfullscreen></iframe>`;
-  } else {
-    previewNode.innerHTML = '<div class="no-preview">Preview unavailable</div>';
-  }
-}
-
-function updateRecordUrlWarning(recordUrl) {
-  if (!recordUrlWarning) {
-    return false;
-  }
-  if (fields.mode.value !== "manual_urls") {
-    recordUrlWarning.hidden = true;
-    return false;
-  }
-
-  const showWarning = looksLikePreviewStream(recordUrl);
-  recordUrlWarning.hidden = !showWarning;
-  return showWarning;
+  previewNode.innerHTML = resolved.preview_url
+    ? `<iframe title="Camera preview" src="${escapeHtml(resolved.preview_url)}" loading="lazy" allowfullscreen></iframe>`
+    : '<div class="no-preview">Preview unavailable</div>';
 }
 
 function resetProbeResult() {
-  probeSummary.textContent = "Use Test Stream to verify recording compatibility.";
-  probeStatus.textContent = "--";
-  probeError.hidden = true;
-  probeError.textContent = "";
-  probeDetail1Label.textContent = "Codec";
-  probeDetail1Value.textContent = "--";
-  probeDetail2Label.textContent = "Resolution";
-  probeDetail2Value.textContent = "--";
-  probeDetail3Label.textContent = "Stream Type";
-  probeDetail3Value.textContent = "--";
-  document.querySelector("#probe-reachable").textContent = "--";
-  probeDetailsWrap.hidden = true;
-  probeDetailsWrap.open = false;
-  probeDetails.textContent = "";
-  probeCommand.textContent = "";
+  probe.summary.textContent = "Use Test Stream to verify recording compatibility.";
+  probe.status.textContent = "--";
+  probe.reachable.textContent = "--";
+  probe.error.hidden = true;
+  probe.error.textContent = "";
+  probe.label1.textContent = "Codec";
+  probe.value1.textContent = "--";
+  probe.label2.textContent = "Resolution";
+  probe.value2.textContent = "--";
+  probe.label3.textContent = "Stream Type";
+  probe.value3.textContent = "--";
+  probe.detailsWrap.hidden = true;
+  probe.detailsWrap.open = false;
+  probe.details.textContent = "";
+  probe.command.textContent = "";
 }
 
 function updateProbeResult(result, mode) {
   if (mode === "gopro") {
-    probeSummary.textContent = result.message || (result.reachable ? "GoPro reachable." : "GoPro unreachable.");
-    probeStatus.textContent = result.reachable ? "ok" : "error";
-    document.querySelector("#probe-reachable").textContent = result.reachable ? "yes" : "no";
-    probeDetail1Label.textContent = "HTTP Status";
-    probeDetail1Value.textContent = result.http_status || "--";
-    probeDetail2Label.textContent = "Battery";
-    probeDetail2Value.textContent = result.battery !== null && result.battery !== undefined ? String(result.battery) : "--";
-    probeDetail3Label.textContent = "Recording";
-    probeDetail3Value.textContent = result.recording === null || result.recording === undefined ? "--" : (result.recording ? "yes" : "no");
+    probe.summary.textContent = result.message || (result.reachable ? "GoPro reachable." : "GoPro unreachable.");
+    probe.status.textContent = result.reachable ? "ok" : "error";
+    probe.reachable.textContent = result.reachable ? "yes" : "no";
+    probe.label1.textContent = "HTTP Status";
+    probe.value1.textContent = result.http_status || "--";
+    probe.label2.textContent = "Battery";
+    probe.value2.textContent = result.battery !== null && result.battery !== undefined ? String(result.battery) : "--";
+    probe.label3.textContent = "Recording";
+    probe.value3.textContent = result.recording === null || result.recording === undefined ? "--" : (result.recording ? "yes" : "no");
   } else {
-    probeSummary.textContent = result.message || (
-      result.reachable ? "ffprobe reached the stream." : "ffprobe could not verify the stream."
-    );
-    probeStatus.textContent = result.diagnostic_status || "--";
-    document.querySelector("#probe-reachable").textContent = result.reachable ? "yes" : "no";
-    probeDetail1Label.textContent = "Codec";
-    probeDetail1Value.textContent = result.codec || "--";
-    probeDetail2Label.textContent = "Resolution";
-    probeDetail2Value.textContent =
-      result.width && result.height ? `${result.width}x${result.height}` : "--";
-    probeDetail3Label.textContent = "Stream Type";
-    probeDetail3Value.textContent = result.stream_type || "--";
+    probe.summary.textContent = result.message || (result.reachable ? "ffprobe reached the stream." : "ffprobe could not verify the stream.");
+    probe.status.textContent = result.diagnostic_status || "--";
+    probe.reachable.textContent = result.reachable ? "yes" : "no";
+    probe.label1.textContent = "Codec";
+    probe.value1.textContent = result.codec || "--";
+    probe.label2.textContent = "Resolution";
+    probe.value2.textContent = result.width && result.height ? `${result.width}x${result.height}` : "--";
+    probe.label3.textContent = "Stream Type";
+    probe.value3.textContent = result.stream_type || "--";
   }
 
-  if (result.error && (!(mode === "gopro") ? result.diagnostic_status !== "ok" : true)) {
-    probeError.hidden = false;
-    probeError.textContent = result.error;
-  } else {
-    probeError.hidden = true;
-    probeError.textContent = "";
+  if (result.error && (mode === "gopro" || result.diagnostic_status !== "ok")) {
+    showError(probe.error, result.error);
   }
 
-  const metaParts = [];
-  if (result.command) {
-    metaParts.push(`Command: ${result.command}`);
-  }
-
-  const rawStatusDetails = result.raw_status && Object.keys(result.raw_status).length
-    ? JSON.stringify(result.raw_status, null, 2)
-    : "";
+  const rawStatusDetails = result.raw_status && Object.keys(result.raw_status).length ? JSON.stringify(result.raw_status, null, 2) : "";
   const detailText = result.details || rawStatusDetails || "";
-  const hasDetails = Boolean(detailText || metaParts.length);
-  probeDetailsWrap.hidden = !hasDetails;
-  if (hasDetails) {
-    probeCommand.textContent = metaParts.join(" | ");
-    probeDetails.textContent = detailText;
-  } else {
-    probeDetailsWrap.open = false;
-    probeCommand.textContent = "";
-    probeDetails.textContent = "";
-  }
+  probe.detailsWrap.hidden = !(detailText || result.command);
+  probe.command.textContent = result.command ? `Command: ${result.command}` : "";
+  probe.details.textContent = detailText;
 }
 
-function renderCameraList() {
-  listNode.innerHTML = "";
-  listEmptyNode.hidden = cameras.length > 0;
-
-  cameras.forEach((camera) => {
-    const detail = camera.mode === "gopro"
-      ? `GoPro host: ${camera.gopro_host || "--"}`
-      : `Output dir: ${camera.output_subdir}`;
-    const row = document.createElement("article");
-    row.className = "camera-list__item";
-    row.innerHTML = `
-      <div>
-        <h3>${camera.name}</h3>
-        <p>${camera.id}</p>
-        <p>${detail}</p>
-      </div>
-      <dl class="camera-list__meta">
-        <div><dt>Printer</dt><dd>${camera.printer_name} (${camera.printer_id})</dd></div>
-        <div><dt>Enabled</dt><dd>${camera.enabled ? "yes" : "no"}</dd></div>
-        <div><dt>Mode</dt><dd>${camera.mode}</dd></div>
-      </dl>
-      <div class="camera-list__actions">
-        <button type="button" class="control-button control-button--secondary" data-action="edit" data-camera-id="${camera.id}">Edit</button>
-        <button type="button" class="control-button control-button--danger" data-action="delete" data-camera-id="${camera.id}">Delete</button>
-      </div>
-    `;
-    listNode.appendChild(row);
+function renderPrinterOptions(selectedPrinterId = "") {
+  cameraFields.printerId.innerHTML = "";
+  sortByOrderNameId(printers).forEach((printer) => {
+    const option = document.createElement("option");
+    option.value = printer.id;
+    option.textContent = `${printer.name} (${printer.id})`;
+    option.selected = printer.id === selectedPrinterId;
+    cameraFields.printerId.appendChild(option);
   });
 }
 
-function beginNewCamera() {
+function renderDefaultCameraOptions(printer, selectedCameraId = "") {
+  printerFields.defaultCamera.innerHTML = "";
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = printer && printer.cameras && printer.cameras.length ? "Auto fallback" : "No cameras yet";
+  printerFields.defaultCamera.appendChild(none);
+
+  if (!printer || !printer.cameras || !printer.cameras.length) {
+    printerFields.defaultCamera.disabled = true;
+    return;
+  }
+  printerFields.defaultCamera.disabled = false;
+  sortByOrderNameId(printer.cameras).forEach((camera) => {
+    const option = document.createElement("option");
+    option.value = camera.id;
+    option.textContent = `${camera.name} (${camera.id})`;
+    option.selected = camera.id === selectedCameraId;
+    printerFields.defaultCamera.appendChild(option);
+  });
+}
+
+function ensurePrinterDefault(printer) {
+  const cameras = sortByOrderNameId(printer.cameras || []);
+  if (!cameras.length) {
+    printer.default_camera_id = null;
+    return;
+  }
+  if (printer.default_camera_id && cameras.some((camera) => camera.id === printer.default_camera_id)) return;
+  printer.default_camera_id = (cameras.find((camera) => camera.enabled !== false) || cameras[0]).id;
+}
+
+function renderCameraRow(printer, camera) {
+  const resolved = resolveUrls(camera);
+  const isDefault = printer.default_camera_id === camera.id;
+  return `
+    <article class="nested-camera-row">
+      <div>
+        <h4>${escapeHtml(camera.name)}${isDefault ? ' <span class="status-pill">Default</span>' : ""}</h4>
+        <p>${escapeHtml(camera.id)} · ${camera.enabled === false ? "disabled" : "enabled"} · ${escapeHtml(camera.mode || "manual_urls")}</p>
+      </div>
+      <dl class="camera-list__meta">
+        <div><dt>Preview</dt><dd title="${escapeHtml(resolved.preview_url)}">${escapeHtml(resolved.preview_url || "--")}</dd></div>
+        <div><dt>Record</dt><dd title="${escapeHtml(resolved.record_url)}">${escapeHtml(resolved.record_url || "--")}</dd></div>
+        <div><dt>Order</dt><dd>${camera.display_order ?? "--"}</dd></div>
+      </dl>
+      <div class="camera-list__actions">
+        <button type="button" class="control-button control-button--secondary" data-action="edit-camera" data-camera-id="${escapeHtml(camera.id)}">Edit</button>
+        <button type="button" class="control-button control-button--secondary" data-action="test-camera" data-camera-id="${escapeHtml(camera.id)}">Test</button>
+        <button type="button" class="control-button control-button--danger" data-action="delete-camera" data-camera-id="${escapeHtml(camera.id)}">Delete</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderPrinterList() {
+  printerList.innerHTML = "";
+  printerEmpty.hidden = printers.length > 0;
+  sortByOrderNameId(printers).forEach((printer) => {
+    ensurePrinterDefault(printer);
+    const cameras = sortByOrderNameId(printer.cameras || []);
+    const defaultCamera = cameras.find((camera) => camera.id === printer.default_camera_id);
+    const card = document.createElement("article");
+    card.className = "printer-config-card";
+    card.innerHTML = `
+      <header class="printer-config-card__header">
+        <div>
+          <h3>${escapeHtml(printer.name)}</h3>
+          <p>${escapeHtml(printer.id)} · ${printer.enabled === false ? "disabled" : "enabled"}</p>
+        </div>
+        <div class="camera-list__actions">
+          <button type="button" class="control-button control-button--secondary" data-action="edit-printer" data-printer-id="${escapeHtml(printer.id)}">Edit Printer</button>
+          <button type="button" class="control-button" data-action="add-camera" data-printer-id="${escapeHtml(printer.id)}">Add Camera</button>
+          <button type="button" class="control-button control-button--danger" data-action="delete-printer" data-printer-id="${escapeHtml(printer.id)}">Delete Printer</button>
+        </div>
+      </header>
+      <dl class="camera-list__meta printer-config-card__meta">
+        <div><dt>Moonraker</dt><dd>${escapeHtml(printer.moonraker_url || "--")}</dd></div>
+        <div><dt>Order</dt><dd>${printer.display_order ?? "--"}</dd></div>
+        <div><dt>Default</dt><dd>${defaultCamera ? escapeHtml(defaultCamera.name) : "--"}</dd></div>
+        <div><dt>Views</dt><dd>${cameras.length}</dd></div>
+      </dl>
+      <div class="nested-camera-list">
+        ${cameras.length ? cameras.map((camera) => renderCameraRow(printer, camera)).join("") : '<p class="form-helper">No cameras configured for this printer.</p>'}
+      </div>
+    `;
+    printerList.appendChild(card);
+  });
+}
+
+function beginNewPrinter() {
+  editingPrinterId = null;
+  idTouched = false;
+  printerEditor.hidden = false;
+  cameraEditor.hidden = true;
+  $("#printer-form-title").textContent = "New Printer";
+  printerFields.editingId.value = "";
+  printerFields.name.value = "";
+  printerFields.id.value = "";
+  printerFields.enabled.checked = true;
+  printerFields.moonrakerUrl.value = "";
+  printerFields.displayOrder.value = "";
+  renderDefaultCameraOptions(null);
+  $("#delete-printer-button").hidden = true;
+  clearError(printerError);
+}
+
+function beginEditPrinter(printerId) {
+  const printer = findPrinter(printerId);
+  if (!printer) return;
+  editingPrinterId = printer.id;
+  idTouched = true;
+  printerEditor.hidden = false;
+  cameraEditor.hidden = true;
+  $("#printer-form-title").textContent = `Edit ${printer.name}`;
+  printerFields.editingId.value = printer.id;
+  printerFields.name.value = printer.name;
+  printerFields.id.value = printer.id;
+  printerFields.enabled.checked = printer.enabled !== false;
+  printerFields.moonrakerUrl.value = printer.moonraker_url || "";
+  printerFields.displayOrder.value = printer.display_order ?? "";
+  renderDefaultCameraOptions(printer, printer.default_camera_id || "");
+  $("#delete-printer-button").hidden = false;
+  clearError(printerError);
+}
+
+function beginNewCamera(printerId) {
+  if (!printers.length) {
+    showError(configError, "Create a printer before adding cameras.");
+    return;
+  }
   editingCameraId = null;
   idTouched = false;
   outputSubdirTouched = false;
-  printerIdTouched = false;
-  printerNameTouched = false;
-  formTitle.textContent = "New Camera View";
-  fields.editingCameraId.value = "";
-  fields.name.value = "";
-  fields.id.value = "";
-  fields.enabled.checked = true;
-  fields.outputSubdir.value = "";
-  fields.description.value = "";
-  fields.mode.value = "go2rtc_helper";
-  fields.printerName.value = "";
-  fields.printerId.value = "";
-  fields.defaultLiveView.checked = false;
-  fields.moonrakerUrl.value = "";
-  fields.displayOrder.value = "";
-  fields.go2rtcBaseUrl.value = "";
-  fields.streamName.value = "cam";
-  fields.previewUrl.value = "";
-  fields.recordUrl.value = "";
-  fields.goproHost.value = "";
-  fields.previewMode.value = "none";
-  fields.goproPreviewUrl.value = "";
-  fields.autoDownload.checked = true;
-  fields.downloadTimeoutSeconds.value = "120";
-  fields.fileWaitSeconds.value = "5";
-  document.querySelector("#delete-camera-button").hidden = true;
-  formError.hidden = true;
-  formError.textContent = "";
-  updateRecordUrlWarning("");
+  printerEditor.hidden = true;
+  cameraEditor.hidden = false;
+  $("#camera-form-title").textContent = "New Camera View";
+  renderPrinterOptions(printerId || printers[0].id);
+  cameraFields.editingId.value = "";
+  cameraFields.editingPrinterId.value = "";
+  cameraFields.mode.value = "manual_urls";
+  cameraFields.name.value = "";
+  cameraFields.id.value = "";
+  cameraFields.enabled.checked = true;
+  cameraFields.displayOrder.value = "";
+  cameraFields.outputSubdir.value = "";
+  cameraFields.description.value = "";
+  cameraFields.go2rtcBaseUrl.value = "";
+  cameraFields.streamName.value = "cam";
+  cameraFields.previewUrl.value = "";
+  cameraFields.recordUrl.value = "";
+  cameraFields.goproHost.value = "";
+  cameraFields.previewMode.value = "none";
+  cameraFields.goproPreviewUrl.value = "";
+  cameraFields.autoDownload.checked = true;
+  cameraFields.downloadTimeoutSeconds.value = "120";
+  cameraFields.fileWaitSeconds.value = "5";
+  $("#delete-camera-button").hidden = true;
+  clearError(cameraError);
   setModeVisibility();
   updatePreviewPanel();
   resetProbeResult();
 }
 
-function beginEditCamera(camera) {
+function beginEditCamera(cameraId) {
+  const found = findCamera(cameraId);
+  if (!found) return;
+  const { printer, camera } = found;
   editingCameraId = camera.id;
   idTouched = true;
   outputSubdirTouched = true;
-  printerIdTouched = true;
-  printerNameTouched = true;
-  formTitle.textContent = `Edit ${camera.name}`;
-  fields.editingCameraId.value = camera.id;
-  fields.name.value = camera.name;
-  fields.id.value = camera.id;
-  fields.enabled.checked = camera.enabled;
-  fields.outputSubdir.value = camera.output_subdir || camera.id;
-  fields.description.value = camera.description || "";
-  fields.mode.value = camera.mode;
-  fields.printerName.value = camera.printer_name || camera.name;
-  fields.printerId.value = camera.printer_id || camera.id;
-  fields.defaultLiveView.checked = camera.default_live_view === true;
-  fields.moonrakerUrl.value = camera.moonraker_url || "";
-  fields.displayOrder.value = camera.display_order !== null && camera.display_order !== undefined ? String(camera.display_order) : "";
-  fields.go2rtcBaseUrl.value = camera.go2rtc_base_url || "";
-  fields.streamName.value = camera.stream_name || "cam";
-  fields.previewUrl.value = camera.preview_url || "";
-  fields.recordUrl.value = camera.record_url || "";
-  fields.goproHost.value = camera.gopro_host || "";
-  fields.previewMode.value = camera.preview_mode || "none";
-  fields.goproPreviewUrl.value = camera.preview_url || "";
-  fields.autoDownload.checked = camera.auto_download_after_stop !== false;
-  fields.downloadTimeoutSeconds.value = String(camera.download_timeout_seconds || 120);
-  fields.fileWaitSeconds.value = String(camera.file_stabilization_wait_seconds || 5);
-  document.querySelector("#delete-camera-button").hidden = false;
-  formError.hidden = true;
-  formError.textContent = "";
+  printerEditor.hidden = true;
+  cameraEditor.hidden = false;
+  $("#camera-form-title").textContent = `Edit ${camera.name}`;
+  renderPrinterOptions(printer.id);
+  cameraFields.editingId.value = camera.id;
+  cameraFields.editingPrinterId.value = printer.id;
+  cameraFields.mode.value = camera.mode || "manual_urls";
+  cameraFields.name.value = camera.name;
+  cameraFields.id.value = camera.id;
+  cameraFields.enabled.checked = camera.enabled !== false;
+  cameraFields.displayOrder.value = camera.display_order ?? "";
+  cameraFields.outputSubdir.value = camera.output_subdir || camera.id;
+  cameraFields.description.value = camera.description || "";
+  cameraFields.go2rtcBaseUrl.value = camera.go2rtc_base_url || "";
+  cameraFields.streamName.value = camera.stream_name || "cam";
+  cameraFields.previewUrl.value = camera.preview_url || "";
+  cameraFields.recordUrl.value = camera.record_url || "";
+  cameraFields.goproHost.value = camera.gopro_host || "";
+  cameraFields.previewMode.value = camera.preview_mode || "none";
+  cameraFields.goproPreviewUrl.value = camera.preview_url || "";
+  cameraFields.autoDownload.checked = camera.auto_download_after_stop !== false;
+  cameraFields.downloadTimeoutSeconds.value = String(camera.download_timeout_seconds || 120);
+  cameraFields.fileWaitSeconds.value = String(camera.file_stabilization_wait_seconds || 5);
+  $("#delete-camera-button").hidden = false;
+  clearError(cameraError);
   setModeVisibility();
-  updatePreviewPanel();
+  updatePreviewPanel(camera);
   resetProbeResult();
 }
 
-async function loadCameras() {
-  const payload = await fetchJson("/api/cameras");
-  cameras = payload.cameras || [];
-  renderCameraList();
-
-  if (editingCameraId) {
-    const current = cameras.find((camera) => camera.id === editingCameraId);
-    if (current) {
-      beginEditCamera(current);
-      return;
-    }
-    editingCameraId = null;
+function validateId(value, label) {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+    throw new Error(`${label} must use only letters, numbers, underscores, and dashes.`);
   }
+}
 
-  if (!editingCameraId && !fields.name.value) {
-    beginNewCamera();
+async function saveConfig() {
+  const payload = { printers: printers.map((printer) => ({ ...printer, cameras: printer.cameras || [] })) };
+  const response = await fetchJson("/api/cameras/config", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  printers = response.printers || [];
+  renderPrinterList();
+}
+
+async function savePrinter(event) {
+  event.preventDefault();
+  clearError(printerError);
+  clearError(configError);
+  try {
+    const printerId = printerFields.id.value.trim();
+    const printerName = printerFields.name.value.trim();
+    if (!printerId || !printerName) throw new Error("Printer id and name are required.");
+    validateId(printerId, "Printer id");
+    if (printers.some((printer) => printer.id === printerId && printer.id !== editingPrinterId)) {
+      throw new Error(`Printer id '${printerId}' already exists.`);
+    }
+
+    let printer = editingPrinterId ? findPrinter(editingPrinterId) : null;
+    if (!printer) {
+      printer = { id: printerId, name: printerName, enabled: true, cameras: [] };
+      printers.push(printer);
+    }
+    printer.id = printerId;
+    printer.name = printerName;
+    printer.enabled = printerFields.enabled.checked;
+    printer.moonraker_url = printerFields.moonrakerUrl.value.trim() || null;
+    printer.display_order = safeNumber(printerFields.displayOrder.value);
+    printer.default_camera_id = printerFields.defaultCamera.value || null;
+    printer.cameras = printer.cameras || [];
+    ensurePrinterDefault(printer);
+    await saveConfig();
+    beginEditPrinter(printer.id);
+  } catch (error) {
+    showError(printerError, error.message);
+  }
+}
+
+async function deletePrinter(printerId) {
+  const printer = findPrinter(printerId);
+  if (!printer) return;
+  const cameraCount = (printer.cameras || []).length;
+  const suffix = cameraCount ? ` This also removes ${cameraCount} nested camera config ${cameraCount === 1 ? "entry" : "entries"}.` : "";
+  if (!window.confirm(`Delete printer '${printer.name}' from config?${suffix} Recordings are not deleted.`)) return;
+  try {
+    printers = printers.filter((item) => item.id !== printerId);
+    await saveConfig();
+    beginNewPrinter();
+  } catch (error) {
+    showError(configError, error.message);
   }
 }
 
 async function saveCamera(event) {
   event.preventDefault();
-  formError.hidden = true;
-  formError.textContent = "";
-  const payload = cameraPayload();
-  const expectedId = payload.id || slugifyCameraId(payload.name);
-  updateRecordUrlWarning(resolveUrls(payload).record_url);
-
+  clearError(cameraError);
+  clearError(configError);
+  const parentPrinterId = cameraFields.printerId.value;
+  const newCamera = cameraFromForm();
   try {
-    let response = null;
-    if (editingCameraId) {
-      response = await fetchJson(`/api/cameras/${editingCameraId}`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      });
-    } else {
-      response = await fetchJson("/api/cameras", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+    if (!parentPrinterId || !findPrinter(parentPrinterId)) throw new Error("Choose a parent printer.");
+    if (!newCamera.id || !newCamera.name) throw new Error("Camera id and name are required.");
+    validateId(newCamera.id, "Camera id");
+    if (allCameraIds(editingCameraId).has(newCamera.id)) throw new Error(`Camera id '${newCamera.id}' already exists.`);
+    if (newCamera.mode === "go2rtc_helper" && !newCamera.go2rtc_base_url) throw new Error("go2rtc Base URL is required.");
+    if (newCamera.mode === "manual_urls" && !newCamera.preview_url && !newCamera.record_url) {
+      throw new Error("Manual cameras need at least a preview URL or a record URL.");
     }
-    cameras = response.cameras || [];
-    renderCameraList();
-    const saved = cameras.find((camera) => camera.id === expectedId) ||
-      cameras.find((camera) => camera.name === payload.name);
-    if (saved) {
-      beginEditCamera(saved);
-    } else {
-      beginNewCamera();
-    }
+    if (newCamera.mode === "gopro" && !newCamera.gopro_host) throw new Error("GoPro host is required for deprecated GoPro compatibility cameras.");
+
+    printers.forEach((printer) => {
+      printer.cameras = (printer.cameras || []).filter((camera) => camera.id !== editingCameraId);
+    });
+    const parent = findPrinter(parentPrinterId);
+    parent.cameras = parent.cameras || [];
+    parent.cameras.push(newCamera);
+    printers.forEach(ensurePrinterDefault);
+    await saveConfig();
+    beginEditCamera(newCamera.id);
   } catch (error) {
-    formError.hidden = false;
-    formError.textContent = error.message;
+    showError(cameraError, error.message);
   }
 }
 
 async function deleteCamera(cameraId) {
-  const confirmed = window.confirm(`Delete camera "${cameraId}" from config?`);
-  if (!confirmed) {
+  const found = findCamera(cameraId);
+  if (!found) return;
+  if (!window.confirm(`Delete camera '${found.camera.name}' from config? Recordings are not deleted.`)) return;
+  try {
+    found.printer.cameras = (found.printer.cameras || []).filter((camera) => camera.id !== cameraId);
+    if (found.printer.default_camera_id === cameraId) found.printer.default_camera_id = null;
+    ensurePrinterDefault(found.printer);
+    await saveConfig();
+    beginEditPrinter(found.printer.id);
+  } catch (error) {
+    showError(configError, error.message);
+  }
+}
+
+async function probeCamera(cameraOverride = null, printerOverride = null) {
+  resetProbeResult();
+  const camera = cameraOverride || cameraFromForm();
+  const printer = printerOverride || findPrinter(cameraFields.printerId.value) || { id: "printer", name: "Printer" };
+  const resolved = resolveUrls(camera);
+  updatePreviewPanel(camera);
+  updateRecordUrlWarning(resolved.record_url);
+  if (camera.mode !== "gopro" && !resolved.record_url) {
+    showError(probe.error, "This camera has no recording URL to probe.");
     return;
   }
 
   try {
-    await fetchJson(`/api/cameras/${cameraId}`, { method: "DELETE" });
-    editingCameraId = null;
-    await loadCameras();
-    beginNewCamera();
-  } catch (error) {
-    formError.hidden = false;
-    formError.textContent = error.message;
-  }
-}
-
-async function probeCamera() {
-  resetProbeResult();
-  const payload = cameraPayload();
-  updateRecordUrlWarning(resolveUrls(payload).record_url);
-  try {
-    const url = payload.mode === "gopro" ? "/api/gopro/test" : "/api/camera/probe";
+    const url = camera.mode === "gopro" ? "/api/gopro/test" : "/api/camera/probe";
     const result = await fetchJson(url, {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(probePayloadFromCamera(printer, camera)),
     });
-    updateProbeResult(result, payload.mode);
+    updateProbeResult(result, camera.mode || "manual_urls");
   } catch (error) {
-    probeError.hidden = false;
-    probeError.textContent = error.message;
+    showError(probe.error, error.message);
   }
 }
 
-fields.name.addEventListener("input", () => {
-  if (!idTouched) {
-    fields.id.value = slugifyCameraId(fields.name.value);
+async function loadConfig() {
+  try {
+    clearError(configError);
+    const payload = await fetchJson("/api/cameras/config");
+    printers = payload.printers || [];
+    printers.forEach((printer) => {
+      printer.cameras = printer.cameras || [];
+      ensurePrinterDefault(printer);
+    });
+    renderPrinterList();
+    renderPrinterOptions(printers[0] ? printers[0].id : "");
+    if (printers.length) beginEditPrinter(printers[0].id);
+    else beginNewPrinter();
+  } catch (error) {
+    showError(configError, error.message);
   }
-  if (!outputSubdirTouched) {
-    fields.outputSubdir.value = fields.id.value || slugifyCameraId(fields.name.value);
-  }
-  if (!printerNameTouched) {
-    fields.printerName.value = fields.name.value.trim();
-  }
-  if (!printerIdTouched) {
-    fields.printerId.value = fields.id.value || slugifyCameraId(fields.name.value);
-  }
+}
+
+printerFields.name.addEventListener("input", () => {
+  if (!idTouched) printerFields.id.value = slugifyId(printerFields.name.value, "printer");
+});
+printerFields.id.addEventListener("input", () => {
+  idTouched = true;
+});
+cameraFields.name.addEventListener("input", () => {
+  if (!idTouched) cameraFields.id.value = slugifyId(cameraFields.name.value, "camera");
+  if (!outputSubdirTouched) cameraFields.outputSubdir.value = cameraFields.id.value;
   updatePreviewPanel();
 });
-
-fields.id.addEventListener("input", () => {
+cameraFields.id.addEventListener("input", () => {
   idTouched = true;
-  if (!outputSubdirTouched) {
-    fields.outputSubdir.value = fields.id.value.trim();
-  }
-  if (!printerIdTouched) {
-    fields.printerId.value = fields.id.value.trim();
-  }
+  if (!outputSubdirTouched) cameraFields.outputSubdir.value = cameraFields.id.value.trim();
 });
-
-fields.outputSubdir.addEventListener("input", () => {
+cameraFields.outputSubdir.addEventListener("input", () => {
   outputSubdirTouched = true;
 });
-
-fields.printerName.addEventListener("input", () => {
-  printerNameTouched = true;
-});
-
-fields.printerId.addEventListener("input", () => {
-  printerIdTouched = true;
-});
-
-fields.mode.addEventListener("change", () => {
+cameraFields.mode.addEventListener("change", () => {
   setModeVisibility();
   updatePreviewPanel();
   resetProbeResult();
 });
-
-fields.previewMode.addEventListener("change", () => {
+cameraFields.previewMode.addEventListener("change", () => {
   setModeVisibility();
   updatePreviewPanel();
 });
-
 [
-  fields.go2rtcBaseUrl,
-  fields.streamName,
-  fields.previewUrl,
-  fields.recordUrl,
-  fields.goproHost,
-  fields.goproPreviewUrl,
-].forEach((field) => {
-  field.addEventListener("input", updatePreviewPanel);
-});
+  cameraFields.go2rtcBaseUrl,
+  cameraFields.streamName,
+  cameraFields.previewUrl,
+  cameraFields.recordUrl,
+  cameraFields.goproHost,
+  cameraFields.goproPreviewUrl,
+].forEach((field) => field.addEventListener("input", () => updatePreviewPanel()));
 
-form.addEventListener("submit", saveCamera);
-document.querySelector("#new-camera-button").addEventListener("click", beginNewCamera);
-document.querySelector("#cancel-edit-button").addEventListener("click", beginNewCamera);
-document.querySelector("#delete-camera-button").addEventListener("click", () => {
-  if (editingCameraId) {
-    deleteCamera(editingCameraId);
-  }
+$("#printer-form").addEventListener("submit", savePrinter);
+$("#camera-form").addEventListener("submit", saveCamera);
+$("#new-printer-button").addEventListener("click", beginNewPrinter);
+$("#cancel-printer-edit-button").addEventListener("click", beginNewPrinter);
+$("#cancel-camera-edit-button").addEventListener("click", () => {
+  if (printers.length) beginEditPrinter(cameraFields.printerId.value || printers[0].id);
+  else beginNewPrinter();
 });
-probeButton.addEventListener("click", probeCamera);
+$("#delete-printer-button").addEventListener("click", () => editingPrinterId && deletePrinter(editingPrinterId));
+$("#delete-camera-button").addEventListener("click", () => editingCameraId && deleteCamera(editingCameraId));
+$("#probe-camera-button").addEventListener("click", () => probeCamera());
 
-listNode.addEventListener("click", (event) => {
+printerList.addEventListener("click", (event) => {
   const target = event.target;
-  if (!(target instanceof HTMLButtonElement)) {
-    return;
-  }
-
-  const cameraId = target.dataset.cameraId;
-  const action = target.dataset.action;
-  const camera = cameras.find((item) => item.id === cameraId);
-  if (!camera) {
-    return;
-  }
-
-  if (action === "edit") {
-    beginEditCamera(camera);
-  } else if (action === "delete") {
-    deleteCamera(camera.id);
+  if (!(target instanceof HTMLButtonElement)) return;
+  const { action, printerId, cameraId } = target.dataset;
+  if (action === "edit-printer" && printerId) beginEditPrinter(printerId);
+  else if (action === "delete-printer" && printerId) deletePrinter(printerId);
+  else if (action === "add-camera" && printerId) beginNewCamera(printerId);
+  else if (action === "edit-camera" && cameraId) beginEditCamera(cameraId);
+  else if (action === "delete-camera" && cameraId) deleteCamera(cameraId);
+  else if (action === "test-camera" && cameraId) {
+    const found = findCamera(cameraId);
+    if (found) {
+      beginEditCamera(cameraId);
+      probeCamera(found.camera, found.printer);
+    }
   }
 });
 
-beginNewCamera();
-loadCameras();
+beginNewPrinter();
+resetProbeResult();
+loadConfig();

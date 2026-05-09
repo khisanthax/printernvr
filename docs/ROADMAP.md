@@ -580,6 +580,29 @@ Deliverables:
 - Recording remains through `/api/record/*/{camera_id}`
 - Clips remain under `recordings/<camera_id>/`
 
+### Phase 10.3 - Nested Printers & Cameras Management UI [x]
+
+Goals:
+- Make `/cameras` match the printer-first configuration model
+- Manage printers as first-class config objects
+- Manage multiple camera views nested under each printer
+- Keep recording and clip storage camera-id based
+
+Tasks:
+- Replace the flat camera list UI with nested printer cards and camera rows
+- Add create, edit, and delete flows for printers
+- Add create, edit, delete, preview, and probe flows for nested camera views
+- Add per-printer default camera selection
+- Save config as top-level `printers`
+- Keep legacy camera-first configs loadable and migrate them to printer-first shape on first nested UI save
+
+Deliverables:
+- `/cameras` is now the Printers & Cameras management page
+- Printers expose id, name, enabled state, Moonraker URL, display order, and default camera
+- Nested cameras expose globally unique camera id, name, enabled state, mode, preview/record input, output folder, and display order
+- Deleting printers or cameras changes config only and does not delete recordings
+- Existing probe/preview behavior remains available for nested cameras
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:
@@ -664,6 +687,7 @@ Completed:
 - Phase 10 camera wall live view
 - Phase 10.1 configurable camera wall grid density
 - Phase 10.2 printer-first config and live wall refresh stability
+- Phase 10.3 nested printers and cameras management UI
 - Phase 6 retention and storage protection
 
 In progress:
@@ -684,6 +708,7 @@ Implemented highlights:
 - RTSP-over-TCP recording and probing defaults for `rtsp://` inputs
 - Video-only MP4 recording profile using `-map 0:v:0 -an -c:v copy`
 - Config-backed camera management UI with live preview/external preview and mode-aware testing
+- Nested printer-first config management UI with per-printer camera views and default camera selection
 - Expanded ffmpeg and ffprobe diagnostics surfaced in the dashboard and camera management UI
 - Filesystem-based clip browser with camera filter, download, and manual delete
 - Filesystem-based clip review metadata for favorite/rejected state and safe clip rename
@@ -701,7 +726,7 @@ Implemented highlights:
 - Printer-card latest clip shortcuts that preview, download, or open clips for the currently selected camera/view
 - Printer-card quick duration buttons and custom duration input for selected-view timed recordings
 - Optional Moonraker-backed status polling for printer status, file name, progress, temperatures, and ETA
-- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/latest/{camera_id}`, `PATCH /api/clips/{camera_id}/{filename}/metadata`, `POST /api/clips/{camera_id}/{filename}/rename`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /live`, `GET /printers`, `GET /cameras`, `GET /clips`
+- Endpoints: `GET /health`, `GET /api/cameras`, `GET /api/cameras/config`, `PUT /api/cameras/config`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/latest/{camera_id}`, `PATCH /api/clips/{camera_id}/{filename}/metadata`, `POST /api/clips/{camera_id}/{filename}/rename`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /live`, `GET /printers`, `GET /cameras`, `GET /clips`
 - Legacy compatibility endpoints remain for existing GoPro deployments but are deprecated and not part of the active workflow
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip
 - Empty dashboard state when no cameras are configured

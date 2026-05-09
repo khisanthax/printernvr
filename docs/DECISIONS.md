@@ -431,3 +431,21 @@ Impact:
 - Camera streams stay mounted during normal status refresh.
 - Sorting actively printing printers remains possible without iframe reloads.
 - Preview reloads are limited to user-selected view changes or real preview/config changes.
+
+## 2026-05-09 - Make Config Management Printer-First
+
+Decision:
+- Convert `/cameras` into a nested Printers & Cameras management UI.
+- Save config as top-level `printers` from the management page.
+- Keep existing camera-id recording APIs and clip storage unchanged.
+
+Why:
+- The app is now organized around printers with multiple views.
+- The old flat camera editor required users to mentally group camera rows into printers.
+- Printer-first editing makes default camera selection and Moonraker metadata easier to understand.
+
+Impact:
+- Printers can be created, edited, and deleted from `/cameras`.
+- Cameras are managed under their parent printer and still require globally unique ids.
+- Deleting config entries does not delete local recordings.
+- Legacy camera-first configs still load and are migrated to printer-first shape when saved through the nested UI.

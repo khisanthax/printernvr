@@ -7,10 +7,19 @@ from app.config import (
     build_management_items,
     config_uses_printer_first,
     load_camera_inputs,
+    load_printer_config_inputs,
+    normalize_printer_config_inputs,
     validate_camera_inputs,
     write_camera_inputs,
+    write_printer_config_inputs,
 )
-from app.models import CameraConfigInput, CameraManagementItem, CameraUpsertRequest, ResolvedCamera
+from app.models import (
+    CameraConfigInput,
+    CameraManagementItem,
+    CameraUpsertRequest,
+    PrinterConfigInput,
+    ResolvedCamera,
+)
 
 
 class CameraConfigStore:
@@ -24,6 +33,24 @@ class CameraConfigStore:
         resolved = validate_camera_inputs(raw_cameras)
         items = build_management_items(raw_cameras, resolved)
         return raw_cameras, resolved, items
+
+    def list_printers(self) -> tuple[list[PrinterConfigInput], list[CameraConfigInput], list[ResolvedCamera]]:
+        with self._lock:
+            printers = load_printer_config_inputs(self._config_path)
+            raw_cameras = load_camera_inputs(self._config_path)
+            resolved = validate_camera_inputs(raw_cameras)
+        return printers, raw_cameras, resolved
+
+    def save_printers(
+        self,
+        printers: list[PrinterConfigInput],
+    ) -> tuple[list[PrinterConfigInput], list[CameraConfigInput], list[ResolvedCamera]]:
+        with self._lock:
+            normalized_printers = normalize_printer_config_inputs(printers)
+            write_printer_config_inputs(self._config_path, normalized_printers)
+            raw_cameras = load_camera_inputs(self._config_path)
+            resolved = validate_camera_inputs(raw_cameras)
+        return normalized_printers, raw_cameras, resolved
 
     def create_camera(
         self,

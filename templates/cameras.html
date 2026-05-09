@@ -17,109 +17,143 @@
         <a href="/clips">Clips</a>
       </nav>
       <h1>Printers & Cameras</h1>
-      <p>Add and edit camera views grouped by printer while keeping the JSON config file as the source of truth.</p>
+      <p>Configure printers directly, then manage each printer's camera views. Recording and clips still use globally unique camera IDs.</p>
     </div>
   </header>
 
-  <main class="camera-admin">
+  <main class="camera-admin camera-admin--nested">
     <section class="camera-admin__list">
       <div class="camera-admin__section-head">
-        <h2>Configured Printer Cameras</h2>
-        <button type="button" id="new-camera-button" class="control-button">New Camera</button>
+        <h2>Configured Printers</h2>
+        <button type="button" id="new-printer-button" class="control-button">New Printer</button>
       </div>
-      <div id="camera-list-empty" class="empty-state" hidden>
-        <h2>No cameras configured.</h2>
-        <p>Create a camera view and assign it to a printer to start using the dashboards.</p>
+      <p class="form-helper">
+        Deleting printers or cameras only changes config. Existing recordings under <code>recordings/&lt;camera_id&gt;/</code> are not deleted.
+      </p>
+      <p id="config-error" class="camera-error" hidden></p>
+      <div id="printer-list-empty" class="empty-state" hidden>
+        <h2>No printers configured.</h2>
+        <p>Create a printer, then add one or more camera views.</p>
       </div>
-      <div id="camera-list" class="camera-list"></div>
+      <div id="printer-list" class="printer-config-list"></div>
     </section>
 
     <section class="camera-admin__editor">
-      <div class="camera-admin__form">
+      <section id="printer-editor" class="camera-admin__form">
         <div class="camera-admin__section-head">
-          <h2 id="camera-form-title">New Camera View</h2>
-          <button type="button" id="cancel-edit-button" class="control-button control-button--secondary">Cancel</button>
+          <h2 id="printer-form-title">New Printer</h2>
+          <button type="button" id="cancel-printer-edit-button" class="control-button control-button--secondary">Cancel</button>
         </div>
-        <form id="camera-form">
-          <input type="hidden" id="editing-camera-id">
-
+        <form id="printer-form">
+          <input type="hidden" id="editing-printer-id">
           <div class="form-grid">
             <label>
-              Name
-              <input id="camera-name" name="name" type="text" required>
-            </label>
-            <label>
-              ID
-              <input id="camera-id" name="id" type="text">
-            </label>
-            <label>
-              Output Subdirectory
-              <input id="camera-output-subdir" name="output_subdir" type="text">
-            </label>
-            <label>
-              Mode
-              <select id="camera-mode" name="mode">
-                <option value="go2rtc_helper">go2rtc_helper</option>
-                <option value="manual_urls">manual_urls</option>
-                <option value="gopro">gopro</option>
-              </select>
-            </label>
-            <label>
               Printer Name
-              <input id="camera-printer-name" name="printer_name" type="text" placeholder="Sovol SV08">
-              <span class="form-helper">Views with the same printer ID appear under one printer card.</span>
+              <input id="printer-name" name="name" type="text" required>
             </label>
             <label>
               Printer ID
-              <input id="camera-printer-id" name="printer_id" type="text" placeholder="sovol_sv08">
+              <input id="printer-id" name="id" type="text" required>
             </label>
             <label class="form-checkbox">
-              <input id="camera-default-live-view" name="default_live_view" type="checkbox">
-              Default live view for printer
-            </label>
-            <label>
-              Moonraker URL
-              <input id="camera-moonraker-url" name="moonraker_url" type="text" placeholder="http://printer.local">
-              <span class="form-helper">Optional. Used by the live printer dashboard for status, progress, temperatures, and ETA.</span>
+              <input id="printer-enabled" name="enabled" type="checkbox" checked>
+              Enabled
             </label>
             <label>
               Display Order
-              <input id="camera-display-order" name="display_order" type="number" min="0" step="1" placeholder="0">
+              <input id="printer-display-order" name="display_order" type="number" min="0" step="1">
+            </label>
+            <label class="form-grid__full">
+              Moonraker URL
+              <input id="printer-moonraker-url" name="moonraker_url" type="text" placeholder="http://printer.local">
+              <span class="form-helper">Optional. Used for status, progress, temperatures, and ETA.</span>
+            </label>
+            <label class="form-grid__full">
+              Default Camera
+              <select id="printer-default-camera" name="default_camera_id"></select>
+              <span class="form-helper">The default view used by /live and /printers when there is no browser-side override.</span>
+            </label>
+          </div>
+          <p id="printer-form-error" class="camera-error" hidden></p>
+          <div class="form-actions">
+            <button type="submit" class="control-button">Save Printer</button>
+            <button type="button" id="delete-printer-button" class="control-button control-button--danger" hidden>Delete Printer</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="camera-editor" class="camera-admin__form" hidden>
+        <div class="camera-admin__section-head">
+          <h2 id="camera-form-title">New Camera View</h2>
+          <button type="button" id="cancel-camera-edit-button" class="control-button control-button--secondary">Cancel</button>
+        </div>
+        <form id="camera-form">
+          <input type="hidden" id="editing-camera-id">
+          <input type="hidden" id="editing-camera-printer-id">
+          <div class="form-grid">
+            <label>
+              Parent Printer
+              <select id="camera-printer-id" name="printer_id" required></select>
+            </label>
+            <label>
+              Camera Mode
+              <select id="camera-mode" name="mode">
+                <option value="manual_urls">manual_urls</option>
+                <option value="go2rtc_helper">go2rtc_helper</option>
+                <option value="gopro">gopro (deprecated)</option>
+              </select>
+            </label>
+            <label>
+              Camera Name
+              <input id="camera-name" name="name" type="text" required>
+            </label>
+            <label>
+              Camera ID
+              <input id="camera-id" name="id" type="text" required>
             </label>
             <label class="form-checkbox">
               <input id="camera-enabled" name="enabled" type="checkbox" checked>
               Enabled
             </label>
+            <label>
+              Display Order
+              <input id="camera-display-order" name="display_order" type="number" min="0" step="1">
+            </label>
+            <label>
+              Output Subdirectory
+              <input id="camera-output-subdir" name="output_subdir" type="text">
+              <span class="form-helper">Defaults to the camera ID and controls the recordings folder.</span>
+            </label>
             <label class="form-grid__full">
               Description
-              <textarea id="camera-description" name="description" rows="3"></textarea>
+              <textarea id="camera-description" name="description" rows="2"></textarea>
             </label>
           </div>
 
-          <div id="go2rtc-fields" class="form-grid">
+          <div id="go2rtc-fields" class="form-grid" hidden>
             <label class="form-grid__full">
               go2rtc Base URL
-              <input id="camera-go2rtc-base-url" name="go2rtc_base_url" type="text" placeholder="http://printer.local:1984">
+              <input id="camera-go2rtc-base-url" name="go2rtc_base_url" type="text" placeholder="http://camera-host:1984">
             </label>
             <label>
               Stream Name
-              <input id="camera-stream-name" name="stream_name" type="text" placeholder="cam">
+              <input id="camera-stream-name" name="stream_name" type="text" placeholder="sv08_front">
             </label>
             <p class="form-helper form-grid__full">
-              For go2rtc streams, the recording URL is typically: <code>rtsp://&lt;host&gt;:8554/&lt;stream_name&gt;</code>
+              Recording URL is generated as <code>rtsp://&lt;host&gt;:8554/&lt;stream_name&gt;</code>.
             </p>
           </div>
 
-          <div id="manual-fields" class="form-grid" hidden>
+          <div id="manual-fields" class="form-grid">
             <label class="form-grid__full">
               Preview URL
-              <input id="camera-preview-url" name="preview_url" type="text" placeholder="http://printer.local:1984/stream.html?src=cam">
-              <span class="form-helper">Browser-compatible preview stream used in the iframe preview panel.</span>
+              <input id="camera-preview-url" name="preview_url" type="text" placeholder="http://host:1984/stream.html?src=sv08_front">
+              <span class="form-helper">Browser-compatible preview stream used by /live and /printers.</span>
             </label>
             <label class="form-grid__full">
               Record URL
-              <input id="camera-record-url" name="record_url" type="text" placeholder="rtsp://printer.local:8554/cam">
-              <span class="form-helper">Recording URL (typically RTSP). This is the stream used by ffmpeg for recording. Example: <code>rtsp://camera-host:8554/stream</code></span>
+              <input id="camera-record-url" name="record_url" type="text" placeholder="rtsp://host:8554/sv08_front">
+              <span class="form-helper">ffmpeg-compatible recording stream. Usually RTSP for go2rtc.</span>
               <span id="record-url-warning" class="form-warning" hidden>
                 This URL appears to be a browser preview stream. Recording usually requires an RTSP stream such as <code>rtsp://host:8554/&lt;stream&gt;</code>.
               </span>
@@ -129,7 +163,8 @@
           <div id="gopro-fields" class="form-grid" hidden>
             <label class="form-grid__full">
               GoPro Host / IP
-              <input id="camera-gopro-host" name="gopro_host" type="text" placeholder="10.5.5.9">
+              <input id="camera-gopro-host" name="gopro_host" type="text">
+              <span class="form-helper">Deprecated compatibility only. GoPro is not an active project direction.</span>
             </label>
             <label>
               Preview Mode
@@ -139,43 +174,38 @@
               </select>
             </label>
             <label id="camera-preview-url-wrap" class="form-grid__full" hidden>
-              Preview URL
-              <input id="camera-gopro-preview-url" name="preview_url" type="text" placeholder="http://10.5.5.9:8080/live">
-              <span class="form-helper">External preview link or app URL for framing shots. In-app stream proxy is not part of this version.</span>
+              GoPro Preview URL
+              <input id="camera-gopro-preview-url" name="preview_url" type="text">
             </label>
             <label class="form-checkbox">
               <input id="camera-auto-download" name="auto_download_after_stop" type="checkbox" checked>
               Auto-download after stop
             </label>
             <label>
-              Download Timeout (seconds)
+              Download Timeout
               <input id="camera-download-timeout" name="download_timeout_seconds" type="number" min="5" step="1" value="120">
             </label>
             <label>
-              File Wait (seconds)
+              File Wait
               <input id="camera-file-wait" name="file_stabilization_wait_seconds" type="number" min="0" step="1" value="5">
             </label>
-            <p class="form-helper form-grid__full">
-              GoPro recording is API-controlled. Clips are downloaded after stop into the same local recordings folder structure used by RTSP cameras.
-            </p>
           </div>
 
           <p id="camera-form-error" class="camera-error" hidden></p>
-
           <div class="form-actions">
-            <button type="submit" class="control-button">Save</button>
-            <button type="button" id="delete-camera-button" class="control-button control-button--danger" hidden>Delete</button>
+            <button type="submit" class="control-button">Save Camera</button>
+            <button type="button" id="delete-camera-button" class="control-button control-button--danger" hidden>Delete Camera</button>
             <button type="button" id="probe-camera-button" class="control-button control-button--secondary">Test Stream</button>
           </div>
         </form>
-      </div>
+      </section>
 
       <aside class="camera-admin__preview">
         <div class="camera-admin__section-head">
           <h2>Preview and Probe</h2>
         </div>
         <div id="editor-preview" class="camera-preview-wrap">
-          <div class="no-preview">Preview unavailable</div>
+          <div class="no-preview">Select or create a camera view.</div>
         </div>
         <dl class="camera-meta camera-meta--stacked">
           <div>

@@ -25,6 +25,7 @@ This repository currently includes:
 - Phase 10 camera wall live view
 - Phase 10.1 configurable camera wall grid density
 - Phase 10.2 printer-first config and live wall refresh stability
+- Phase 10.3 nested printers and cameras management UI
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -172,6 +173,7 @@ Preferred top-level format:
 
 Legacy top-level `cameras` configs still load for existing installs.
 Printer NVR normalizes both config shapes internally, while recording routes and clips continue to use `camera_id`.
+When saved through `/cameras`, config is written in the printer-first `printers` shape.
 
 ### Mode 1: go2rtc Helper Mode
 
@@ -263,20 +265,22 @@ Current project direction is:
 ## Camera Management UI
 
 The `/cameras` page supports:
-- listing current cameras
-- adding new cameras
-- editing existing cameras
-- deleting cameras from config
-- live preview while editing
-- ffprobe-based stream testing
-- printer grouping fields for the live printer dashboard
-- preserving the printer-first config shape on save when `config/cameras.json` already uses top-level `printers`
+- listing printers with nested camera views
+- adding, editing, and deleting printers
+- adding, editing, and deleting cameras under a printer
+- choosing the default camera per printer
+- live preview while editing a camera
+- ffprobe-based stream testing for camera recording URLs
+- saving top-level `printers` config
+- loading legacy top-level `cameras` config and migrating it to printer-first shape on save
 
 Behavior notes:
-- camera ids auto-generate from the camera name when creating a new camera
+- printer and camera ids auto-generate from names when creating new entries
+- camera ids remain globally unique because recording and clips are camera-id based
 - once the id field is edited manually, the UI stops auto-overwriting it
-- deleting a camera removes it from config only
-- actively recording cameras must be stopped before edit or delete
+- deleting a printer or camera removes it from config only
+- deleting config entries does not delete recordings or clips
+- actively recording cameras must be stopped before config changes are saved
 - the form warns if the recording URL looks like a browser preview stream, but does not block saving
 
 ### Preview URL vs Recording URL
@@ -480,6 +484,8 @@ By design, `/live` does not include recording controls, duration buttons, latest
 
 - `GET /health`
 - `GET /api/cameras`
+- `GET /api/cameras/config`
+- `PUT /api/cameras/config`
 - `POST /api/cameras`
 - `PUT /api/cameras/{camera_id}`
 - `DELETE /api/cameras/{camera_id}`

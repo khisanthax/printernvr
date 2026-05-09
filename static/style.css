@@ -452,6 +452,81 @@ body {
   gap: 0.75rem;
 }
 
+.printer-config-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.printer-config-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0.9rem;
+  background: var(--panel-alt);
+}
+
+.printer-config-card__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.printer-config-card__header h3 {
+  margin: 0;
+}
+
+.printer-config-card__header p,
+.nested-camera-row p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.printer-config-card__meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0.75rem 0;
+}
+
+.nested-camera-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.nested-camera-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.2fr) auto;
+  gap: 0.7rem;
+  align-items: start;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.7rem;
+  background: var(--panel);
+}
+
+.nested-camera-row h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.nested-camera-row dd {
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-pill {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(25, 135, 84, 0.12);
+  color: var(--success);
+  font-size: 0.72rem;
+  vertical-align: middle;
+}
+
 .camera-list__item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -1679,6 +1754,8 @@ body {
   }
 
   .camera-list__item,
+  .printer-config-card__header,
+  .nested-camera-row,
   .form-grid {
     grid-template-columns: 1fr;
   }

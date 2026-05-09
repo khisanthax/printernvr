@@ -43,6 +43,7 @@ Legacy GoPro support still exists in the codebase for backward compatibility, bu
 - `app/api/dashboard.py`: dashboard page
 - `templates/live.html` and `static/live.js`: compact camera wall page and browser-local wall interactions
 - `app/api/cameras.py`: camera CRUD and probe API
+- `GET /api/cameras/config` and `PUT /api/cameras/config`: printer-first config load/save for the nested management UI
 - `app/api/gopro.py`: deprecated compatibility endpoints for legacy GoPro configs
 - `app/api/status.py`: legacy runtime status API
 - `app/api/record.py`: recording start, stop, and status API
@@ -88,7 +89,8 @@ Legacy camera-first configs with top-level `cameras` still load for existing ins
 Both shapes are normalized into the same resolved camera list used by recording, clips, `/printers`, and `/live`.
 Camera definitions remain the source of truth even when edited through the web UI.
 The `/cameras` page writes back to `config/cameras.json` rather than introducing a database.
-If the file already uses top-level `printers`, camera management writes preserve that printer-first shape.
+The management UI is now printer-first and saves top-level `printers`.
+Legacy camera-first configs are still loadable and are converted to printer-first shape when saved through the nested UI.
 The live `config/cameras.json` and `config/app.json` files are deployment-local and should remain untracked so host-specific edits do not block repository pulls.
 
 Active camera modes:
@@ -246,24 +248,35 @@ Current policy:
 
 ## Camera Management Flow
 
-1. `/cameras` loads the current camera list from `GET /api/cameras`.
+1. `/cameras` loads printer-first config from `GET /api/cameras/config`.
 2. Browser-side form logic handles:
 - id auto-generation from name
-- mode-specific fields
+- printer create/edit/delete
+- nested camera create/edit/delete
+- mode-specific camera fields
 - preview URL derivation for live preview
 - heuristic warning when the effective recording URL looks like a browser preview stream
-3. Save and delete requests update `config/cameras.json` through `CameraConfigStore`.
+3. Save and delete requests update `config/cameras.json` as top-level `printers` through `CameraConfigStore`.
 4. After each successful write, the running app refreshes:
 - `app.state.cameras`
 - `app.state.camera_index`
 - runtime camera state entries
-5. RTSP stream probing uses `ffprobe` on the resolved `record_url` through `POST /api/camera/probe`.
-6. If the probe input is `rtsp://`, ffprobe also uses TCP transport by default.
-7. Deprecated compatibility testing for legacy GoPro configs still uses `POST /api/gopro/test`.
-8. Probe results distinguish:
+5. Printer delete and camera delete remove config entries only; local recordings and clips are not deleted.
+6. Default camera selection is stored as `printer.default_camera_id`.
+7. If a default camera is deleted, the config layer falls back to the first enabled camera by display/name order, or clears the default when no cameras remain.
+8. RTSP stream probing uses `ffprobe` on the resolved `record_url` through `POST /api/camera/probe`.
+9. If the probe input is `rtsp://`, ffprobe also uses TCP transport by default.
+10. Deprecated compatibility testing for legacy GoPro configs still uses `POST /api/gopro/test`.
+11. Probe results distinguish:
 - input/open failure
 - reachable stream with no video stream found
 - reachable stream with a usable video stream
+
+Camera management constraints:
+- printer ids must be unique
+- camera ids must be globally unique because recording and clips remain camera-id based
+- edits are blocked while any configured camera is actively recording
+- no database or server-side user preference storage is added
 
 ## Clip Browser Flow
 
