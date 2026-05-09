@@ -449,3 +449,20 @@ Impact:
 - Cameras are managed under their parent printer and still require globally unique ids.
 - Deleting config entries does not delete local recordings.
 - Legacy camera-first configs still load and are migrated to printer-first shape when saved through the nested UI.
+
+## 2026-05-09 - Keep Secondary Live Views Viewing-Only
+
+Decision:
+- Plan optional secondary camera cards for `/live` only.
+- Keep `/printers` to one selected camera/view per printer because recording controls target that selected view.
+- Store secondary-card visibility/selection as browser-local wall preferences.
+
+Why:
+- `/live` is optimized for watching many views at once.
+- `/printers` is the control dashboard, and changing its one-selected-view model would make recording targets less explicit.
+- Browser-local preferences match existing camera-wall visibility, view, and density behavior.
+
+Impact:
+- Future secondary live cards must not include recording controls.
+- Future secondary live cards must not affect `/printers` selected-view persistence.
+- Future secondary live cards must preserve iframe stability during `/live` polling.

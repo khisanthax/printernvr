@@ -603,6 +603,33 @@ Deliverables:
 - Deleting printers or cameras changes config only and does not delete recordings
 - Existing probe/preview behavior remains available for nested cameras
 
+### Phase 10.4 - Optional Secondary Camera Cards on `/live` [ ]
+
+Purpose:
+- Allow printers with two or more cameras to optionally show an additional camera view as a separate adjacent card on the `/live` camera wall.
+- Support front, nozzle, side, and similar multi-camera monitoring workflows while preserving the default one-card-per-printer layout.
+
+Planned behavior:
+- `/live` remains viewing-only.
+- Each printer still has one primary live card by default.
+- If a printer has two or more cameras/views, the primary `/live` card exposes a compact control to show a secondary camera.
+- The secondary camera appears as its own extra card in the `/live` grid.
+- Secondary cards are clearly labeled with printer name plus camera/view name.
+- Secondary cards are viewing-only.
+- Secondary cards do not include recording controls.
+- Secondary cards do not affect `/printers` selected-view behavior.
+- Secondary cards do not affect recording target behavior.
+- User preference persists in browser `localStorage`.
+- The implementation reuses the printer-first multi-camera model introduced in Phase 10.2 and Phase 10.3.
+
+Future implementation notes:
+- Store secondary view preferences browser-side.
+- Only show the secondary-camera option when a printer has two or more cameras/views.
+- Allow selecting which secondary camera to display when more than two cameras exist.
+- Keep preview iframes stable during polling.
+- Do not rebuild or reload preview iframes during normal `/live` status refresh.
+- Keep `/printers` one-selected-view-per-printer because recording controls target that selected view.
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:
@@ -741,6 +768,7 @@ Implemented highlights:
 Next phase:
 - Phase 5 operational hardening
 - Phase 9.1 clip review quality-of-life
+- Phase 10.4 optional secondary camera cards on `/live`
 - Phase 10 follow-ups such as fullscreen wall mode, drag/drop ordering, and additional compact mobile refinements
 
 ## Deployment Model

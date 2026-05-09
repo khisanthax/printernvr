@@ -195,6 +195,14 @@ Current phase limits:
 14. Printing-priority sorting uses CSS `order`, so iframe streams stay mounted unless the user changes view or the underlying preview URL/config changes.
 15. `/live` uses a slower polling interval than `/printers` because it is optimized for visual monitoring rather than detailed control feedback.
 
+Planned Phase 10.4 extension:
+- `/live` may optionally show a secondary camera view for printers with two or more cameras.
+- Secondary views should render as separate viewing-only cards in the wall grid.
+- Secondary-card preferences should be browser-local and stored in `localStorage`.
+- Secondary cards must not add recording controls or change recording target behavior.
+- `/printers` should continue to show one selected camera/view per printer because its recording controls target that selected view.
+- Secondary card polling must preserve iframe stability: update text/status in place and avoid rebuilding or reloading preview iframes during normal refresh.
+
 Page roles:
 - `/live`: compact dark camera wall for watching all printers
 - `/printers`: detailed monitoring and recording control dashboard

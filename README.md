@@ -26,6 +26,7 @@ This repository currently includes:
 - Phase 10.1 configurable camera wall grid density
 - Phase 10.2 printer-first config and live wall refresh stability
 - Phase 10.3 nested printers and cameras management UI
+- Planned: Phase 10.4 optional secondary camera cards on `/live`
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -479,6 +480,10 @@ Current behavior:
 - printing-priority sorting uses CSS ordering without moving mounted preview elements
 
 By design, `/live` does not include recording controls, duration buttons, latest clip panels, or clip review actions. Those stay on `/printers` and `/clips`.
+
+Planned follow-up:
+- `/live` may optionally show a secondary camera view as a separate viewing-only card for printers with multiple cameras.
+- This will not affect `/printers` selected-view persistence or recording target behavior.
 
 ## API Endpoints
 
