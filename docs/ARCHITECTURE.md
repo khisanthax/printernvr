@@ -18,6 +18,7 @@ Legacy GoPro support still exists in the codebase for backward compatibility, bu
 - Moonraker status service for optional printer metadata
 - Local recordings retention manager
 - Config-backed camera management UI
+- Compact live camera wall
 - Live multi-printer dashboard
 - Filesystem-based clip browser, review metadata, and preview/download/delete API
 - Legacy GoPro compatibility modules retained for existing configs
@@ -40,6 +41,7 @@ Legacy GoPro support still exists in the codebase for backward compatibility, bu
 - `app/services/moonraker_service.py`: optional Moonraker status queries for printer cards
 - `app/api/health.py`: health endpoint
 - `app/api/dashboard.py`: dashboard page
+- `templates/live.html` and `static/live.js`: compact camera wall page and browser-local wall interactions
 - `app/api/cameras.py`: camera CRUD and probe API
 - `app/api/gopro.py`: deprecated compatibility endpoints for legacy GoPro configs
 - `app/api/status.py`: legacy runtime status API
@@ -102,7 +104,7 @@ Retention config:
 
 ## Printer Dashboard Flow
 
-1. `/printers` builds one live card per logical printer group.
+1. `/printers` and `/live` build one live card per logical printer group from the same printer-card data model.
 2. Cameras are grouped by `printer_id`.
 3. The default live camera is chosen in this order:
 - enabled cameras before disabled cameras
@@ -142,6 +144,21 @@ Current phase limits:
 - polling-based status refresh remains intentionally simple; no websocket or push-based monitoring path was added
 - printer-card recording controls are a frontend entry point into the existing camera recording APIs, not a new recording backend
 - latest clip shortcuts are read-only convenience actions over the existing clip filesystem APIs
+
+## Camera Wall Flow
+
+1. `/live` renders the same grouped printer cards as `/printers`, but through a compact viewing-only template.
+2. The page uses the existing `/api/printers/cards` endpoint for lightweight status refresh.
+3. Visibility checkboxes use a wall-specific `localStorage` key so users can choose which printers appear on the camera wall.
+4. Per-printer camera/view selection reuses the same browser-side selected-view storage as `/printers`.
+5. Live preview remains the dominant card area.
+6. Printer status, progress, filename, temperatures, ETA, and freshness text are rendered below the video.
+7. Recording controls, duration buttons, latest clip shortcuts, and clip review actions are intentionally omitted.
+
+Page roles:
+- `/live`: compact dark camera wall for watching all printers
+- `/printers`: detailed monitoring and recording control dashboard
+- `/clips`: clip review, rename, preview, download, and delete workspace
 
 ## Recording Flow
 

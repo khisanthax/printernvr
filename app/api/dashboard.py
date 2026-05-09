@@ -46,6 +46,24 @@ def clips_page(request: Request) -> HTMLResponse:
     )
 
 
+@router.get("/live", response_class=HTMLResponse)
+def live_wall_page(request: Request) -> HTMLResponse:
+    templates = request.app.state.templates
+    printer_cards = build_printer_cards(
+        request.app.state.cameras,
+        request.app.state.moonraker_service,
+        request.app.state.clip_store,
+        request.app.state.runtime_state.active_output_paths(),
+    )
+    return templates.TemplateResponse(
+        "live.html",
+        {
+            "request": request,
+            "printers": [card.model_dump(mode="json") for card in printer_cards],
+        },
+    )
+
+
 @router.get("/printers", response_class=HTMLResponse)
 def printers_page(request: Request) -> HTMLResponse:
     templates = request.app.state.templates

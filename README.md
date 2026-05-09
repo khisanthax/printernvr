@@ -22,6 +22,7 @@ This repository currently includes:
 - Phase 8.4 printer card latest clip shortcuts
 - Phase 8.5 custom printer card recording durations
 - Phase 9 clip review and social export polish
+- Phase 10 camera wall live view
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -68,6 +69,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8787 --reload
 ```
 
 Open `http://localhost:8787`.
+Compact camera wall viewing is available at `http://localhost:8787/live`.
 Live printer monitoring is available at `http://localhost:8787/printers`.
 Camera management is available at `http://localhost:8787/cameras`.
 Clip browsing is available at `http://localhost:8787/clips`.
@@ -96,6 +98,7 @@ docker compose up -d --build
 
 The app is available at `http://localhost:8787` by default.
 If `PORT` is set in `.env`, Docker Compose uses that host port.
+Compact camera wall viewing is available at `/live`.
 Live printer monitoring is available at `/printers`.
 Camera management is available at `/cameras`.
 Clip browsing is available at `/clips`.
@@ -418,6 +421,21 @@ Latest clip shortcut notes:
 - View All Clips opens `/clips` filtered to the selected camera when possible
 - latest clip data is filesystem-derived; no database or clip index is added
 
+## Camera Wall
+
+The `/live` page is a compact dark camera wall for watching all printers at once.
+
+Current behavior:
+- one compact card per printer
+- live preview dominates each card
+- status, progress, filename, temperatures, ETA, and freshness text stay below the video
+- top visibility checkboxes show or hide printer cards
+- visibility is persisted in browser `localStorage`
+- per-printer view selector appears when multiple camera views exist
+- selected view persistence is shared with `/printers`
+
+By design, `/live` does not include recording controls, duration buttons, latest clip panels, or clip review actions. Those stay on `/printers` and `/clips`.
+
 ## API Endpoints
 
 - `GET /health`
@@ -440,6 +458,7 @@ Latest clip shortcut notes:
 - `GET /api/clips/preview/{camera_id}/{filename}`
 - `GET /api/clips/download/{camera_id}/{filename}`
 - `DELETE /api/clips/{camera_id}/{filename}`
+- `GET /live`
 
 `POST /api/record/start/{camera_id}` accepts an optional JSON body:
 

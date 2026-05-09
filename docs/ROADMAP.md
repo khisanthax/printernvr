@@ -13,6 +13,7 @@ Users should be able to:
 - Start recording manually
 - Stop recording manually
 - Record for a fixed duration that stops automatically
+- Use a compact live camera wall for watching all printers at once
 
 Printer NVR is not intended to be a general CCTV platform. It is designed specifically for 3D printer workflows.
 
@@ -504,6 +505,36 @@ Possible follow-up items:
 - Better camera, printer, and date filters
 - Optional export-folder copy workflow, still no ZIP
 
+### Phase 10 - Camera Wall Live View [x]
+
+Goals:
+- Add a separate compact `/live` page for watching all printer cameras at once
+- Keep `/printers` as the detailed monitoring and recording control dashboard
+- Use a dark Klipper-style card grid with live preview as the dominant element
+- Keep printer status and details below the video, never overlaid on the preview
+
+Tasks:
+- Add `/live` route and template
+- Reuse the existing printer card grouping and available-view data model
+- Add compact visibility checkboxes with browser-side persistence
+- Add compact per-printer camera/view selector when multiple views exist
+- Poll the existing printer cards API for lightweight status refresh
+- Scope dark camera-wall styling to the `/live` page
+
+Deliverables:
+- `/live` camera wall page
+- Dark compact card grid optimized for live viewing
+- Printer visibility toggles persisted in `localStorage`
+- Per-printer selected view persistence shared with the existing printer dashboard
+- Status, file, progress, temperature, and ETA details below each preview
+- No recording controls, duration buttons, latest clip panels, or review controls on `/live`
+
+Future follow-up ideas:
+- Fullscreen camera wall mode
+- Drag/drop card ordering
+- Per-printer multi-view selector refinements
+- More compact mobile layout
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:
@@ -585,6 +616,7 @@ Completed:
 - Phase 8D printer card latest clip shortcuts
 - Phase 8E printer card custom recording durations
 - Phase 9 clip review and social export polish
+- Phase 10 camera wall live view
 - Phase 6 retention and storage protection
 
 In progress:
@@ -612,13 +644,14 @@ Implemented highlights:
 - Optional client-side chosen-folder clip saves using the browser File System Access API when available
 - Browser-download fallback remains the default when folder access is unavailable, denied, or unsupported
 - `/printers` live dashboard with top printer toggles, one default live view per printer, and status/details beneath each preview
+- `/live` camera wall with compact dark cards, visibility toggles, optional view selectors, and status/details beneath each preview
 - Per-printer camera/view selector on `/printers` with browser-side selection persistence and backend default fallback
 - Enlarged preview modal, printer-state badges, degraded-state placeholders, freshness text, and lightweight manual refresh controls on `/printers`
 - Printer-card Start, Stop, quick duration, and custom duration controls that target the currently selected camera/view and reuse the existing camera recording APIs
 - Printer-card latest clip shortcuts that preview, download, or open clips for the currently selected camera/view
 - Printer-card quick duration buttons and custom duration input for selected-view timed recordings
 - Optional Moonraker-backed status polling for printer status, file name, progress, temperatures, and ETA
-- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/latest/{camera_id}`, `PATCH /api/clips/{camera_id}/{filename}/metadata`, `POST /api/clips/{camera_id}/{filename}/rename`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /printers`, `GET /cameras`, `GET /clips`
+- Endpoints: `GET /health`, `GET /api/cameras`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/latest/{camera_id}`, `PATCH /api/clips/{camera_id}/{filename}/metadata`, `POST /api/clips/{camera_id}/{filename}/rename`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /live`, `GET /printers`, `GET /cameras`, `GET /clips`
 - Legacy compatibility endpoints remain for existing GoPro deployments but are deprecated and not part of the active workflow
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip
 - Empty dashboard state when no cameras are configured
@@ -633,7 +666,7 @@ Implemented highlights:
 Next phase:
 - Phase 5 operational hardening
 - Phase 9.1 clip review quality-of-life
-- follow-up printer UX improvements such as clearer per-view labels or quick camera cycling
+- Phase 10 follow-ups such as fullscreen wall mode, drag/drop ordering, and compact mobile refinements
 
 ## Deployment Model
 

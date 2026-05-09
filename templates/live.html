@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Printer NVR - Live View</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="live-wall-body">
+  <header class="live-wall-header">
+    <div class="live-wall-header__title">
+      <nav class="live-wall-nav">
+        <a href="/">Dashboard</a>
+        <a href="/live" aria-current="page">Live View</a>
+        <a href="/printers">Printers</a>
+        <a href="/cameras">Cameras</a>
+        <a href="/clips">Clips</a>
+      </nav>
+      <h1>Live View</h1>
+    </div>
+
+    <section class="live-wall-visibility" aria-label="Visible printers">
+      <div class="live-wall-visibility__actions">
+        <button type="button" id="live-select-all" class="live-wall-button">Select All</button>
+        <button type="button" id="live-clear-all" class="live-wall-button">Clear All</button>
+      </div>
+      <div class="live-wall-toggle-list">
+        {% for printer in printers %}
+        <label class="live-wall-toggle">
+          <input type="checkbox" data-live-printer-toggle="{{ printer.printer_id }}" checked>
+          <span>{{ printer.printer_name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </section>
+  </header>
+
+  <main class="live-wall-main">
+    {% if printers %}
+    <section id="live-empty-filtered" class="live-wall-empty" hidden>
+      <h2>No printers selected.</h2>
+      <p>Select one or more printers in the visibility bar.</p>
+    </section>
+
+    <section id="live-wall-grid" class="live-wall-grid">
+      {% for printer in printers %}
+      <article
+        class="live-wall-card"
+        data-live-printer-card="{{ printer.printer_id }}"
+        data-printer-name="{{ printer.printer_name }}"
+        data-default-camera-id="{{ printer.default_camera_id or '' }}"
+        data-default-camera-enabled="{{ 'true' if printer.camera_enabled else 'false' }}"
+        data-last-metadata-attempt-at="{{ printer.last_metadata_attempt_at or '' }}"
+        data-last-metadata-success-at="{{ printer.last_metadata_success_at or '' }}">
+        <header class="live-wall-card__header">
+          <div class="live-wall-card__identity">
+            <span class="live-wall-card__icon" aria-hidden="true"></span>
+            <div>
+              <h2>{{ printer.printer_name }}</h2>
+              <p data-live-current-view-label="{{ printer.printer_id }}">{{ printer.camera_name or "No default camera" }}</p>
+            </div>
+          </div>
+          {% if printer.available_views|length > 1 %}
+          <label class="live-wall-view-select" aria-label="Camera view for {{ printer.printer_name }}">
+            <select data-live-view-select="{{ printer.printer_id }}">
+              {% for view in printer.available_views %}
+              <option
+                value="{{ view.camera_id }}"
+                data-camera-name="{{ view.camera_name }}"
+                data-preview-url="{{ view.preview_url or '' }}"
+                data-preview-mode="{{ view.preview_mode }}"
+                data-preview-available="{{ 'true' if view.preview_available else 'false' }}"
+                data-enabled="{{ 'true' if view.enabled else 'false' }}"
+                {% if view.camera_id == printer.default_camera_id %}selected{% endif %}>
+                {{ view.camera_name }}
+              </option>
+              {% endfor %}
+            </select>
+          </label>
+          {% endif %}
+        </header>
+
+        <div
+          class="live-wall-preview"
+          data-live-preview="{{ printer.printer_id }}"
+          data-current-camera-id="{{ printer.default_camera_id or '' }}"
+          data-preview-url="{{ printer.preview_url or '' }}"
+          data-preview-mode="{{ printer.preview_mode }}"
+          data-preview-available="{{ 'true' if printer.preview_available else 'false' }}"
+          data-view-enabled="{{ 'true' if printer.camera_enabled else 'false' }}">
+          {% if printer.preview_mode == "embedded" and printer.preview_url %}
+          <iframe
+            title="{{ printer.printer_name }} live view"
+            src="{{ printer.preview_url }}"
+            loading="lazy"
+            allowfullscreen>
+          </iframe>
+          {% elif printer.preview_mode == "external_link" and printer.preview_url %}
+          <div class="live-wall-preview__fallback">
+            <p>Preview opens externally for this view.</p>
+            <a href="{{ printer.preview_url }}" target="_blank" rel="noopener noreferrer">Open Preview</a>
+          </div>
+          {% else %}
+          <div class="live-wall-preview__fallback">Preview unavailable</div>
+          {% endif %}
+        </div>
+
+        <section class="live-wall-card__details" aria-label="{{ printer.printer_name }} status">
+          <div class="live-wall-status-line">
+            <span class="live-wall-status live-wall-status--{{ printer.monitor_state }}" data-live-status="{{ printer.printer_id }}">
+              {{ printer.printer_status_text }}
+            </span>
+            <span data-live-progress="{{ printer.printer_id }}">
+              {% if printer.progress_percent is not none %}{{ "%.1f"|format(printer.progress_percent) }}%{% else %}--{% endif %}
+            </span>
+          </div>
+          <p class="live-wall-file" data-live-file-name="{{ printer.printer_id }}">{{ printer.current_file_name or "--" }}</p>
+          <dl class="live-wall-stats">
+            <div>
+              <dt>Extruder</dt>
+              <dd data-live-extruder="{{ printer.printer_id }}">
+                {% if printer.extruder_current_temp is not none %}
+                {{ "%.0f"|format(printer.extruder_current_temp) }} / {% if printer.extruder_target_temp is not none %}{{ "%.0f"|format(printer.extruder_target_temp) }}{% else %}--{% endif %} C
+                {% else %}
+                --
+                {% endif %}
+              </dd>
+            </div>
+            <div>
+              <dt>Bed</dt>
+              <dd data-live-bed="{{ printer.printer_id }}">
+                {% if printer.bed_current_temp is not none %}
+                {{ "%.0f"|format(printer.bed_current_temp) }} / {% if printer.bed_target_temp is not none %}{{ "%.0f"|format(printer.bed_target_temp) }}{% else %}--{% endif %} C
+                {% else %}
+                --
+                {% endif %}
+              </dd>
+            </div>
+            <div>
+              <dt>ETA</dt>
+              <dd data-live-eta="{{ printer.printer_id }}">{{ printer.eta_text or "--" }}</dd>
+            </div>
+          </dl>
+          <p class="live-wall-freshness" data-live-updated-text="{{ printer.printer_id }}">
+            {% if printer.last_metadata_success_at %}
+            Updated just now
+            {% elif printer.has_metadata_source %}
+            Waiting for status
+            {% else %}
+            No metadata source
+            {% endif %}
+          </p>
+          <p class="live-wall-error" data-live-error="{{ printer.printer_id }}" {% if not printer.error_message %}hidden{% endif %}>{{ printer.error_message or "" }}</p>
+        </section>
+      </article>
+      {% endfor %}
+    </section>
+    {% else %}
+    <section class="live-wall-empty">
+      <h2>No printers configured.</h2>
+      <p>Add cameras in Camera Management. Each camera can appear as a live printer card.</p>
+    </section>
+    {% endif %}
+  </main>
+
+  <script src="/static/live.js"></script>
+</body>
+</html>

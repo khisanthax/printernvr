@@ -362,3 +362,19 @@ Impact:
 - Active docs and examples now center RTSP/go2rtc/manual camera capture.
 - Legacy GoPro endpoints and compatibility modules remain present but are deprecated.
 - A later cleanup pass can remove the backend once no deployed configs depend on `mode=gopro`.
+
+## 2026-05-09 - Split Camera Wall from Printer Control Dashboard
+
+Decision:
+- Add `/live` as a separate compact camera wall page.
+- Keep `/printers` as the detailed monitoring and recording control dashboard.
+- Reuse the existing printer-card data model and `/api/printers/cards` refresh path.
+
+Why:
+- The detailed `/printers` cards now include controls, durations, and latest clip shortcuts, which makes them too large for pure watch-all-printers monitoring.
+- A separate page keeps the live viewing workflow dense and focused without removing controls from the existing dashboard.
+
+Impact:
+- `/live` has dark compact cards, visibility toggles, optional view selectors, and status/details below each video.
+- `/live` intentionally omits recording controls, duration buttons, latest clip panels, and clip review actions.
+- Printer visibility on `/live` is browser-persisted separately from `/printers`; selected camera/view persistence is shared so the active view stays consistent.
