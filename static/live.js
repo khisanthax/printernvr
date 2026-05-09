@@ -234,32 +234,18 @@ function applyLayoutSettings(settings = readLayoutSettings()) {
   }
 }
 
-function liveCardSortKey(card) {
+function liveCardOrder(card) {
   const monitorState = String(card.dataset.liveMonitorState || "").toLowerCase();
   const sortIndex = Number.parseInt(card.dataset.liveSortIndex || "0", 10);
-  return {
-    priority: monitorState === "printing" ? 0 : 1,
-    sortIndex: Number.isFinite(sortIndex) ? sortIndex : 0,
-  };
+  const priority = monitorState === "printing" ? 0 : 1;
+  const stableIndex = Number.isFinite(sortIndex) ? sortIndex : 0;
+  return priority * 10000 + stableIndex;
 }
 
 function sortLiveCards() {
-  const grid = query("#live-wall-grid");
-  if (!grid) {
-    return;
-  }
-
-  const cards = queryAll("[data-live-printer-card]");
-  cards
-    .sort((left, right) => {
-      const leftKey = liveCardSortKey(left);
-      const rightKey = liveCardSortKey(right);
-      if (leftKey.priority !== rightKey.priority) {
-        return leftKey.priority - rightKey.priority;
-      }
-      return leftKey.sortIndex - rightKey.sortIndex;
-    })
-    .forEach((card) => grid.append(card));
+  queryAll("[data-live-printer-card]").forEach((card) => {
+    card.style.order = String(liveCardOrder(card));
+  });
 }
 
 function bindLayoutControls() {
