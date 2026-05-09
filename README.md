@@ -23,6 +23,7 @@ This repository currently includes:
 - Phase 8.5 custom printer card recording durations
 - Phase 9 clip review and social export polish
 - Phase 10 camera wall live view
+- Phase 10.1 configurable camera wall grid density
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -431,6 +432,10 @@ Current behavior:
 - status, progress, filename, temperatures, ETA, and freshness text stay below the video
 - top visibility checkboxes show or hide printer cards
 - visibility is persisted in browser `localStorage`
+- cards per row can be set to Auto, 2, 3, or 4
+- rows per screen can be set to Auto, 1, 2, or 3
+- layout density is persisted in browser `localStorage`
+- actively printing printers are sorted before non-printing printers
 - per-printer view selector appears when multiple camera views exist
 - selected view persistence is shared with `/printers`
 

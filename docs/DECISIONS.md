@@ -378,3 +378,20 @@ Impact:
 - `/live` has dark compact cards, visibility toggles, optional view selectors, and status/details below each video.
 - `/live` intentionally omits recording controls, duration buttons, latest clip panels, and clip review actions.
 - Printer visibility on `/live` is browser-persisted separately from `/printers`; selected camera/view persistence is shared so the active view stays consistent.
+
+## 2026-05-09 - Keep Camera Wall Density Browser-Local
+
+Decision:
+- Add `/live` layout controls for cards per row and rows per screen.
+- Persist layout density in browser `localStorage` rather than app config.
+- Sort actively printing printers to the front of the wall grid.
+
+Why:
+- Camera wall density is a display preference that may differ by browser, screen, and monitoring station.
+- Keeping it browser-local avoids adding server-side user preferences or changing the config model.
+- Prioritizing actively printing cards improves monitoring without changing printer grouping or camera configuration.
+
+Impact:
+- `/live` can be tuned to layouts such as 3 columns by 2 rows.
+- Fixed row counts calculate card minimum height from viewport space and still allow scrolling when the viewport is too small.
+- Printing cards move to the first visible grid positions while non-printing cards retain configured order.

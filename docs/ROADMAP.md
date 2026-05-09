@@ -535,6 +535,28 @@ Future follow-up ideas:
 - Per-printer multi-view selector refinements
 - More compact mobile layout
 
+### Phase 10.1 - Configurable Camera Wall Grid Density [x]
+
+Goals:
+- Let users tune how many `/live` cards fit across the wall
+- Let users tune how many card rows fit in the visible browser window
+- Keep `/live` viewing-focused and separate from `/printers`
+- Move actively printing printers ahead of idle, complete, offline, or unavailable cards
+
+Tasks:
+- Add compact Cards per row and Rows per screen controls to `/live`
+- Persist density settings in browser `localStorage`
+- Apply fixed columns for 2, 3, or 4 cards per row, with Auto preserving responsive behavior
+- Calculate card minimum height from viewport height for 1, 2, or 3 rows per screen
+- Recalculate layout on page load, setting change, and browser resize
+- Sort printing printers to the front of the camera wall while preserving configured order within each group
+
+Deliverables:
+- Configurable camera wall density on `/live`
+- Browser-persisted layout settings under `printernvr-live-layout`
+- Printing printers prioritized into the first visible grid positions
+- Existing visibility toggles, view selectors, and status refresh preserved
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:
@@ -617,6 +639,7 @@ Completed:
 - Phase 8E printer card custom recording durations
 - Phase 9 clip review and social export polish
 - Phase 10 camera wall live view
+- Phase 10.1 configurable camera wall grid density
 - Phase 6 retention and storage protection
 
 In progress:
@@ -645,6 +668,7 @@ Implemented highlights:
 - Browser-download fallback remains the default when folder access is unavailable, denied, or unsupported
 - `/printers` live dashboard with top printer toggles, one default live view per printer, and status/details beneath each preview
 - `/live` camera wall with compact dark cards, visibility toggles, optional view selectors, and status/details beneath each preview
+- `/live` density controls for cards per row and rows per screen, with browser-persisted settings and printing-printer priority sorting
 - Per-printer camera/view selector on `/printers` with browser-side selection persistence and backend default fallback
 - Enlarged preview modal, printer-state badges, degraded-state placeholders, freshness text, and lightweight manual refresh controls on `/printers`
 - Printer-card Start, Stop, quick duration, and custom duration controls that target the currently selected camera/view and reuse the existing camera recording APIs
@@ -666,7 +690,7 @@ Implemented highlights:
 Next phase:
 - Phase 5 operational hardening
 - Phase 9.1 clip review quality-of-life
-- Phase 10 follow-ups such as fullscreen wall mode, drag/drop ordering, and compact mobile refinements
+- Phase 10 follow-ups such as fullscreen wall mode, drag/drop ordering, and additional compact mobile refinements
 
 ## Deployment Model
 

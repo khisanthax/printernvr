@@ -154,6 +154,10 @@ Current phase limits:
 5. Live preview remains the dominant card area.
 6. Printer status, progress, filename, temperatures, ETA, and freshness text are rendered below the video.
 7. Recording controls, duration buttons, latest clip shortcuts, and clip review actions are intentionally omitted.
+8. Camera wall density settings use browser `localStorage` to persist cards per row and rows per screen.
+9. Fixed cards-per-row values write explicit CSS grid columns, while Auto returns to the responsive `auto-fill` layout.
+10. Fixed rows-per-screen values calculate a card minimum height from the viewport height after subtracting the sticky wall header and page padding.
+11. Cards whose Moonraker monitor state is `printing` are sorted before non-printing cards while preserving configured order inside each priority group.
 
 Page roles:
 - `/live`: compact dark camera wall for watching all printers

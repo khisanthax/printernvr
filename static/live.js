@@ -2,6 +2,10 @@ const LIVE_POLL_INTERVAL_MS = 7000;
 const LIVE_FRESHNESS_INTERVAL_MS = 5000;
 const LIVE_VISIBILITY_KEY = "printernvr-live-visible-printers";
 const LIVE_VIEW_SELECTION_KEY = "printernvr-printer-view-selections";
+const LIVE_LAYOUT_KEY = "printernvr-live-layout";
+const LIVE_LAYOUT_AUTO = "auto";
+const LIVE_MIN_CARD_HEIGHT = 300;
+const LIVE_MAX_CARD_HEIGHT = 820;
 
 let liveRefreshInFlight = false;
 
@@ -134,6 +138,148 @@ function setAllVisible(visible) {
   });
   persistVisibility();
   updateVisibleCards();
+}
+
+function readLayoutSettings() {
+  const saved = readStorageObject(LIVE_LAYOUT_KEY);
+  const cardsPerRow = ["2", "3", "4"].includes(saved.cardsPerRow)
+    ? saved.cardsPerRow
+    : LIVE_LAYOUT_AUTO;
+  const rowsPerScreen = ["1", "2", "3"].includes(saved.rowsPerScreen)
+    ? saved.rowsPerScreen
+    : LIVE_LAYOUT_AUTO;
+  return { cardsPerRow, rowsPerScreen };
+}
+
+function persistLayoutSettings(settings) {
+  writeStorageObject(LIVE_LAYOUT_KEY, {
+    cardsPerRow: settings.cardsPerRow || LIVE_LAYOUT_AUTO,
+    rowsPerScreen: settings.rowsPerScreen || LIVE_LAYOUT_AUTO,
+  });
+}
+
+function getLayoutControls() {
+  return {
+    cardsPerRow: query("#live-cards-per-row"),
+    rowsPerScreen: query("#live-rows-per-screen"),
+  };
+}
+
+function syncLayoutControls(settings) {
+  const controls = getLayoutControls();
+  if (controls.cardsPerRow instanceof HTMLSelectElement) {
+    controls.cardsPerRow.value = settings.cardsPerRow;
+  }
+  if (controls.rowsPerScreen instanceof HTMLSelectElement) {
+    controls.rowsPerScreen.value = settings.rowsPerScreen;
+  }
+}
+
+function readLayoutFromControls() {
+  const controls = getLayoutControls();
+  return {
+    cardsPerRow: controls.cardsPerRow instanceof HTMLSelectElement
+      ? controls.cardsPerRow.value
+      : LIVE_LAYOUT_AUTO,
+    rowsPerScreen: controls.rowsPerScreen instanceof HTMLSelectElement
+      ? controls.rowsPerScreen.value
+      : LIVE_LAYOUT_AUTO,
+  };
+}
+
+function numericCssValue(styles, propertyName) {
+  const parsed = Number.parseFloat(styles.getPropertyValue(propertyName));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function calculateCardHeight(rowsPerScreen) {
+  const header = query(".live-wall-header");
+  const main = query(".live-wall-main");
+  const grid = query("#live-wall-grid");
+  const rows = Number(rowsPerScreen);
+  if (!header || !main || !grid || !Number.isInteger(rows) || rows < 1) {
+    return null;
+  }
+
+  const mainStyles = window.getComputedStyle(main);
+  const gridStyles = window.getComputedStyle(grid);
+  const mainPadding =
+    numericCssValue(mainStyles, "padding-top") + numericCssValue(mainStyles, "padding-bottom");
+  const rowGap = numericCssValue(gridStyles, "row-gap");
+  const availableHeight =
+    window.innerHeight - header.offsetHeight - mainPadding - rowGap * Math.max(0, rows - 1);
+  const unclamped = Math.floor(availableHeight / rows);
+  return Math.max(LIVE_MIN_CARD_HEIGHT, Math.min(LIVE_MAX_CARD_HEIGHT, unclamped));
+}
+
+function applyLayoutSettings(settings = readLayoutSettings()) {
+  const grid = query("#live-wall-grid");
+  if (!grid) {
+    return;
+  }
+
+  if (["2", "3", "4"].includes(settings.cardsPerRow)) {
+    grid.style.gridTemplateColumns = `repeat(${settings.cardsPerRow}, minmax(0, 1fr))`;
+  } else {
+    grid.style.removeProperty("grid-template-columns");
+  }
+
+  const cardHeight = calculateCardHeight(settings.rowsPerScreen);
+  if (cardHeight) {
+    grid.dataset.liveFixedRows = "true";
+    grid.style.setProperty("--live-card-height", `${cardHeight}px`);
+  } else {
+    delete grid.dataset.liveFixedRows;
+    grid.style.removeProperty("--live-card-height");
+  }
+}
+
+function liveCardSortKey(card) {
+  const monitorState = String(card.dataset.liveMonitorState || "").toLowerCase();
+  const sortIndex = Number.parseInt(card.dataset.liveSortIndex || "0", 10);
+  return {
+    priority: monitorState === "printing" ? 0 : 1,
+    sortIndex: Number.isFinite(sortIndex) ? sortIndex : 0,
+  };
+}
+
+function sortLiveCards() {
+  const grid = query("#live-wall-grid");
+  if (!grid) {
+    return;
+  }
+
+  const cards = queryAll("[data-live-printer-card]");
+  cards
+    .sort((left, right) => {
+      const leftKey = liveCardSortKey(left);
+      const rightKey = liveCardSortKey(right);
+      if (leftKey.priority !== rightKey.priority) {
+        return leftKey.priority - rightKey.priority;
+      }
+      return leftKey.sortIndex - rightKey.sortIndex;
+    })
+    .forEach((card) => grid.append(card));
+}
+
+function bindLayoutControls() {
+  const controls = getLayoutControls();
+  const applyFromControls = () => {
+    const settings = readLayoutFromControls();
+    persistLayoutSettings(settings);
+    applyLayoutSettings(settings);
+  };
+
+  if (controls.cardsPerRow instanceof HTMLSelectElement) {
+    controls.cardsPerRow.addEventListener("change", applyFromControls);
+  }
+  if (controls.rowsPerScreen instanceof HTMLSelectElement) {
+    controls.rowsPerScreen.addEventListener("change", applyFromControls);
+  }
+
+  window.addEventListener("resize", () => {
+    applyLayoutSettings(readLayoutSettings());
+  });
 }
 
 function readViewSelections() {
@@ -378,6 +524,11 @@ function updateFreshnessLabels() {
 }
 
 function updateCard(printer) {
+  const card = getCard(printer.printer_id);
+  if (card) {
+    card.dataset.liveMonitorState = printer.monitor_state || "unavailable";
+  }
+
   setStatus(printer);
   setMetadataAttrs(printer);
   updateText(`[data-live-progress="${printer.printer_id}"]`, formatProgress(printer.progress_percent));
@@ -459,6 +610,7 @@ async function refreshLiveCards() {
     }
 
     printers.forEach(updateCard);
+    sortLiveCards();
     updateFreshnessLabels();
   } finally {
     liveRefreshInFlight = false;
@@ -505,8 +657,12 @@ function bindViewSelectors() {
 
 bindVisibilityControls();
 bindViewSelectors();
+bindLayoutControls();
 applySavedVisibility();
+syncLayoutControls(readLayoutSettings());
+applyLayoutSettings(readLayoutSettings());
 restoreStoredViews();
+sortLiveCards();
 updateFreshnessLabels();
 refreshLiveCards().catch((error) => console.error(error));
 setInterval(() => {

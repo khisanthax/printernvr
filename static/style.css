@@ -1275,7 +1275,7 @@ body {
 
 .live-wall-visibility {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.65rem;
   align-items: center;
   min-width: 0;
@@ -1329,6 +1329,34 @@ body {
   accent-color: #299bf0;
 }
 
+.live-wall-layout-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.live-wall-layout-controls label {
+  display: grid;
+  gap: 0.18rem;
+  color: #a9a9a9;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.live-wall-layout-controls select {
+  min-width: 6.8rem;
+  border: 1px solid #4a4a4a;
+  border-radius: 6px;
+  background: #171717;
+  color: #eeeeee;
+  padding: 0.34rem 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .live-wall-main {
   padding: 1rem 1.4rem 2rem;
 }
@@ -1346,6 +1374,12 @@ body {
   border-radius: 4px;
   background: #202020;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+.live-wall-grid[data-live-fixed-rows="true"] .live-wall-card {
+  min-height: var(--live-card-height);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .live-wall-card__header {
@@ -1422,6 +1456,11 @@ body {
 .live-wall-preview {
   aspect-ratio: 16 / 9;
   background: #0c0c0c;
+}
+
+.live-wall-grid[data-live-fixed-rows="true"] .live-wall-preview {
+  min-height: 0;
+  aspect-ratio: auto;
 }
 
 .live-wall-preview iframe {
@@ -1619,6 +1658,10 @@ body {
 
   .live-wall-visibility {
     grid-template-columns: 1fr;
+  }
+
+  .live-wall-layout-controls {
+    justify-content: flex-start;
   }
 
   .live-wall-grid {

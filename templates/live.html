@@ -32,6 +32,26 @@
         </label>
         {% endfor %}
       </div>
+      <div class="live-wall-layout-controls" aria-label="Camera wall layout">
+        <label>
+          <span>Cards per row</span>
+          <select id="live-cards-per-row">
+            <option value="auto">Auto</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+        </label>
+        <label>
+          <span>Rows per screen</span>
+          <select id="live-rows-per-screen">
+            <option value="auto">Auto</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          </select>
+        </label>
+      </div>
     </section>
   </header>
 
@@ -47,6 +67,8 @@
       <article
         class="live-wall-card"
         data-live-printer-card="{{ printer.printer_id }}"
+        data-live-sort-index="{{ loop.index0 }}"
+        data-live-monitor-state="{{ printer.monitor_state }}"
         data-printer-name="{{ printer.printer_name }}"
         data-default-camera-id="{{ printer.default_camera_id or '' }}"
         data-default-camera-enabled="{{ 'true' if printer.camera_enabled else 'false' }}"
