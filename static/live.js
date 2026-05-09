@@ -1,4 +1,4 @@
-const LIVE_POLL_INTERVAL_MS = 7000;
+const LIVE_POLL_INTERVAL_MS = 15000;
 const LIVE_FRESHNESS_INTERVAL_MS = 5000;
 const LIVE_VISIBILITY_KEY = "printernvr-live-visible-printers";
 const LIVE_VIEW_SELECTION_KEY = "printernvr-printer-view-selections";
@@ -511,8 +511,13 @@ function updateFreshnessLabels() {
 
 function updateCard(printer) {
   const card = getCard(printer.printer_id);
+  let monitorStateChanged = false;
   if (card) {
-    card.dataset.liveMonitorState = printer.monitor_state || "unavailable";
+    const nextMonitorState = printer.monitor_state || "unavailable";
+    if ((card.dataset.liveMonitorState || "") !== nextMonitorState) {
+      card.dataset.liveMonitorState = nextMonitorState;
+      monitorStateChanged = true;
+    }
   }
 
   setStatus(printer);
@@ -539,6 +544,8 @@ function updateCard(printer) {
       errorNode.textContent = "";
     }
   }
+
+  return monitorStateChanged;
 }
 
 function domViewIds(printerId) {
@@ -595,8 +602,10 @@ async function refreshLiveCards() {
       return;
     }
 
-    printers.forEach(updateCard);
-    sortLiveCards();
+    const shouldSort = printers.map(updateCard).some(Boolean);
+    if (shouldSort) {
+      sortLiveCards();
+    }
     updateFreshnessLabels();
   } finally {
     liveRefreshInFlight = false;

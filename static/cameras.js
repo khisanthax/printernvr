@@ -357,7 +357,7 @@ function beginNewCamera() {
   outputSubdirTouched = false;
   printerIdTouched = false;
   printerNameTouched = false;
-  formTitle.textContent = "New Camera";
+  formTitle.textContent = "New Camera View";
   fields.editingCameraId.value = "";
   fields.name.value = "";
   fields.id.value = "";

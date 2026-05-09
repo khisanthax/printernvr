@@ -1,34 +1,36 @@
 {
-  "cameras": [
+  "printers": [
     {
-      "id": "sv08_left",
-      "name": "SV08 Left",
-      "printer_id": "sv08",
-      "printer_name": "Sovol SV08",
-      "default_live_view": true,
-      "moonraker_url": "http://sv08.local",
-      "display_order": 0,
-      "mode": "go2rtc_helper",
-      "description": "Left-side print head view",
-      "go2rtc_base_url": "http://printer-left.local:1984",
-      "stream_name": "cam",
+      "id": "sv08",
+      "name": "Sovol SV08",
       "enabled": true,
-      "output_subdir": "sv08_left"
-    },
-    {
-      "id": "sv08_right",
-      "name": "SV08 Right",
-      "printer_id": "sv08",
-      "printer_name": "Sovol SV08",
-      "default_live_view": false,
       "moonraker_url": "http://sv08.local",
-      "display_order": 1,
-      "mode": "manual_urls",
-      "description": "Manual URL mode example",
-      "preview_url": "http://printer-right.local:1984/stream.html?src=cam",
-      "record_url": "rtsp://printer-right.local:8554/cam",
-      "enabled": true,
-      "output_subdir": "sv08_right"
+      "display_order": 10,
+      "default_camera_id": "sv08_front",
+      "cameras": [
+        {
+          "id": "sv08_front",
+          "name": "Front",
+          "enabled": true,
+          "mode": "manual_urls",
+          "description": "Front print view",
+          "preview_url": "http://camera-host:1984/stream.html?src=sv08_front",
+          "record_url": "rtsp://camera-host:8554/sv08_front",
+          "display_order": 10,
+          "output_subdir": "sv08_front"
+        },
+        {
+          "id": "sv08_nozzle",
+          "name": "Nozzle",
+          "enabled": true,
+          "mode": "go2rtc_helper",
+          "description": "Nozzle close-up view",
+          "go2rtc_base_url": "http://camera-host:1984",
+          "stream_name": "sv08_nozzle",
+          "display_order": 20,
+          "output_subdir": "sv08_nozzle"
+        }
+      ]
     }
   ]
 }

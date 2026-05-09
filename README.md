@@ -24,6 +24,7 @@ This repository currently includes:
 - Phase 9 clip review and social export polish
 - Phase 10 camera wall live view
 - Phase 10.1 configurable camera wall grid density
+- Phase 10.2 printer-first config and live wall refresh stability
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
 
@@ -142,13 +143,35 @@ From `.env` (optional):
 Camera config is JSON at `config/cameras.json`.
 The web UI can edit this file through `/cameras`, but the JSON file remains the source of truth.
 
-Top-level format:
+Preferred top-level format:
 
 ```json
 {
-  "cameras": []
+  "printers": [
+    {
+      "id": "sv08",
+      "name": "Sovol SV08",
+      "enabled": true,
+      "moonraker_url": "http://sv08.local",
+      "display_order": 10,
+      "default_camera_id": "sv08_front",
+      "cameras": [
+        {
+          "id": "sv08_front",
+          "name": "Front",
+          "preview_url": "http://host:1984/stream.html?src=sv08_front",
+          "record_url": "rtsp://host:8554/sv08_front",
+          "display_order": 10,
+          "enabled": true
+        }
+      ]
+    }
+  ]
 }
 ```
+
+Legacy top-level `cameras` configs still load for existing installs.
+Printer NVR normalizes both config shapes internally, while recording routes and clips continue to use `camera_id`.
 
 ### Mode 1: go2rtc Helper Mode
 
@@ -203,7 +226,16 @@ Manual URLs always override generated values.
 
 ### Printer Grouping and Live Dashboard Fields
 
-Optional camera fields used by `/printers`:
+Printer-first config uses printer-level fields directly:
+- `id`
+- `name`
+- `enabled`
+- `moonraker_url`
+- `display_order`
+- `default_camera_id`
+- nested `cameras`
+
+Legacy camera-first config can still use optional grouping fields:
 
 - `printer_id`
 - `printer_name`
@@ -238,6 +270,7 @@ The `/cameras` page supports:
 - live preview while editing
 - ffprobe-based stream testing
 - printer grouping fields for the live printer dashboard
+- preserving the printer-first config shape on save when `config/cameras.json` already uses top-level `printers`
 
 Behavior notes:
 - camera ids auto-generate from the camera name when creating a new camera
@@ -438,6 +471,8 @@ Current behavior:
 - actively printing printers are sorted before non-printing printers
 - per-printer view selector appears when multiple camera views exist
 - selected view persistence is shared with `/printers`
+- normal status polling updates text in place and does not reload camera iframes
+- printing-priority sorting uses CSS ordering without moving mounted preview elements
 
 By design, `/live` does not include recording controls, duration buttons, latest clip panels, or clip review actions. Those stay on `/printers` and `/clips`.
 

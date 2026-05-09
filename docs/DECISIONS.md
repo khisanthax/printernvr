@@ -395,3 +395,39 @@ Impact:
 - `/live` can be tuned to layouts such as 3 columns by 2 rows.
 - Fixed row counts calculate card minimum height from viewport space and still allow scrolling when the viewport is too small.
 - Printing cards move to the first visible grid positions while non-printing cards retain configured order.
+
+## 2026-05-09 - Prefer Printer-First Config While Preserving Camera-Based Internals
+
+Decision:
+- Support top-level `printers` in `config/cameras.json`, with multiple nested camera views per printer.
+- Continue loading legacy top-level `cameras` configs for existing installs.
+- Normalize both config shapes into the existing resolved camera list.
+- Keep recording APIs, runtime state, clip storage, and clip review keyed by `camera_id`.
+
+Why:
+- The product is now printer-centered, and each printer can have multiple views.
+- Recording and clip storage are already stable and camera-based; changing those paths would risk existing recordings and workflows.
+- Backward compatibility avoids breaking deployed hosts during a pull/update.
+
+Impact:
+- Printer-first config is the preferred example and active direction.
+- Legacy camera-first config remains supported.
+- `default_camera_id` in printer-first config maps to the existing default-view selection behavior.
+- `/printers` and `/live` consume normalized printer/card data without needing a database.
+
+## 2026-05-09 - Keep Live Wall Polling from Reloading Preview Iframes
+
+Decision:
+- `/live` polling updates only lightweight text/status fields during normal refresh.
+- Do not rebuild card DOM, replace iframe elements, reassign iframe `src`, or re-append cards during routine polling.
+- Use CSS `order` for printing-priority sorting instead of DOM reordering.
+- Increase the `/live` polling interval because the wall is for visual monitoring.
+
+Why:
+- Rebuilding or moving iframe-based camera previews interrupts streams and causes visible black flashes.
+- Status changes should not disturb long-lived camera preview elements.
+
+Impact:
+- Camera streams stay mounted during normal status refresh.
+- Sorting actively printing printers remains possible without iframe reloads.
+- Preview reloads are limited to user-selected view changes or real preview/config changes.

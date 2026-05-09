@@ -14,6 +14,8 @@ from app.models import (
     CameraMode,
     CameraPreviewMode,
     CameraUpsertRequest,
+    PrinterCameraConfigInput,
+    PrinterConfigInput,
     ResolvedCamera,
     infer_input_mode,
 )
@@ -65,6 +67,7 @@ def resolve_camera(camera: CameraConfigInput) -> ResolvedCamera:
             printer_name=printer_name,
             default_live_view=camera.default_live_view,
             moonraker_url=moonraker_url,
+            printer_display_order=camera.printer_display_order,
             display_order=camera.display_order,
             preview_url=preview_url if preview_mode == "external_link" else None,
             record_url=None,
@@ -123,6 +126,13 @@ def load_camera_config(config_path: str) -> list[ResolvedCamera]:
 
 
 def load_camera_inputs(config_path: str) -> list[CameraConfigInput]:
+    parsed = load_camera_config_file(config_path)
+    if config_uses_printer_first(config_path):
+        return camera_inputs_from_printers(parsed.printers)
+    return parsed.cameras
+
+
+def load_camera_config_file(config_path: str) -> CameraConfigFile:
     path = Path(config_path)
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
@@ -135,8 +145,63 @@ def load_camera_inputs(config_path: str) -> list[CameraConfigInput]:
     if not isinstance(data, dict):
         raise ValueError("Camera config root must be an object with a 'cameras' array")
 
-    parsed = CameraConfigFile.model_validate(data)
-    return parsed.cameras
+    return CameraConfigFile.model_validate(data)
+
+
+def config_uses_printer_first(config_path: str) -> bool:
+    path = Path(config_path)
+    if not path.exists():
+        return False
+
+    with path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    return isinstance(data, dict) and "printers" in data
+
+
+def camera_inputs_from_printers(printers: list[PrinterConfigInput]) -> list[CameraConfigInput]:
+    cameras: list[CameraConfigInput] = []
+    seen_camera_ids: set[str] = set()
+
+    for printer in printers:
+        default_camera_id = (printer.default_camera_id or "").strip() or None
+        for nested_camera in printer.cameras:
+            if nested_camera.id in seen_camera_ids:
+                raise ValueError(f"Camera ids must be unique: duplicate '{nested_camera.id}'")
+            seen_camera_ids.add(nested_camera.id)
+            cameras.append(_camera_input_from_printer_camera(printer, nested_camera, default_camera_id))
+
+    return cameras
+
+
+def _camera_input_from_printer_camera(
+    printer: PrinterConfigInput,
+    camera: PrinterCameraConfigInput,
+    default_camera_id: str | None,
+) -> CameraConfigInput:
+    return CameraConfigInput(
+        id=camera.id,
+        name=camera.name,
+        enabled=printer.enabled and camera.enabled,
+        description=camera.description,
+        mode=camera.mode,
+        printer_id=printer.id,
+        printer_name=printer.name,
+        default_live_view=bool(default_camera_id and camera.id == default_camera_id),
+        moonraker_url=(printer.moonraker_url or "").strip() or None,
+        printer_display_order=printer.display_order,
+        display_order=camera.display_order,
+        go2rtc_base_url=(camera.go2rtc_base_url or "").strip() or None,
+        stream_name=(camera.stream_name or "").strip() or None,
+        preview_url=(camera.preview_url or "").strip() or None,
+        record_url=(camera.record_url or "").strip() or None,
+        gopro_host=(camera.gopro_host or "").strip() or None,
+        preview_mode=camera.preview_mode,
+        auto_download_after_stop=camera.auto_download_after_stop,
+        download_timeout_seconds=camera.download_timeout_seconds,
+        file_stabilization_wait_seconds=camera.file_stabilization_wait_seconds,
+        output_subdir=(camera.output_subdir or "").strip() or camera.id,
+    )
 
 
 def load_app_settings(config_path: str) -> AppSettingsFile:
@@ -227,17 +292,135 @@ def build_camera_input(payload: CameraUpsertRequest) -> CameraConfigInput:
     )
 
 
-def write_camera_inputs(config_path: str, cameras: list[CameraConfigInput]) -> None:
+def write_camera_inputs(
+    config_path: str,
+    cameras: list[CameraConfigInput],
+    *,
+    prefer_printer_config: bool = False,
+) -> None:
     path = Path(config_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    payload = {
-        "cameras": [camera.model_dump(exclude_none=True) for camera in cameras],
-    }
+    if prefer_printer_config:
+        payload = {
+            "printers": [
+                printer.model_dump(exclude_none=True)
+                for printer in printer_configs_from_camera_inputs(cameras)
+            ],
+        }
+    else:
+        payload = {
+            "cameras": [camera.model_dump(exclude_none=True) for camera in cameras],
+        }
 
     temp_path = path.with_suffix(f"{path.suffix}.tmp")
     temp_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     temp_path.replace(path)
+
+
+def printer_configs_from_camera_inputs(cameras: list[CameraConfigInput]) -> list[PrinterConfigInput]:
+    grouped: dict[str, list[CameraConfigInput]] = {}
+    order: list[str] = []
+    for camera in cameras:
+        printer_id = (camera.printer_id or "").strip() or camera.id
+        if printer_id not in grouped:
+            grouped[printer_id] = []
+            order.append(printer_id)
+        grouped[printer_id].append(camera)
+
+    printers: list[PrinterConfigInput] = []
+    for printer_id in order:
+        grouped_cameras = grouped[printer_id]
+        sorted_cameras = sorted(grouped_cameras, key=_camera_input_sort_key)
+        primary = sorted_cameras[0]
+        default_camera = next(
+            (camera for camera in sorted_cameras if camera.default_live_view),
+            primary,
+        )
+        printer_name = (primary.printer_name or "").strip() or primary.name
+        moonraker_url = _first_non_empty(camera.moonraker_url for camera in sorted_cameras)
+        display_order = _first_printer_display_order(sorted_cameras)
+        printers.append(
+            PrinterConfigInput(
+                id=printer_id,
+                name=printer_name,
+                enabled=any(camera.enabled for camera in sorted_cameras),
+                moonraker_url=moonraker_url,
+                display_order=display_order,
+                default_camera_id=default_camera.id,
+                cameras=[
+                    printer_camera_config_from_camera_input(camera)
+                    for camera in sorted(sorted_cameras, key=_camera_input_sort_key)
+                ],
+            )
+        )
+
+    return sorted(printers, key=_printer_config_sort_key)
+
+
+def printer_camera_config_from_camera_input(camera: CameraConfigInput) -> PrinterCameraConfigInput:
+    mode = infer_input_mode(camera)
+    return PrinterCameraConfigInput(
+        id=camera.id,
+        name=camera.name,
+        enabled=camera.enabled,
+        description=camera.description,
+        mode=mode,
+        display_order=camera.display_order,
+        go2rtc_base_url=camera.go2rtc_base_url,
+        stream_name=camera.stream_name,
+        preview_url=camera.preview_url,
+        record_url=camera.record_url,
+        gopro_host=camera.gopro_host,
+        preview_mode=camera.preview_mode,
+        auto_download_after_stop=camera.auto_download_after_stop,
+        download_timeout_seconds=camera.download_timeout_seconds,
+        file_stabilization_wait_seconds=camera.file_stabilization_wait_seconds,
+        output_subdir=camera.output_subdir or camera.id,
+    )
+
+
+def _first_non_empty(values) -> str | None:
+    for value in values:
+        stripped = (value or "").strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def _first_display_order(cameras: list[CameraConfigInput]) -> int | None:
+    orders = [camera.display_order for camera in cameras if camera.display_order is not None]
+    return min(orders) if orders else None
+
+
+def _first_printer_display_order(cameras: list[CameraConfigInput]) -> int | None:
+    orders = [
+        camera.printer_display_order
+        for camera in cameras
+        if camera.printer_display_order is not None
+    ]
+    if orders:
+        return min(orders)
+    return _first_display_order(cameras)
+
+
+def _camera_input_sort_key(camera: CameraConfigInput) -> tuple:
+    return (
+        0 if camera.enabled else 1,
+        0 if camera.default_live_view else 1,
+        0 if (camera.preview_url or camera.go2rtc_base_url) else 1,
+        camera.display_order if camera.display_order is not None else 9999,
+        camera.name.lower(),
+        camera.id.lower(),
+    )
+
+
+def _printer_config_sort_key(printer: PrinterConfigInput) -> tuple:
+    return (
+        printer.display_order if printer.display_order is not None else 9999,
+        printer.name.lower(),
+        printer.id.lower(),
+    )
 
 
 def build_management_items(

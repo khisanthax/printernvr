@@ -58,8 +58,37 @@ Two JSON files are used:
 - `config/app.json`: app-level settings such as retention
 - `config/cameras.example.json` and `config/app.example.json`: tracked templates for new deployments
 
+Printer-first definitions are now the preferred `config/cameras.json` shape:
+
+```json
+{
+  "printers": [
+    {
+      "id": "sv08",
+      "name": "Sovol SV08",
+      "enabled": true,
+      "moonraker_url": "http://sv08.local",
+      "display_order": 10,
+      "default_camera_id": "sv08_front",
+      "cameras": [
+        {
+          "id": "sv08_front",
+          "name": "Front",
+          "preview_url": "http://host:1984/stream.html?src=sv08_front",
+          "record_url": "rtsp://host:8554/sv08_front",
+          "display_order": 10
+        }
+      ]
+    }
+  ]
+}
+```
+
+Legacy camera-first configs with top-level `cameras` still load for existing installs.
+Both shapes are normalized into the same resolved camera list used by recording, clips, `/printers`, and `/live`.
 Camera definitions remain the source of truth even when edited through the web UI.
 The `/cameras` page writes back to `config/cameras.json` rather than introducing a database.
+If the file already uses top-level `printers`, camera management writes preserve that printer-first shape.
 The live `config/cameras.json` and `config/app.json` files are deployment-local and should remain untracked so host-specific edits do not block repository pulls.
 
 Active camera modes:
@@ -69,15 +98,16 @@ Active camera modes:
 Deprecated compatibility mode:
 - `gopro`
 
-Camera-to-printer mapping fields:
+Legacy camera-to-printer mapping fields:
 - `printer_id`
 - `printer_name`
 - `default_live_view`
 - `moonraker_url`
 - `display_order`
 
-For this phase, printers are derived from camera config rather than a separate printer database model.
-If printer mapping fields are omitted, each camera falls back to its own printer card identity.
+For legacy camera-first config, printers are derived from these fields.
+For printer-first config, `printer.default_camera_id` is converted to the same internal default camera marker.
+If printer mapping fields are omitted in legacy config, each camera falls back to its own printer card identity.
 
 RTSP camera URL resolution:
 - `record_url`: manual value, else generated go2rtc URL
@@ -158,6 +188,10 @@ Current phase limits:
 9. Fixed cards-per-row values write explicit CSS grid columns, while Auto returns to the responsive `auto-fill` layout.
 10. Fixed rows-per-screen values calculate a card minimum height from the viewport height after subtracting the sticky wall header and page padding.
 11. Cards whose Moonraker monitor state is `printing` are sorted before non-printing cards while preserving configured order inside each priority group.
+12. Normal polling updates text, badges, freshness, and data attributes in place only.
+13. Routine status refresh does not rebuild cards, replace iframes, reassign iframe `src`, or re-append card DOM nodes.
+14. Printing-priority sorting uses CSS `order`, so iframe streams stay mounted unless the user changes view or the underlying preview URL/config changes.
+15. `/live` uses a slower polling interval than `/printers` because it is optimized for visual monitoring rather than detailed control feedback.
 
 Page roles:
 - `/live`: compact dark camera wall for watching all printers
@@ -195,7 +229,7 @@ Printer-card recording behavior:
 - Custom printer-card duration input validates 1-600 seconds in the browser before sending the existing timed recording payload.
 - The printer card reads `GET /api/record/status` and displays the runtime state for the currently selected camera only.
 - When a recording finishes, the frontend refreshes latest clip metadata for matching visible printer cards.
-- Clips still land in the normal `recordings/<output_subdir>/` directory and remain visible through `/clips`.
+- Clips still land in the normal `recordings/<output_subdir>/` directory, which defaults to the camera id, and remain visible through `/clips`.
 
 This recording profile is intentionally conservative for printer cameras:
 - RTSP over TCP improves compatibility with go2rtc and camera streams that are unreliable over default transport settings

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Printer NVR - Cameras</title>
+  <title>Printer NVR - Printers & Cameras</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -13,23 +13,23 @@
         <a href="/">Dashboard</a>
         <a href="/live">Live View</a>
         <a href="/printers">Printers</a>
-        <a href="/cameras" aria-current="page">Cameras</a>
+        <a href="/cameras" aria-current="page">Printers & Cameras</a>
         <a href="/clips">Clips</a>
       </nav>
-      <h1>Camera Management</h1>
-      <p>Add, edit, delete, preview, and test cameras while keeping the config file as the source of truth.</p>
+      <h1>Printers & Cameras</h1>
+      <p>Add and edit camera views grouped by printer while keeping the JSON config file as the source of truth.</p>
     </div>
   </header>
 
   <main class="camera-admin">
     <section class="camera-admin__list">
       <div class="camera-admin__section-head">
-        <h2>Configured Cameras</h2>
+        <h2>Configured Printer Cameras</h2>
         <button type="button" id="new-camera-button" class="control-button">New Camera</button>
       </div>
       <div id="camera-list-empty" class="empty-state" hidden>
         <h2>No cameras configured.</h2>
-        <p>Create a camera to start using the dashboard.</p>
+        <p>Create a camera view and assign it to a printer to start using the dashboards.</p>
       </div>
       <div id="camera-list" class="camera-list"></div>
     </section>
@@ -37,7 +37,7 @@
     <section class="camera-admin__editor">
       <div class="camera-admin__form">
         <div class="camera-admin__section-head">
-          <h2 id="camera-form-title">New Camera</h2>
+          <h2 id="camera-form-title">New Camera View</h2>
           <button type="button" id="cancel-edit-button" class="control-button control-button--secondary">Cancel</button>
         </div>
         <form id="camera-form">
@@ -67,6 +67,7 @@
             <label>
               Printer Name
               <input id="camera-printer-name" name="printer_name" type="text" placeholder="Sovol SV08">
+              <span class="form-helper">Views with the same printer ID appear under one printer card.</span>
             </label>
             <label>
               Printer ID

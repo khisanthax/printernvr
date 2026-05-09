@@ -69,7 +69,9 @@ def build_printer_cards(
                 metadata_available=status.metadata_available,
                 last_metadata_attempt_at=status.last_metadata_attempt_at,
                 last_metadata_success_at=status.last_metadata_success_at,
-                display_order=primary.display_order,
+                display_order=primary.printer_display_order
+                if primary.printer_display_order is not None
+                else primary.display_order,
                 error_message=status.error_message,
             )
         )

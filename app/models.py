@@ -31,6 +31,7 @@ class CameraConfigInput(BaseModel):
     printer_name: str | None = None
     default_live_view: bool = False
     moonraker_url: str | None = None
+    printer_display_order: int | None = Field(default=None, ge=0)
     display_order: int | None = Field(default=None, ge=0)
 
     go2rtc_base_url: str | None = None
@@ -107,6 +108,7 @@ class ResolvedCamera(BaseModel):
     printer_name: str
     default_live_view: bool = False
     moonraker_url: str | None = None
+    printer_display_order: int | None = None
     display_order: int | None = None
 
     go2rtc_base_url: str | None = None
@@ -124,8 +126,76 @@ class ResolvedCamera(BaseModel):
     output_subdir: str
 
 
+class PrinterCameraConfigInput(BaseModel):
+    id: str
+    name: str
+    enabled: bool = True
+    description: str | None = None
+    mode: CameraMode | None = None
+    display_order: int | None = Field(default=None, ge=0)
+
+    go2rtc_base_url: str | None = None
+    stream_name: str | None = None
+
+    preview_url: str | None = None
+    record_url: str | None = None
+
+    gopro_host: str | None = None
+    preview_mode: CameraPreviewModeInput | None = None
+    auto_download_after_stop: bool = True
+    download_timeout_seconds: int = Field(default=120, ge=5, le=900)
+    file_stabilization_wait_seconds: int = Field(default=5, ge=0, le=120)
+
+    output_subdir: str | None = None
+
+    @field_validator("id")
+    @classmethod
+    def validate_camera_id(cls, value: str) -> str:
+        if not CAMERA_ID_RE.match(value):
+            raise ValueError("Camera id must match [A-Za-z0-9_-]+")
+        return value
+
+    @field_validator("output_subdir")
+    @classmethod
+    def validate_output_subdir(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if not OUTPUT_SUBDIR_RE.match(value):
+            raise ValueError("output_subdir must match [A-Za-z0-9_.-]+")
+        if value in {".", ".."}:
+            raise ValueError("output_subdir must not be '.' or '..'")
+        return value
+
+
+class PrinterConfigInput(BaseModel):
+    id: str
+    name: str
+    enabled: bool = True
+    moonraker_url: str | None = None
+    display_order: int | None = Field(default=None, ge=0)
+    default_camera_id: str | None = None
+    cameras: list[PrinterCameraConfigInput] = Field(default_factory=list)
+
+    @field_validator("id")
+    @classmethod
+    def validate_printer_id(cls, value: str) -> str:
+        if not CAMERA_ID_RE.match(value):
+            raise ValueError("Printer id must match [A-Za-z0-9_-]+")
+        return value
+
+    @field_validator("default_camera_id")
+    @classmethod
+    def validate_default_camera_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if not CAMERA_ID_RE.match(value):
+            raise ValueError("default_camera_id must match [A-Za-z0-9_-]+")
+        return value
+
+
 class CameraConfigFile(BaseModel):
     cameras: list[CameraConfigInput] = Field(default_factory=list)
+    printers: list[PrinterConfigInput] = Field(default_factory=list)
 
 
 class CameraUpsertRequest(BaseModel):

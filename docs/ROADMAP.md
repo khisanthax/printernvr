@@ -557,6 +557,29 @@ Deliverables:
 - Printing printers prioritized into the first visible grid positions
 - Existing visibility toggles, view selectors, and status refresh preserved
 
+### Phase 10.2 - Printer-First Configuration Model and Live Wall Refresh Stability [x]
+
+Goals:
+- Support printers as the preferred configuration root, with multiple camera views nested under each printer
+- Preserve legacy camera-first config loading for existing installs
+- Keep recording and clips camera-id based internally
+- Stabilize `/live` polling so camera iframes are not reloaded during normal status refreshes
+
+Tasks:
+- Add printer-first config models for printers and nested camera views
+- Normalize printer-first and legacy camera-first config into the existing resolved camera runtime model
+- Preserve printer-first config shape on camera management writes when the file already uses `printers`
+- Update the example camera config to show one printer with multiple cameras
+- Increase `/live` polling interval and update only text/status/freshness fields during normal polling
+- Sort printing cards with CSS `order` only, without moving or re-rendering card DOM nodes
+
+Deliverables:
+- Preferred `config/cameras.json` shape now supports top-level `printers`
+- Existing top-level `cameras` configs still load
+- `/live` avoids iframe reloads unless the selected camera/view or preview URL actually changes
+- Recording remains through `/api/record/*/{camera_id}`
+- Clips remain under `recordings/<camera_id>/`
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:
@@ -640,6 +663,7 @@ Completed:
 - Phase 9 clip review and social export polish
 - Phase 10 camera wall live view
 - Phase 10.1 configurable camera wall grid density
+- Phase 10.2 printer-first config and live wall refresh stability
 - Phase 6 retention and storage protection
 
 In progress:
@@ -651,6 +675,7 @@ Note:
 Implemented highlights:
 - FastAPI app scaffold with startup validation and logging
 - JSON camera config loading with go2rtc helper and manual URL modes
+- Printer-first config loading with legacy camera-first compatibility
 - Legacy compatibility remains for existing `mode=gopro` configs, but GoPro is no longer an active roadmap direction
 - Separate app config loading for retention settings
 - Resolution logic where manual URLs override generated URLs
@@ -669,6 +694,7 @@ Implemented highlights:
 - `/printers` live dashboard with top printer toggles, one default live view per printer, and status/details beneath each preview
 - `/live` camera wall with compact dark cards, visibility toggles, optional view selectors, and status/details beneath each preview
 - `/live` density controls for cards per row and rows per screen, with browser-persisted settings and printing-printer priority sorting
+- `/live` polling updates status text in place, uses CSS ordering only, and avoids reloading camera iframes during normal refreshes
 - Per-printer camera/view selector on `/printers` with browser-side selection persistence and backend default fallback
 - Enlarged preview modal, printer-state badges, degraded-state placeholders, freshness text, and lightweight manual refresh controls on `/printers`
 - Printer-card Start, Stop, quick duration, and custom duration controls that target the currently selected camera/view and reuse the existing camera recording APIs
