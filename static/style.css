@@ -1467,6 +1467,10 @@ body {
   background: #282828;
 }
 
+.live-wall-card--secondary .live-wall-card__header {
+  background: #202020;
+}
+
 .live-wall-card__identity {
   min-width: 0;
   display: flex;
@@ -1513,11 +1517,29 @@ body {
   text-overflow: ellipsis;
 }
 
-.live-wall-view-select {
-  flex: 0 0 min(12rem, 38%);
+.live-wall-card__controls {
+  flex: 0 0 min(17rem, 44%);
+  display: grid;
+  gap: 0.35rem;
 }
 
-.live-wall-view-select select {
+.live-wall-view-select {
+  min-width: 0;
+}
+
+.live-wall-view-select span,
+.live-wall-secondary-control__toggle span {
+  display: block;
+  margin-bottom: 0.18rem;
+  color: #bdbdbd;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.live-wall-view-select select,
+.live-wall-secondary-control select {
   width: 100%;
   border: 1px solid #4a4a4a;
   border-radius: 6px;
@@ -1526,6 +1548,38 @@ body {
   padding: 0.42rem 0.48rem;
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.live-wall-secondary-control {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.4rem;
+  align-items: end;
+}
+
+.live-wall-secondary-control__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #d6d6d6;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.live-wall-secondary-control__toggle span {
+  margin: 0;
+}
+
+.live-wall-secondary-badge {
+  align-self: center;
+  border: 1px solid #4a4a4a;
+  border-radius: 999px;
+  padding: 0.18rem 0.5rem;
+  color: #d6d6d6;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .live-wall-preview {
@@ -1829,9 +1883,14 @@ body {
     flex-direction: column;
   }
 
+  .live-wall-card__controls,
   .live-wall-view-select {
     flex-basis: auto;
     width: 100%;
+  }
+
+  .live-wall-secondary-control {
+    grid-template-columns: 1fr;
   }
 
   .live-wall-stats {

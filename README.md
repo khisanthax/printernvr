@@ -26,7 +26,7 @@ This repository currently includes:
 - Phase 10.1 configurable camera wall grid density
 - Phase 10.2 printer-first config and live wall refresh stability
 - Phase 10.3 nested printers and cameras management UI
-- Planned: Phase 10.4 optional secondary camera cards on `/live`
+- Phase 10.4 optional secondary camera cards on `/live`
 - Planned: Phase 11 installer and optional go2rtc bundle
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
@@ -475,6 +475,7 @@ The `/live` page is a compact dark camera wall for watching all printers at once
 
 Current behavior:
 - one compact card per printer
+- optional secondary camera card for printers with multiple cameras/views
 - live preview dominates each card
 - status, progress, filename, temperatures, ETA, and freshness text stay below the video
 - top visibility checkboxes show or hide printer cards
@@ -485,14 +486,16 @@ Current behavior:
 - actively printing printers are sorted before non-printing printers
 - per-printer view selector appears when multiple camera views exist
 - selected view persistence is shared with `/printers`
+- secondary view choices are persisted under `printernvr-live-secondary-views`
 - normal status polling updates text in place and does not reload camera iframes
 - printing-priority sorting uses CSS ordering without moving mounted preview elements
 
 By design, `/live` does not include recording controls, duration buttons, latest clip panels, or clip review actions. Those stay on `/printers` and `/clips`.
 
-Planned follow-up:
-- `/live` may optionally show a secondary camera view as a separate viewing-only card for printers with multiple cameras.
-- This will not affect `/printers` selected-view persistence or recording target behavior.
+Secondary live card notes:
+- secondary cards are viewing-only
+- secondary cards are available only for printers with two or more configured cameras/views
+- secondary cards do not affect `/printers` selected-view persistence or recording target behavior
 
 ## API Endpoints
 

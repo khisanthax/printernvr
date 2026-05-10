@@ -67,7 +67,9 @@
       <article
         class="live-wall-card"
         data-live-printer-card="{{ printer.printer_id }}"
+        data-live-primary-card="{{ printer.printer_id }}"
         data-live-sort-index="{{ loop.index0 }}"
+        data-live-card-offset="0"
         data-live-monitor-state="{{ printer.monitor_state }}"
         data-printer-name="{{ printer.printer_name }}"
         data-default-camera-id="{{ printer.default_camera_id or '' }}"
@@ -83,22 +85,44 @@
             </div>
           </div>
           {% if printer.available_views|length > 1 %}
-          <label class="live-wall-view-select" aria-label="Camera view for {{ printer.printer_name }}">
-            <select data-live-view-select="{{ printer.printer_id }}">
-              {% for view in printer.available_views %}
-              <option
-                value="{{ view.camera_id }}"
-                data-camera-name="{{ view.camera_name }}"
-                data-preview-url="{{ view.preview_url or '' }}"
-                data-preview-mode="{{ view.preview_mode }}"
-                data-preview-available="{{ 'true' if view.preview_available else 'false' }}"
-                data-enabled="{{ 'true' if view.enabled else 'false' }}"
-                {% if view.camera_id == printer.default_camera_id %}selected{% endif %}>
-                {{ view.camera_name }}
-              </option>
-              {% endfor %}
-            </select>
-          </label>
+          <div class="live-wall-card__controls">
+            <label class="live-wall-view-select" aria-label="Camera view for {{ printer.printer_name }}">
+              <span>Primary</span>
+              <select data-live-view-select="{{ printer.printer_id }}">
+                {% for view in printer.available_views %}
+                <option
+                  value="{{ view.camera_id }}"
+                  data-camera-name="{{ view.camera_name }}"
+                  data-preview-url="{{ view.preview_url or '' }}"
+                  data-preview-mode="{{ view.preview_mode }}"
+                  data-preview-available="{{ 'true' if view.preview_available else 'false' }}"
+                  data-enabled="{{ 'true' if view.enabled else 'false' }}"
+                  {% if view.camera_id == printer.default_camera_id %}selected{% endif %}>
+                  {{ view.camera_name }}
+                </option>
+                {% endfor %}
+              </select>
+            </label>
+            <div class="live-wall-secondary-control" aria-label="Secondary camera view for {{ printer.printer_name }}">
+              <label class="live-wall-secondary-control__toggle">
+                <input type="checkbox" data-live-secondary-toggle="{{ printer.printer_id }}">
+                <span>Second view</span>
+              </label>
+              <select data-live-secondary-select="{{ printer.printer_id }}">
+                {% for view in printer.available_views %}
+                <option
+                  value="{{ view.camera_id }}"
+                  data-camera-name="{{ view.camera_name }}"
+                  data-preview-url="{{ view.preview_url or '' }}"
+                  data-preview-mode="{{ view.preview_mode }}"
+                  data-preview-available="{{ 'true' if view.preview_available else 'false' }}"
+                  data-enabled="{{ 'true' if view.enabled else 'false' }}">
+                  {{ view.camera_name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
           {% endif %}
         </header>
 
@@ -175,6 +199,89 @@
           <p class="live-wall-error" data-live-error="{{ printer.printer_id }}" {% if not printer.error_message %}hidden{% endif %}>{{ printer.error_message or "" }}</p>
         </section>
       </article>
+      {% if printer.available_views|length > 1 %}
+      <article
+        class="live-wall-card live-wall-card--secondary"
+        data-live-printer-card="{{ printer.printer_id }}"
+        data-live-secondary-card="{{ printer.printer_id }}"
+        data-live-sort-index="{{ loop.index0 }}"
+        data-live-card-offset="1"
+        data-live-monitor-state="{{ printer.monitor_state }}"
+        data-printer-name="{{ printer.printer_name }}"
+        data-last-metadata-attempt-at="{{ printer.last_metadata_attempt_at or '' }}"
+        data-last-metadata-success-at="{{ printer.last_metadata_success_at or '' }}"
+        hidden>
+        <header class="live-wall-card__header">
+          <div class="live-wall-card__identity">
+            <span class="live-wall-card__icon live-wall-card__icon--secondary" aria-hidden="true"></span>
+            <div>
+              <h2>{{ printer.printer_name }}</h2>
+              <p data-live-secondary-view-label="{{ printer.printer_id }}">Secondary view</p>
+            </div>
+          </div>
+          <span class="live-wall-secondary-badge">Secondary</span>
+        </header>
+
+        <div
+          class="live-wall-preview"
+          data-live-secondary-preview="{{ printer.printer_id }}"
+          data-current-camera-id=""
+          data-preview-url=""
+          data-preview-mode="none"
+          data-preview-available="false"
+          data-view-enabled="true">
+          <div class="live-wall-preview__fallback">Secondary view disabled</div>
+        </div>
+
+        <section class="live-wall-card__details" aria-label="{{ printer.printer_name }} secondary status">
+          <div class="live-wall-status-line">
+            <span class="live-wall-status live-wall-status--{{ printer.monitor_state }}" data-live-status="{{ printer.printer_id }}">
+              {{ printer.printer_status_text }}
+            </span>
+            <span data-live-progress="{{ printer.printer_id }}">
+              {% if printer.progress_percent is not none %}{{ "%.1f"|format(printer.progress_percent) }}%{% else %}--{% endif %}
+            </span>
+          </div>
+          <p class="live-wall-file" data-live-file-name="{{ printer.printer_id }}">{{ printer.current_file_name or "--" }}</p>
+          <dl class="live-wall-stats">
+            <div>
+              <dt>Extruder</dt>
+              <dd data-live-extruder="{{ printer.printer_id }}">
+                {% if printer.extruder_current_temp is not none %}
+                {{ "%.0f"|format(printer.extruder_current_temp) }} / {% if printer.extruder_target_temp is not none %}{{ "%.0f"|format(printer.extruder_target_temp) }}{% else %}--{% endif %} C
+                {% else %}
+                --
+                {% endif %}
+              </dd>
+            </div>
+            <div>
+              <dt>Bed</dt>
+              <dd data-live-bed="{{ printer.printer_id }}">
+                {% if printer.bed_current_temp is not none %}
+                {{ "%.0f"|format(printer.bed_current_temp) }} / {% if printer.bed_target_temp is not none %}{{ "%.0f"|format(printer.bed_target_temp) }}{% else %}--{% endif %} C
+                {% else %}
+                --
+                {% endif %}
+              </dd>
+            </div>
+            <div>
+              <dt>ETA</dt>
+              <dd data-live-eta="{{ printer.printer_id }}">{{ printer.eta_text or "--" }}</dd>
+            </div>
+          </dl>
+          <p class="live-wall-freshness" data-live-updated-text="{{ printer.printer_id }}">
+            {% if printer.last_metadata_success_at %}
+            Updated just now
+            {% elif printer.has_metadata_source %}
+            Waiting for status
+            {% else %}
+            No metadata source
+            {% endif %}
+          </p>
+          <p class="live-wall-error" data-live-error="{{ printer.printer_id }}" {% if not printer.error_message %}hidden{% endif %}>{{ printer.error_message or "" }}</p>
+        </section>
+      </article>
+      {% endif %}
       {% endfor %}
     </section>
     {% else %}

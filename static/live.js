@@ -2,6 +2,7 @@ const LIVE_POLL_INTERVAL_MS = 15000;
 const LIVE_FRESHNESS_INTERVAL_MS = 5000;
 const LIVE_VISIBILITY_KEY = "printernvr-live-visible-printers";
 const LIVE_VIEW_SELECTION_KEY = "printernvr-printer-view-selections";
+const LIVE_SECONDARY_SELECTION_KEY = "printernvr-live-secondary-views";
 const LIVE_LAYOUT_KEY = "printernvr-live-layout";
 const LIVE_LAYOUT_AUTO = "auto";
 const LIVE_MIN_CARD_HEIGHT = 300;
@@ -103,7 +104,18 @@ function persistVisibility() {
 function updateVisibleCards() {
   const visible = new Set(visiblePrinterIds());
   queryAll("[data-live-printer-card]").forEach((card) => {
-    card.hidden = !visible.has(card.dataset.livePrinterCard);
+    const printerId = card.dataset.livePrinterCard;
+    if (!visible.has(printerId)) {
+      card.hidden = true;
+      return;
+    }
+
+    if (card.dataset.liveSecondaryCard) {
+      card.hidden = !secondarySelectionIsEnabled(printerId);
+      return;
+    }
+
+    card.hidden = false;
   });
 
   const empty = query("#live-empty-filtered");
@@ -237,9 +249,11 @@ function applyLayoutSettings(settings = readLayoutSettings()) {
 function liveCardOrder(card) {
   const monitorState = String(card.dataset.liveMonitorState || "").toLowerCase();
   const sortIndex = Number.parseInt(card.dataset.liveSortIndex || "0", 10);
+  const cardOffset = Number.parseInt(card.dataset.liveCardOffset || "0", 10);
   const priority = monitorState === "printing" ? 0 : 1;
   const stableIndex = Number.isFinite(sortIndex) ? sortIndex : 0;
-  return priority * 10000 + stableIndex;
+  const stableOffset = Number.isFinite(cardOffset) ? cardOffset : 0;
+  return priority * 10000 + stableIndex * 10 + stableOffset;
 }
 
 function sortLiveCards() {
@@ -288,15 +302,35 @@ function clearViewSelection(printerId) {
 }
 
 function getCard(printerId) {
-  return query(`[data-live-printer-card="${printerId}"]`);
+  return query(`[data-live-primary-card="${printerId}"]`);
+}
+
+function getAllCards(printerId) {
+  return queryAll(`[data-live-printer-card="${printerId}"]`);
+}
+
+function getSecondaryCard(printerId) {
+  return query(`[data-live-secondary-card="${printerId}"]`);
 }
 
 function getViewSelect(printerId) {
   return query(`[data-live-view-select="${printerId}"]`);
 }
 
+function getSecondaryToggle(printerId) {
+  return query(`[data-live-secondary-toggle="${printerId}"]`);
+}
+
+function getSecondarySelect(printerId) {
+  return query(`[data-live-secondary-select="${printerId}"]`);
+}
+
 function getPreviewContainer(printerId) {
   return query(`[data-live-preview="${printerId}"]`);
+}
+
+function getSecondaryPreviewContainer(printerId) {
+  return query(`[data-live-secondary-preview="${printerId}"]`);
 }
 
 function getViewFromOption(option) {
@@ -335,6 +369,165 @@ function getCurrentView(printerId) {
     preview_available: preview ? preview.dataset.previewAvailable === "true" : false,
     enabled: card.dataset.defaultCameraEnabled !== "false",
   };
+}
+
+function getAvailableViews(printerId) {
+  const select = getViewSelect(printerId);
+  if (select instanceof HTMLSelectElement) {
+    return Array.from(select.options).map(getViewFromOption).filter(Boolean);
+  }
+  return [];
+}
+
+function readSecondarySelections() {
+  return readStorageObject(LIVE_SECONDARY_SELECTION_KEY);
+}
+
+function persistSecondarySelection(printerId, selection) {
+  const selections = readSecondarySelections();
+  selections[printerId] = {
+    enabled: Boolean(selection.enabled),
+    cameraId: selection.cameraId || null,
+  };
+  writeStorageObject(LIVE_SECONDARY_SELECTION_KEY, selections);
+}
+
+function secondarySelectionIsEnabled(printerId) {
+  const card = getSecondaryCard(printerId);
+  if (!card) {
+    return false;
+  }
+  const toggle = getSecondaryToggle(printerId);
+  return toggle instanceof HTMLInputElement && toggle.checked && card.dataset.secondaryEnabled === "true";
+}
+
+function chooseSecondaryView(printerId, requestedCameraId = null) {
+  const primaryView = getCurrentView(printerId);
+  const primaryCameraId = primaryView && primaryView.camera_id ? primaryView.camera_id : "";
+  const views = getAvailableViews(printerId).filter((view) => view.camera_id !== primaryCameraId);
+  if (!views.length) {
+    return null;
+  }
+  return views.find((view) => view.camera_id === requestedCameraId) || views[0];
+}
+
+function renderSecondaryPreview(printerId, view) {
+  const container = getSecondaryPreviewContainer(printerId);
+  const card = getSecondaryCard(printerId);
+  const label = query(`[data-live-secondary-view-label="${printerId}"]`);
+  if (!container || !card) {
+    return;
+  }
+
+  const printerName = card.dataset.printerName || "Printer";
+  if (label) {
+    label.textContent = view && view.camera_name ? `${view.camera_name}` : "Secondary view";
+  }
+
+  container.dataset.currentCameraId = view && view.camera_id ? view.camera_id : "";
+  container.dataset.previewUrl = view && view.preview_url ? view.preview_url : "";
+  container.dataset.previewMode = view && view.preview_mode ? view.preview_mode : "none";
+  container.dataset.previewAvailable = view && view.preview_available ? "true" : "false";
+  container.dataset.viewEnabled = view && view.enabled === false ? "false" : "true";
+
+  const existingFrame = container.querySelector("iframe");
+  if (
+    existingFrame
+    && view
+    && view.preview_mode === "embedded"
+    && existingFrame.getAttribute("src") === view.preview_url
+  ) {
+    return;
+  }
+
+  container.replaceChildren(createPreviewNode(`${printerName} ${view ? view.camera_name : ""}`.trim(), view));
+}
+
+function clearSecondaryPreview(printerId) {
+  const container = getSecondaryPreviewContainer(printerId);
+  const label = query(`[data-live-secondary-view-label="${printerId}"]`);
+  if (label) {
+    label.textContent = "Secondary view";
+  }
+  if (container) {
+    container.dataset.currentCameraId = "";
+    container.dataset.previewUrl = "";
+    container.dataset.previewMode = "none";
+    container.dataset.previewAvailable = "false";
+    container.replaceChildren(createPreviewNode("Secondary view", null));
+  }
+}
+
+function setSecondaryCardState(printerId, enabled, view) {
+  const card = getSecondaryCard(printerId);
+  const toggle = getSecondaryToggle(printerId);
+  const select = getSecondarySelect(printerId);
+  if (!card || !(toggle instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const visiblePrinter = visiblePrinterIds().includes(printerId);
+  const shouldEnable = Boolean(enabled && view);
+  toggle.checked = shouldEnable;
+  card.dataset.secondaryEnabled = shouldEnable ? "true" : "false";
+  card.hidden = !(shouldEnable && visiblePrinter);
+
+  if (select instanceof HTMLSelectElement) {
+    select.disabled = !shouldEnable;
+    if (view) {
+      select.value = view.camera_id;
+    }
+  }
+
+  if (shouldEnable) {
+    renderSecondaryPreview(printerId, view);
+  } else {
+    clearSecondaryPreview(printerId);
+  }
+  sortLiveCards();
+}
+
+function applySecondarySelection(printerId, requestedSelection = null) {
+  const stored = requestedSelection || readSecondarySelections()[printerId] || {};
+  const view = chooseSecondaryView(printerId, stored.cameraId);
+  const enabled = Boolean(stored.enabled && view);
+  setSecondaryCardState(printerId, enabled, view);
+  persistSecondarySelection(printerId, {
+    enabled,
+    cameraId: enabled && view ? view.camera_id : (view ? view.camera_id : null),
+  });
+  return view;
+}
+
+function refreshSecondaryOptions(printerId) {
+  const secondarySelect = getSecondarySelect(printerId);
+  if (!(secondarySelect instanceof HTMLSelectElement)) {
+    return null;
+  }
+
+  const selected = secondarySelect.value;
+  const primaryView = getCurrentView(printerId);
+  const primaryCameraId = primaryView && primaryView.camera_id ? primaryView.camera_id : "";
+  Array.from(secondarySelect.options).forEach((option) => {
+    option.hidden = option.value === primaryCameraId;
+    option.disabled = option.value === primaryCameraId;
+  });
+
+  const view = chooseSecondaryView(printerId, selected);
+  if (view) {
+    secondarySelect.value = view.camera_id;
+  }
+  return view;
+}
+
+function restoreSecondarySelections() {
+  queryAll("[data-live-secondary-card]").forEach((card) => {
+    const printerId = card.dataset.liveSecondaryCard;
+    if (printerId) {
+      refreshSecondaryOptions(printerId);
+      applySecondarySelection(printerId);
+    }
+  });
 }
 
 function createPreviewNode(printerName, view) {
@@ -439,30 +632,31 @@ function statusTone(printer) {
 }
 
 function setStatus(printer) {
-  const node = query(`[data-live-status="${printer.printer_id}"]`);
-  if (!node) {
+  const nodes = queryAll(`[data-live-status="${printer.printer_id}"]`);
+  if (!nodes.length) {
     return;
   }
 
   const tone = statusTone(printer);
-  node.textContent = printer.printer_status_text || "Status unavailable";
-  node.classList.remove(
-    "live-wall-status--printing",
-    "live-wall-status--idle",
-    "live-wall-status--complete",
-    "live-wall-status--paused",
-    "live-wall-status--error",
-    "live-wall-status--offline",
-    "live-wall-status--unavailable",
-  );
-  node.classList.add(`live-wall-status--${tone}`);
+  nodes.forEach((node) => {
+    node.textContent = printer.printer_status_text || "Status unavailable";
+    node.classList.remove(
+      "live-wall-status--printing",
+      "live-wall-status--idle",
+      "live-wall-status--complete",
+      "live-wall-status--paused",
+      "live-wall-status--error",
+      "live-wall-status--offline",
+      "live-wall-status--unavailable",
+    );
+    node.classList.add(`live-wall-status--${tone}`);
+  });
 }
 
 function updateText(selector, value) {
-  const node = query(selector);
-  if (node) {
+  queryAll(selector).forEach((node) => {
     node.textContent = value || "--";
-  }
+  });
 }
 
 function setMetadataAttrs(printer) {
@@ -510,15 +704,15 @@ function updateFreshnessLabels() {
 }
 
 function updateCard(printer) {
-  const card = getCard(printer.printer_id);
+  const cards = getAllCards(printer.printer_id);
   let monitorStateChanged = false;
-  if (card) {
+  cards.forEach((card) => {
     const nextMonitorState = printer.monitor_state || "unavailable";
     if ((card.dataset.liveMonitorState || "") !== nextMonitorState) {
       card.dataset.liveMonitorState = nextMonitorState;
       monitorStateChanged = true;
     }
-  }
+  });
 
   setStatus(printer);
   setMetadataAttrs(printer);
@@ -534,8 +728,7 @@ function updateCard(printer) {
   );
   updateText(`[data-live-eta="${printer.printer_id}"]`, printer.eta_text);
 
-  const errorNode = query(`[data-live-error="${printer.printer_id}"]`);
-  if (errorNode) {
+  queryAll(`[data-live-error="${printer.printer_id}"]`).forEach((errorNode) => {
     if (printer.error_message) {
       errorNode.hidden = false;
       errorNode.textContent = printer.error_message;
@@ -543,7 +736,7 @@ function updateCard(printer) {
       errorNode.hidden = true;
       errorNode.textContent = "";
     }
-  }
+  });
 
   return monitorStateChanged;
 }
@@ -589,7 +782,7 @@ async function refreshLiveCards() {
   try {
     const payload = await fetchJson("/api/printers/cards");
     const printers = payload.printers || [];
-    const currentIds = new Set(queryAll("[data-live-printer-card]").map((card) => card.dataset.livePrinterCard));
+    const currentIds = new Set(queryAll("[data-live-primary-card]").map((card) => card.dataset.livePrimaryCard));
     const payloadIds = new Set(printers.map((printer) => printer.printer_id));
 
     if (currentIds.size !== payloadIds.size || Array.from(payloadIds).some((id) => !currentIds.has(id))) {
@@ -646,17 +839,64 @@ function bindViewSelectors() {
 
       persistViewSelection(printerId, option.value);
       renderPreview(printerId, getViewFromOption(option));
+      refreshSecondaryOptions(printerId);
+      applySecondarySelection(printerId);
+    });
+  });
+}
+
+function bindSecondaryControls() {
+  queryAll("[data-live-secondary-toggle]").forEach((toggle) => {
+    if (!(toggle instanceof HTMLInputElement)) {
+      return;
+    }
+    toggle.addEventListener("change", () => {
+      const printerId = toggle.dataset.liveSecondaryToggle;
+      if (!printerId) {
+        return;
+      }
+      const select = getSecondarySelect(printerId);
+      const requestedCameraId = select instanceof HTMLSelectElement ? select.value : null;
+      const view = chooseSecondaryView(printerId, requestedCameraId);
+      setSecondaryCardState(printerId, toggle.checked, view);
+      persistSecondarySelection(printerId, {
+        enabled: toggle.checked && Boolean(view),
+        cameraId: view ? view.camera_id : null,
+      });
+      updateVisibleCards();
+    });
+  });
+
+  queryAll("[data-live-secondary-select]").forEach((select) => {
+    if (!(select instanceof HTMLSelectElement)) {
+      return;
+    }
+    select.addEventListener("change", () => {
+      const printerId = select.dataset.liveSecondarySelect;
+      if (!printerId) {
+        return;
+      }
+      const view = chooseSecondaryView(printerId, select.value);
+      setSecondaryCardState(printerId, true, view);
+      persistSecondarySelection(printerId, {
+        enabled: Boolean(view),
+        cameraId: view ? view.camera_id : null,
+      });
+      updateVisibleCards();
     });
   });
 }
 
 bindVisibilityControls();
 bindViewSelectors();
+bindSecondaryControls();
 bindLayoutControls();
 applySavedVisibility();
 syncLayoutControls(readLayoutSettings());
 applyLayoutSettings(readLayoutSettings());
 restoreStoredViews();
+restoreSecondarySelections();
+updateVisibleCards();
 sortLiveCards();
 updateFreshnessLabels();
 refreshLiveCards().catch((error) => console.error(error));

@@ -603,16 +603,16 @@ Deliverables:
 - Deleting printers or cameras changes config only and does not delete recordings
 - Existing probe/preview behavior remains available for nested cameras
 
-### Phase 10.4 - Optional Secondary Camera Cards on `/live` [ ]
+### Phase 10.4 - Optional Secondary Camera Cards on `/live` [x]
 
 Purpose:
 - Allow printers with two or more cameras to optionally show an additional camera view as a separate adjacent card on the `/live` camera wall.
 - Support front, nozzle, side, and similar multi-camera monitoring workflows while preserving the default one-card-per-printer layout.
 
-Planned behavior:
+Implemented behavior:
 - `/live` remains viewing-only.
 - Each printer still has one primary live card by default.
-- If a printer has two or more cameras/views, the primary `/live` card exposes a compact control to show a secondary camera.
+- If a printer has two or more cameras/views, the primary `/live` card exposes compact secondary-camera controls.
 - The secondary camera appears as its own extra card in the `/live` grid.
 - Secondary cards are clearly labeled with printer name plus camera/view name.
 - Secondary cards are viewing-only.
@@ -621,14 +621,15 @@ Planned behavior:
 - Secondary cards do not affect recording target behavior.
 - User preference persists in browser `localStorage`.
 - The implementation reuses the printer-first multi-camera model introduced in Phase 10.2 and Phase 10.3.
+- Secondary card preferences are stored under `printernvr-live-secondary-views`.
 
-Future implementation notes:
-- Store secondary view preferences browser-side.
-- Only show the secondary-camera option when a printer has two or more cameras/views.
-- Allow selecting which secondary camera to display when more than two cameras exist.
-- Keep preview iframes stable during polling.
-- Do not rebuild or reload preview iframes during normal `/live` status refresh.
-- Keep `/printers` one-selected-view-per-printer because recording controls target that selected view.
+Implementation notes:
+- Secondary controls only appear when a printer has two or more cameras/views.
+- When more than two cameras exist, the user can choose which non-primary camera appears as the secondary card.
+- Primary and secondary views are kept distinct; if the primary changes to match the secondary, `/live` chooses another available secondary view or hides the secondary card.
+- Secondary cards use CSS `order` to appear directly after their primary card.
+- Normal `/live` polling updates status text in place and does not rebuild or reload preview iframes.
+- `/printers` remains one-selected-view-per-printer because recording controls target that selected view.
 
 ### Phase 11 - Installer and Optional go2rtc Bundle [ ]
 
@@ -756,6 +757,7 @@ Completed:
 - Phase 10.1 configurable camera wall grid density
 - Phase 10.2 printer-first config and live wall refresh stability
 - Phase 10.3 nested printers and cameras management UI
+- Phase 10.4 optional secondary camera cards on `/live`
 - Phase 6 retention and storage protection
 
 In progress:
@@ -788,6 +790,7 @@ Implemented highlights:
 - `/live` camera wall with compact dark cards, visibility toggles, optional view selectors, and status/details beneath each preview
 - `/live` density controls for cards per row and rows per screen, with browser-persisted settings and printing-printer priority sorting
 - `/live` polling updates status text in place, uses CSS ordering only, and avoids reloading camera iframes during normal refreshes
+- `/live` optional secondary camera cards for multi-camera printers, with browser-persisted secondary view settings
 - Per-printer camera/view selector on `/printers` with browser-side selection persistence and backend default fallback
 - Enlarged preview modal, printer-state badges, degraded-state placeholders, freshness text, and lightweight manual refresh controls on `/printers`
 - Printer-card Start, Stop, quick duration, and custom duration controls that target the currently selected camera/view and reuse the existing camera recording APIs
@@ -809,7 +812,6 @@ Implemented highlights:
 Next phase:
 - Phase 5 operational hardening
 - Phase 9.1 clip review quality-of-life
-- Phase 10.4 optional secondary camera cards on `/live`
 - Phase 11 installer and optional go2rtc bundle
 - Phase 10 follow-ups such as fullscreen wall mode, drag/drop ordering, and additional compact mobile refinements
 

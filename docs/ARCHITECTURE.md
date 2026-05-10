@@ -170,9 +170,10 @@ Retention config:
 - placeholder status details
 
 Current phase limits:
-- one active preview shown per printer card at a time
+- `/printers` shows one active preview per printer card at a time
 - selector state is browser-local and not stored in config
-- multi-preview layouts and explicit per-view config preferences are intentionally deferred to a follow-up phase
+- `/live` supports one optional secondary viewing-only card per multi-camera printer, but richer multi-preview layouts remain deferred
+- explicit per-view config preferences are intentionally deferred to a follow-up phase
 - polling-based status refresh remains intentionally simple; no websocket or push-based monitoring path was added
 - printer-card recording controls are a frontend entry point into the existing camera recording APIs, not a new recording backend
 - latest clip shortcuts are read-only convenience actions over the existing clip filesystem APIs
@@ -195,13 +196,14 @@ Current phase limits:
 14. Printing-priority sorting uses CSS `order`, so iframe streams stay mounted unless the user changes view or the underlying preview URL/config changes.
 15. `/live` uses a slower polling interval than `/printers` because it is optimized for visual monitoring rather than detailed control feedback.
 
-Planned Phase 10.4 extension:
-- `/live` may optionally show a secondary camera view for printers with two or more cameras.
-- Secondary views should render as separate viewing-only cards in the wall grid.
-- Secondary-card preferences should be browser-local and stored in `localStorage`.
-- Secondary cards must not add recording controls or change recording target behavior.
+Phase 10.4 secondary live-view behavior:
+- `/live` can optionally show a secondary camera view for printers with two or more cameras.
+- Secondary views render as separate viewing-only cards in the wall grid.
+- Secondary-card preferences are browser-local and stored in `localStorage` under `printernvr-live-secondary-views`.
+- Secondary cards do not add recording controls or change recording target behavior.
 - `/printers` should continue to show one selected camera/view per printer because its recording controls target that selected view.
-- Secondary card polling must preserve iframe stability: update text/status in place and avoid rebuilding or reloading preview iframes during normal refresh.
+- Primary and secondary `/live` views are kept distinct; when a primary view changes to match the secondary, the frontend chooses another secondary view or hides the secondary card.
+- Secondary card polling preserves iframe stability: update text/status in place and avoid rebuilding or reloading preview iframes during normal refresh.
 
 Page roles:
 - `/live`: compact dark camera wall for watching all printers

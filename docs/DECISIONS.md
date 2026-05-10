@@ -453,7 +453,7 @@ Impact:
 ## 2026-05-09 - Keep Secondary Live Views Viewing-Only
 
 Decision:
-- Plan optional secondary camera cards for `/live` only.
+- Add optional secondary camera cards for `/live` only.
 - Keep `/printers` to one selected camera/view per printer because recording controls target that selected view.
 - Store secondary-card visibility/selection as browser-local wall preferences.
 
@@ -463,9 +463,9 @@ Why:
 - Browser-local preferences match existing camera-wall visibility, view, and density behavior.
 
 Impact:
-- Future secondary live cards must not include recording controls.
-- Future secondary live cards must not affect `/printers` selected-view persistence.
-- Future secondary live cards must preserve iframe stability during `/live` polling.
+- Secondary live cards do not include recording controls.
+- Secondary live cards do not affect `/printers` selected-view persistence.
+- Secondary live cards preserve iframe stability during `/live` polling by staying mounted and using CSS ordering.
 
 ## 2026-05-09 - Plan Installer Without Requiring Bundled go2rtc
 
