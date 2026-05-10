@@ -467,6 +467,24 @@ Impact:
 - Secondary live cards do not affect `/printers` selected-view persistence.
 - Secondary live cards preserve iframe stability during `/live` polling by staying mounted and using CSS ordering.
 
+## 2026-05-10 - Recover Live Wall Streams Only on Resume or Manual Refresh
+
+Decision:
+- Add `/live` stream recovery through a `visibilitychange` handler and a manual `Refresh Streams` button.
+- Refresh only visible mounted iframe previews after the tab has been hidden longer than the threshold.
+- Keep normal `/live` polling from reloading iframe `src` values.
+
+Why:
+- Browser tab throttling can leave iframe-based camera previews frozen, black, or stale after returning to the tab.
+- A targeted iframe refresh recovers streams without forcing a full page reload or disturbing hidden cards.
+- Normal polling must remain status-only to avoid reintroducing camera-wall black flashes.
+
+Impact:
+- `/live` can recover visible primary and secondary stream iframes after tab resume.
+- Hidden printer cards and disabled secondary cards are not refreshed.
+- Stream refreshes are throttled to avoid repeated reload loops.
+- `/printers` recording behavior and selected-view targeting remain unchanged.
+
 ## 2026-05-09 - Plan Installer Without Requiring Bundled go2rtc
 
 Decision:

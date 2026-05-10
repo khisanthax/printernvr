@@ -1377,6 +1377,13 @@ body {
   background: #313131;
 }
 
+.live-wall-stream-status {
+  align-self: center;
+  color: #9ed8ff;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
 .live-wall-toggle-list {
   display: flex;
   flex-wrap: wrap;

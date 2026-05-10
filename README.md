@@ -27,6 +27,7 @@ This repository currently includes:
 - Phase 10.2 printer-first config and live wall refresh stability
 - Phase 10.3 nested printers and cameras management UI
 - Phase 10.4 optional secondary camera cards on `/live`
+- Phase 10.5 live view tab resume stream recovery
 - Planned: Phase 11 installer and optional go2rtc bundle
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
@@ -489,6 +490,8 @@ Current behavior:
 - secondary view choices are persisted under `printernvr-live-secondary-views`
 - normal status polling updates text in place and does not reload camera iframes
 - printing-priority sorting uses CSS ordering without moving mounted preview elements
+- if the browser tab resumes after being hidden, `/live` refreshes visible iframe streams after a threshold
+- the `Refresh Streams` button manually refreshes visible streams without a full page reload
 
 By design, `/live` does not include recording controls, duration buttons, latest clip panels, or clip review actions. Those stay on `/printers` and `/clips`.
 

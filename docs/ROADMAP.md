@@ -631,6 +631,28 @@ Implementation notes:
 - Normal `/live` polling updates status text in place and does not rebuild or reload preview iframes.
 - `/printers` remains one-selected-view-per-printer because recording controls target that selected view.
 
+### Phase 10.5 - Live View Tab Resume Recovery [x]
+
+Goals:
+- Recover stale or black embedded camera previews when the `/live` browser tab returns from the background.
+- Preserve the Phase 10.2 iframe-stability rule during normal polling.
+- Provide a manual stream refresh action without reloading the whole page.
+
+Tasks:
+- Add a `visibilitychange` handler on `/live`.
+- Track how long the tab was hidden and refresh streams only after a resume threshold.
+- Add a compact `Refresh Streams` button to the camera wall controls.
+- Refresh only visible mounted preview iframes.
+- Throttle stream refreshes to avoid repeated reload loops.
+- Keep hidden printer cards and disabled secondary cards untouched.
+
+Deliverables:
+- `/live` refreshes visible preview iframes after returning to the tab when it was hidden for more than 10 seconds.
+- `/live` has a manual `Refresh Streams` recovery button.
+- Normal `/live` polling remains text/status/freshness-only and does not reload preview iframes.
+- Secondary camera cards are included only when visible.
+- Selected views, visibility settings, secondary view settings, and grid density settings are preserved.
+
 ### Phase 11 - Installer and Optional go2rtc Bundle [ ]
 
 Purpose:
@@ -758,6 +780,7 @@ Completed:
 - Phase 10.2 printer-first config and live wall refresh stability
 - Phase 10.3 nested printers and cameras management UI
 - Phase 10.4 optional secondary camera cards on `/live`
+- Phase 10.5 live view tab resume stream recovery
 - Phase 6 retention and storage protection
 
 In progress:
@@ -791,6 +814,7 @@ Implemented highlights:
 - `/live` density controls for cards per row and rows per screen, with browser-persisted settings and printing-printer priority sorting
 - `/live` polling updates status text in place, uses CSS ordering only, and avoids reloading camera iframes during normal refreshes
 - `/live` optional secondary camera cards for multi-camera printers, with browser-persisted secondary view settings
+- `/live` tab-resume recovery and manual Refresh Streams action reload visible iframe previews only outside normal polling
 - Per-printer camera/view selector on `/printers` with browser-side selection persistence and backend default fallback
 - Enlarged preview modal, printer-state badges, degraded-state placeholders, freshness text, and lightweight manual refresh controls on `/printers`
 - Printer-card Start, Stop, quick duration, and custom duration controls that target the currently selected camera/view and reuse the existing camera recording APIs

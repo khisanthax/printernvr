@@ -7,8 +7,13 @@ const LIVE_LAYOUT_KEY = "printernvr-live-layout";
 const LIVE_LAYOUT_AUTO = "auto";
 const LIVE_MIN_CARD_HEIGHT = 300;
 const LIVE_MAX_CARD_HEIGHT = 820;
+const LIVE_RESUME_REFRESH_THRESHOLD_MS = 10000;
+const LIVE_STREAM_REFRESH_COOLDOWN_MS = 5000;
 
 let liveRefreshInFlight = false;
+let liveHiddenAt = document.hidden ? Date.now() : null;
+let liveLastStreamRefreshAt = 0;
+let liveStreamStatusTimer = null;
 
 function query(selector) {
   return document.querySelector(selector);
@@ -301,6 +306,26 @@ function clearViewSelection(printerId) {
   writeStorageObject(LIVE_VIEW_SELECTION_KEY, selections);
 }
 
+function setStreamRefreshStatus(message) {
+  const node = query("#live-stream-refresh-status");
+  if (!node) {
+    return;
+  }
+
+  node.textContent = message || "";
+  node.hidden = !message;
+
+  if (liveStreamStatusTimer) {
+    window.clearTimeout(liveStreamStatusTimer);
+  }
+  if (message) {
+    liveStreamStatusTimer = window.setTimeout(() => {
+      node.textContent = "";
+      node.hidden = true;
+    }, 3500);
+  }
+}
+
 function getCard(printerId) {
   return query(`[data-live-primary-card="${printerId}"]`);
 }
@@ -535,6 +560,7 @@ function createPreviewNode(printerName, view) {
     const frame = document.createElement("iframe");
     frame.title = `${printerName} live view`;
     frame.src = view.preview_url;
+    frame.dataset.previewUrl = view.preview_url;
     frame.loading = "lazy";
     frame.allowFullscreen = true;
     return frame;
@@ -773,6 +799,79 @@ function viewConfigChanged(printer) {
   return incomingIds.some((cameraId, index) => existingIds[index] !== cameraId);
 }
 
+function visibleLivePreviewIframes() {
+  return queryAll("[data-live-printer-card] .live-wall-preview iframe").filter((frame) => {
+    const card = frame.closest("[data-live-printer-card]");
+    return card && !card.hidden;
+  });
+}
+
+function refreshLivePreviewIframes(reason) {
+  const now = Date.now();
+  if (now - liveLastStreamRefreshAt < LIVE_STREAM_REFRESH_COOLDOWN_MS) {
+    setStreamRefreshStatus("Streams refreshed recently");
+    return;
+  }
+
+  const frames = visibleLivePreviewIframes();
+  if (!frames.length) {
+    setStreamRefreshStatus("No visible embedded streams to refresh");
+    return;
+  }
+
+  liveLastStreamRefreshAt = now;
+  frames.forEach((frame) => {
+    const container = frame.closest(".live-wall-preview");
+    const previewUrl =
+      (container && container.dataset.previewUrl)
+      || frame.dataset.previewUrl
+      || frame.getAttribute("src");
+
+    if (!previewUrl || frame.dataset.liveRefreshPending === "true") {
+      return;
+    }
+
+    frame.dataset.previewUrl = previewUrl;
+    frame.dataset.liveRefreshPending = "true";
+    frame.removeAttribute("src");
+    window.setTimeout(() => {
+      if (!frame.isConnected) {
+        return;
+      }
+      frame.src = previewUrl;
+      delete frame.dataset.liveRefreshPending;
+    }, 80);
+  });
+
+  setStreamRefreshStatus(
+    reason === "resume" ? "Streams refreshed after tab resume" : "Streams refreshed",
+  );
+}
+
+function bindStreamRefreshControls() {
+  const refreshButton = query("#live-refresh-streams");
+  if (refreshButton) {
+    refreshButton.addEventListener("click", () => refreshLivePreviewIframes("manual"));
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      liveHiddenAt = Date.now();
+      return;
+    }
+
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+
+    const hiddenDuration = liveHiddenAt ? Date.now() - liveHiddenAt : 0;
+    liveHiddenAt = null;
+    if (hiddenDuration >= LIVE_RESUME_REFRESH_THRESHOLD_MS) {
+      refreshLivePreviewIframes("resume");
+    }
+  });
+}
+
 async function refreshLiveCards() {
   if (liveRefreshInFlight) {
     return;
@@ -795,6 +894,8 @@ async function refreshLiveCards() {
       return;
     }
 
+    // Normal polling is status-only. Preview iframes are refreshed only by
+    // explicit stream recovery actions such as tab resume or the manual button.
     const shouldSort = printers.map(updateCard).some(Boolean);
     if (shouldSort) {
       sortLiveCards();
@@ -891,6 +992,7 @@ bindVisibilityControls();
 bindViewSelectors();
 bindSecondaryControls();
 bindLayoutControls();
+bindStreamRefreshControls();
 applySavedVisibility();
 syncLayoutControls(readLayoutSettings());
 applyLayoutSettings(readLayoutSettings());

@@ -23,6 +23,8 @@
       <div class="live-wall-visibility__actions">
         <button type="button" id="live-select-all" class="live-wall-button">Select All</button>
         <button type="button" id="live-clear-all" class="live-wall-button">Clear All</button>
+        <button type="button" id="live-refresh-streams" class="live-wall-button">Refresh Streams</button>
+        <span id="live-stream-refresh-status" class="live-wall-stream-status" hidden></span>
       </div>
       <div class="live-wall-toggle-list">
         {% for printer in printers %}
@@ -138,6 +140,7 @@
           <iframe
             title="{{ printer.printer_name }} live view"
             src="{{ printer.preview_url }}"
+            data-preview-url="{{ printer.preview_url }}"
             loading="lazy"
             allowfullscreen>
           </iframe>

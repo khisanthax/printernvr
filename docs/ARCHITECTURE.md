@@ -195,6 +195,9 @@ Current phase limits:
 13. Routine status refresh does not rebuild cards, replace iframes, reassign iframe `src`, or re-append card DOM nodes.
 14. Printing-priority sorting uses CSS `order`, so iframe streams stay mounted unless the user changes view or the underlying preview URL/config changes.
 15. `/live` uses a slower polling interval than `/printers` because it is optimized for visual monitoring rather than detailed control feedback.
+16. Tab-resume stream recovery listens for `visibilitychange`, tracks hidden duration, and refreshes only visible mounted iframe previews when the tab returns after the recovery threshold.
+17. The manual `Refresh Streams` button uses the same recovery path and does not reload the page, rebuild cards, reset view selection, or reset camera-wall preferences.
+18. Stream recovery is intentionally separate from normal polling; normal polling must continue to update only status text, badges, freshness, and CSS order.
 
 Phase 10.4 secondary live-view behavior:
 - `/live` can optionally show a secondary camera view for printers with two or more cameras.
@@ -204,6 +207,7 @@ Phase 10.4 secondary live-view behavior:
 - `/printers` should continue to show one selected camera/view per printer because its recording controls target that selected view.
 - Primary and secondary `/live` views are kept distinct; when a primary view changes to match the secondary, the frontend chooses another secondary view or hides the secondary card.
 - Secondary card polling preserves iframe stability: update text/status in place and avoid rebuilding or reloading preview iframes during normal refresh.
+- Visible secondary card iframes participate in tab-resume and manual stream refresh; hidden secondary cards are not refreshed.
 
 Page roles:
 - `/live`: compact dark camera wall for watching all printers
