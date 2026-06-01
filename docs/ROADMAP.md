@@ -653,6 +653,27 @@ Deliverables:
 - Secondary camera cards are included only when visible.
 - Selected views, visibility settings, secondary view settings, and grid density settings are preserved.
 
+### Phase 10.6 - Multi-Camera Live View Polish [x]
+
+Purpose:
+- Improve the `/live` multi-camera experience after optional secondary camera cards were added.
+- Make primary and secondary views easier to identify, easier to switch, and easier to keep visually grouped while preserving `/live` as a viewing-only camera wall.
+
+Implemented behavior:
+- Primary and secondary cards use clearer printer plus camera/view labels.
+- Selector options prefer camera/view names and fall back to camera ids when names are unavailable.
+- Secondary camera controls are labeled as `Show second view` and `Second camera`.
+- A compact `Swap` action is available when a secondary view is enabled.
+- Secondary cards stay visually near their primary printer card through CSS `order`.
+- `/live` remains viewing-only.
+- `/printers` recording behavior is unchanged.
+- Iframe-stable polling remains required.
+
+Implementation notes:
+- Swap exchanges the current primary and secondary camera selections for that printer and updates browser-local selections.
+- Primary and secondary views remain distinct; if a view choice would duplicate the other, `/live` chooses another available secondary view or hides the secondary card.
+- Normal `/live` polling still updates status text in place and does not rebuild or reload preview iframes.
+
 ### Phase 11 - Installer and Optional go2rtc Bundle [ ]
 
 Purpose:
@@ -781,6 +802,7 @@ Completed:
 - Phase 10.3 nested printers and cameras management UI
 - Phase 10.4 optional secondary camera cards on `/live`
 - Phase 10.5 live view tab resume stream recovery
+- Phase 10.6 multi-camera live view polish
 - Phase 6 retention and storage protection
 
 In progress:
@@ -815,6 +837,7 @@ Implemented highlights:
 - `/live` polling updates status text in place, uses CSS ordering only, and avoids reloading camera iframes during normal refreshes
 - `/live` optional secondary camera cards for multi-camera printers, with browser-persisted secondary view settings
 - `/live` tab-resume recovery and manual Refresh Streams action reload visible iframe previews only outside normal polling
+- `/live` multi-camera polish with clearer primary/secondary labels, secondary controls, and Swap action
 - Per-printer camera/view selector on `/printers` with browser-side selection persistence and backend default fallback
 - Enlarged preview modal, printer-state badges, degraded-state placeholders, freshness text, and lightweight manual refresh controls on `/printers`
 - Printer-card Start, Stop, quick duration, and custom duration controls that target the currently selected camera/view and reuse the existing camera recording APIs

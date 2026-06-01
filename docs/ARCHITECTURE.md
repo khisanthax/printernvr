@@ -172,7 +172,7 @@ Retention config:
 Current phase limits:
 - `/printers` shows one active preview per printer card at a time
 - selector state is browser-local and not stored in config
-- `/live` supports one optional secondary viewing-only card per multi-camera printer, but richer multi-preview layouts remain deferred
+- `/live` supports one optional secondary viewing-only card per multi-camera printer, with primary/secondary labels and a browser-local Swap action
 - explicit per-view config preferences are intentionally deferred to a follow-up phase
 - polling-based status refresh remains intentionally simple; no websocket or push-based monitoring path was added
 - printer-card recording controls are a frontend entry point into the existing camera recording APIs, not a new recording backend
@@ -208,6 +208,15 @@ Phase 10.4 secondary live-view behavior:
 - Primary and secondary `/live` views are kept distinct; when a primary view changes to match the secondary, the frontend chooses another secondary view or hides the secondary card.
 - Secondary card polling preserves iframe stability: update text/status in place and avoid rebuilding or reloading preview iframes during normal refresh.
 - Visible secondary card iframes participate in tab-resume and manual stream refresh; hidden secondary cards are not refreshed.
+
+Phase 10.6 multi-camera live-view polish:
+- Primary and secondary card titles include both printer name and selected camera/view name.
+- Camera selectors prefer human-friendly camera/view names and fall back to camera ids when names are unavailable.
+- Secondary controls are labeled as `Show second view` and `Second camera`.
+- A compact Swap action exchanges the active primary and secondary views for that printer.
+- Swap updates browser-local view selections and mounted preview content only for the affected printer cards.
+- Secondary cards continue to use CSS `order` to stay visually grouped with their primary cards.
+- This polish applies only to `/live`; `/printers` recording target behavior remains unchanged.
 
 Page roles:
 - `/live`: compact dark camera wall for watching all printers

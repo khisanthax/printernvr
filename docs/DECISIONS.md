@@ -485,6 +485,23 @@ Impact:
 - Stream refreshes are throttled to avoid repeated reload loops.
 - `/printers` recording behavior and selected-view targeting remain unchanged.
 
+## 2026-06-01 - Keep Multi-Camera Live Wall Polish Viewing-Only
+
+Decision:
+- Improve `/live` primary and secondary card labels with printer plus camera/view names.
+- Make secondary controls clearer with explicit `Show second view`, `Second camera`, and `Swap` affordances.
+- Keep all multi-camera polish browser-local and limited to the `/live` camera wall.
+
+Why:
+- Multi-camera printers need clearer front/nozzle/side identification on the camera wall.
+- `/live` is a monitoring surface, while `/printers` is the recording control surface.
+- Keeping the feature browser-local avoids adding user preferences or changing the camera-id recording model.
+
+Impact:
+- Secondary live cards stay viewing-only and visually grouped with their primary card through CSS ordering.
+- Swap changes the displayed primary/secondary views on `/live` without changing recording routes, clip storage, or backend config.
+- Normal polling remains iframe-stable and does not reload camera previews.
+
 ## 2026-05-09 - Plan Installer Without Requiring Bundled go2rtc
 
 Decision:

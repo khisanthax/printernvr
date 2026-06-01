@@ -28,6 +28,7 @@ This repository currently includes:
 - Phase 10.3 nested printers and cameras management UI
 - Phase 10.4 optional secondary camera cards on `/live`
 - Phase 10.5 live view tab resume stream recovery
+- Phase 10.6 multi-camera live view polish
 - Planned: Phase 11 installer and optional go2rtc bundle
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
@@ -488,6 +489,8 @@ Current behavior:
 - per-printer view selector appears when multiple camera views exist
 - selected view persistence is shared with `/printers`
 - secondary view choices are persisted under `printernvr-live-secondary-views`
+- primary and secondary cards show printer plus camera/view labels
+- secondary controls use `Show second view`, `Second camera`, and `Swap` when available
 - normal status polling updates text in place and does not reload camera iframes
 - printing-priority sorting uses CSS ordering without moving mounted preview elements
 - if the browser tab resumes after being hidden, `/live` refreshes visible iframe streams after a threshold
@@ -498,7 +501,8 @@ By design, `/live` does not include recording controls, duration buttons, latest
 Secondary live card notes:
 - secondary cards are viewing-only
 - secondary cards are available only for printers with two or more configured cameras/views
-- secondary cards do not affect `/printers` selected-view persistence or recording target behavior
+- secondary-card preferences do not affect `/printers` recording target behavior
+- the Swap action changes the browser-selected primary/secondary pairing for that printer and keeps recording behavior on `/printers` unchanged
 
 ## API Endpoints
 

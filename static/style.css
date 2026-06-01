@@ -1524,8 +1524,35 @@ body {
   text-overflow: ellipsis;
 }
 
+.live-wall-card__view-line {
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.live-wall-role-badge {
+  flex: 0 0 auto;
+  border: 1px solid #4a4a4a;
+  border-radius: 999px;
+  padding: 0.08rem 0.38rem;
+  color: #d6d6d6;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.live-wall-role-badge--primary {
+  border-color: rgba(41, 155, 240, 0.65);
+  color: #9ed8ff;
+}
+
+.live-wall-role-badge--secondary {
+  border-color: rgba(180, 180, 180, 0.55);
+}
+
 .live-wall-card__controls {
-  flex: 0 0 min(17rem, 44%);
+  flex: 0 0 min(22rem, 48%);
   display: grid;
   gap: 0.35rem;
 }
@@ -1535,7 +1562,8 @@ body {
 }
 
 .live-wall-view-select span,
-.live-wall-secondary-control__toggle span {
+.live-wall-secondary-control__toggle span,
+.live-wall-secondary-select-label span {
   display: block;
   margin-bottom: 0.18rem;
   color: #bdbdbd;
@@ -1559,7 +1587,7 @@ body {
 
 .live-wall-secondary-control {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.4rem;
   align-items: end;
 }
@@ -1575,6 +1603,15 @@ body {
 
 .live-wall-secondary-control__toggle span {
   margin: 0;
+}
+
+.live-wall-secondary-select-label {
+  min-width: 0;
+}
+
+.live-wall-secondary-swap {
+  align-self: end;
+  min-height: 2.1rem;
 }
 
 .live-wall-secondary-badge {

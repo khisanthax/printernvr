@@ -82,25 +82,30 @@
           <div class="live-wall-card__identity">
             <span class="live-wall-card__icon" aria-hidden="true"></span>
             <div>
-              <h2>{{ printer.printer_name }}</h2>
-              <p data-live-current-view-label="{{ printer.printer_id }}">{{ printer.camera_name or "No default camera" }}</p>
+              <h2 data-live-card-title="{{ printer.printer_id }}">
+                {{ printer.printer_name }}{% if printer.camera_name %} &middot; {{ printer.camera_name }}{% endif %}
+              </h2>
+              <p class="live-wall-card__view-line">
+                <span class="live-wall-role-badge live-wall-role-badge--primary">Primary</span>
+                <span data-live-current-view-label="{{ printer.printer_id }}">{{ printer.camera_name or "No default camera" }}</span>
+              </p>
             </div>
           </div>
           {% if printer.available_views|length > 1 %}
           <div class="live-wall-card__controls">
             <label class="live-wall-view-select" aria-label="Camera view for {{ printer.printer_name }}">
-              <span>Primary</span>
+              <span>Primary camera</span>
               <select data-live-view-select="{{ printer.printer_id }}">
                 {% for view in printer.available_views %}
                 <option
                   value="{{ view.camera_id }}"
-                  data-camera-name="{{ view.camera_name }}"
+                  data-camera-name="{{ view.camera_name or view.camera_id }}"
                   data-preview-url="{{ view.preview_url or '' }}"
                   data-preview-mode="{{ view.preview_mode }}"
                   data-preview-available="{{ 'true' if view.preview_available else 'false' }}"
                   data-enabled="{{ 'true' if view.enabled else 'false' }}"
                   {% if view.camera_id == printer.default_camera_id %}selected{% endif %}>
-                  {{ view.camera_name }}
+                  {{ view.camera_name or view.camera_id }}
                 </option>
                 {% endfor %}
               </select>
@@ -108,21 +113,31 @@
             <div class="live-wall-secondary-control" aria-label="Secondary camera view for {{ printer.printer_name }}">
               <label class="live-wall-secondary-control__toggle">
                 <input type="checkbox" data-live-secondary-toggle="{{ printer.printer_id }}">
-                <span>Second view</span>
+                <span>Show second view</span>
               </label>
-              <select data-live-secondary-select="{{ printer.printer_id }}">
-                {% for view in printer.available_views %}
-                <option
-                  value="{{ view.camera_id }}"
-                  data-camera-name="{{ view.camera_name }}"
-                  data-preview-url="{{ view.preview_url or '' }}"
-                  data-preview-mode="{{ view.preview_mode }}"
-                  data-preview-available="{{ 'true' if view.preview_available else 'false' }}"
-                  data-enabled="{{ 'true' if view.enabled else 'false' }}">
-                  {{ view.camera_name }}
-                </option>
-                {% endfor %}
-              </select>
+              <label class="live-wall-secondary-select-label">
+                <span>Second camera</span>
+                <select data-live-secondary-select="{{ printer.printer_id }}">
+                  {% for view in printer.available_views %}
+                  <option
+                    value="{{ view.camera_id }}"
+                    data-camera-name="{{ view.camera_name or view.camera_id }}"
+                    data-preview-url="{{ view.preview_url or '' }}"
+                    data-preview-mode="{{ view.preview_mode }}"
+                    data-preview-available="{{ 'true' if view.preview_available else 'false' }}"
+                    data-enabled="{{ 'true' if view.enabled else 'false' }}">
+                    {{ view.camera_name or view.camera_id }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </label>
+              <button
+                type="button"
+                class="live-wall-button live-wall-secondary-swap"
+                data-live-secondary-swap="{{ printer.printer_id }}"
+                hidden>
+                Swap
+              </button>
             </div>
           </div>
           {% endif %}
@@ -132,6 +147,7 @@
           class="live-wall-preview"
           data-live-preview="{{ printer.printer_id }}"
           data-current-camera-id="{{ printer.default_camera_id or '' }}"
+          data-current-camera-name="{{ printer.camera_name or printer.default_camera_id or '' }}"
           data-preview-url="{{ printer.preview_url or '' }}"
           data-preview-mode="{{ printer.preview_mode }}"
           data-preview-available="{{ 'true' if printer.preview_available else 'false' }}"
@@ -218,17 +234,20 @@
           <div class="live-wall-card__identity">
             <span class="live-wall-card__icon live-wall-card__icon--secondary" aria-hidden="true"></span>
             <div>
-              <h2>{{ printer.printer_name }}</h2>
-              <p data-live-secondary-view-label="{{ printer.printer_id }}">Secondary view</p>
+              <h2 data-live-secondary-title="{{ printer.printer_id }}">{{ printer.printer_name }} &middot; Secondary view</h2>
+              <p class="live-wall-card__view-line">
+                <span class="live-wall-role-badge live-wall-role-badge--secondary">Secondary</span>
+                <span data-live-secondary-view-label="{{ printer.printer_id }}">Secondary view</span>
+              </p>
             </div>
           </div>
-          <span class="live-wall-secondary-badge">Secondary</span>
         </header>
 
         <div
           class="live-wall-preview"
           data-live-secondary-preview="{{ printer.printer_id }}"
           data-current-camera-id=""
+          data-current-camera-name=""
           data-preview-url=""
           data-preview-mode="none"
           data-preview-available="false"
