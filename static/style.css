@@ -510,10 +510,10 @@ body {
 }
 
 .nested-camera-row dd {
-  max-width: 22rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .status-pill {
@@ -553,12 +553,14 @@ body {
   margin: 0;
   display: grid;
   gap: 0.35rem;
+  min-width: 0;
 }
 
 .camera-list__meta div {
   display: flex;
   gap: 0.4rem;
   font-size: 0.84rem;
+  min-width: 0;
 }
 
 .camera-list__meta dt {
@@ -568,6 +570,10 @@ body {
 
 .camera-list__meta dd {
   margin: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .camera-list__actions {
@@ -869,6 +875,34 @@ body {
   gap: 0.8rem;
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.printer-card__footer span,
+.camera-meta dd,
+.recording-info span {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.printer-card__extra {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-alt);
+  padding: 0.65rem;
+}
+
+.printer-card__extra summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.printer-card__extra[open] {
+  display: grid;
+  gap: 0.65rem;
 }
 
 .printer-recording {

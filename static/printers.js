@@ -506,22 +506,27 @@ function getRecordingStatusTone(status) {
     : "idle";
 }
 
-function getRecordingStatusLabel(status) {
+function getRecordingStatusLabel(status, state = null) {
   const tone = getRecordingStatusTone(status);
   if (tone === "idle") {
-    return "Idle";
+    return "Recording: Idle";
   }
-  return tone.charAt(0).toUpperCase() + tone.slice(1);
+  if (tone === "recording" && state && state.requested_duration_seconds) {
+    return "Recording: Timed";
+  }
+  return `Recording: ${tone.charAt(0).toUpperCase() + tone.slice(1)}`;
 }
 
-function setRecordingBadge(printerId, status) {
+function setRecordingBadge(printerId, stateOrStatus) {
   const badge = query(`[data-printer-recording-badge="${printerId}"]`);
   if (!badge) {
     return;
   }
 
+  const state = stateOrStatus && typeof stateOrStatus === "object" ? stateOrStatus : null;
+  const status = state ? state.status : stateOrStatus;
   const tone = getRecordingStatusTone(status);
-  badge.textContent = getRecordingStatusLabel(tone);
+  badge.textContent = getRecordingStatusLabel(status, state);
   badge.classList.remove(
     "recording-state-pill--idle",
     "recording-state-pill--starting",
@@ -719,7 +724,7 @@ function describeRecordingState(printerId, view, state) {
   if (lastClip) {
     return `Last clip: ${lastClip}`;
   }
-  return `Idle. Selected view: ${viewName}`;
+  return `Recording idle. Selected view: ${viewName}`;
 }
 
 function updatePrinterRecordingState(printerId) {
@@ -732,7 +737,7 @@ function updatePrinterRecordingState(printerId) {
   );
   const canRecord = Boolean(cameraId) && view && view.enabled !== false;
 
-  setRecordingBadge(printerId, status);
+  setRecordingBadge(printerId, state || status);
   setRecordingMessage(printerId, describeRecordingState(printerId, view, state));
   const localError = localRecordingErrors.get(printerId);
   setRecordingError(

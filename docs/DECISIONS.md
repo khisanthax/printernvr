@@ -502,6 +502,26 @@ Impact:
 - Swap changes the displayed primary/secondary views on `/live` without changing recording routes, clip storage, or backend config.
 - Normal polling remains iframe-stable and does not reload camera previews.
 
+## 2026-06-01 - Use RTSP Terminology and Hide Deprecated GoPro UI
+
+Decision:
+- Rename user-facing camera configuration labels from `Record URL` to `RTSP URL`.
+- Keep the internal config/API field named `record_url` for compatibility.
+- Hide GoPro from active UI creation while retaining deprecated backend compatibility for existing configs.
+- Prefix recording runtime badges with `Recording:` so they are not confused with printer-state badges.
+
+Why:
+- Users configure go2rtc/RTSP media streams for ffmpeg, not a generic browser preview URL.
+- Renaming the UI label improves clarity without requiring a config migration.
+- GoPro is no longer part of the active project direction, but blind backend removal could still break older configs.
+- `/printers` shows both printer state and recording state, so idle states need explicit context.
+
+Impact:
+- `/cameras` is consistently presented as `Printers & Cameras`.
+- Long preview and RTSP URLs wrap in dense UI cards instead of overflowing.
+- `/printers` keeps critical recording controls visible and collapses optional clip/camera details.
+- Legacy `mode=gopro` code remains deprecated compatibility only.
+
 ## 2026-05-09 - Plan Installer Without Requiring Bundled go2rtc
 
 Decision:

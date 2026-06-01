@@ -149,7 +149,7 @@ function resolveUrls(camera) {
   if (camera.mode === "gopro") {
     return {
       preview_url: camera.preview_mode === "external_link" ? (camera.preview_url || "") : "",
-      record_url: "GoPro API-controlled recording",
+      record_url: "Deprecated GoPro API-controlled recording",
     };
   }
 
@@ -250,7 +250,7 @@ function setModeVisibility() {
   $("#manual-fields").hidden = mode !== "manual_urls";
   $("#gopro-fields").hidden = mode !== "gopro";
   $("#camera-preview-url-wrap").hidden = mode !== "gopro" || cameraFields.previewMode.value !== "external_link";
-  $("#probe-camera-button").textContent = mode === "gopro" ? "Test GoPro" : "Test Stream";
+  $("#probe-camera-button").textContent = mode === "gopro" ? "Test Deprecated GoPro" : "Test Stream";
 }
 
 function updateRecordUrlWarning(recordUrl) {
@@ -280,7 +280,7 @@ function updatePreviewPanel(camera = cameraFromForm()) {
 }
 
 function resetProbeResult() {
-  probe.summary.textContent = "Use Test Stream to verify recording compatibility.";
+  probe.summary.textContent = "Use Test Stream to verify RTSP/recording compatibility.";
   probe.status.textContent = "--";
   probe.reachable.textContent = "--";
   probe.error.hidden = true;
@@ -380,11 +380,11 @@ function renderCameraRow(printer, camera) {
     <article class="nested-camera-row">
       <div>
         <h4>${escapeHtml(camera.name)}${isDefault ? ' <span class="status-pill">Default</span>' : ""}</h4>
-        <p>${escapeHtml(camera.id)} · ${camera.enabled === false ? "disabled" : "enabled"} · ${escapeHtml(camera.mode || "manual_urls")}</p>
+        <p>${escapeHtml(camera.id)} &middot; ${camera.enabled === false ? "disabled" : "enabled"} &middot; ${escapeHtml(camera.mode || "manual_urls")}</p>
       </div>
       <dl class="camera-list__meta">
         <div><dt>Preview</dt><dd title="${escapeHtml(resolved.preview_url)}">${escapeHtml(resolved.preview_url || "--")}</dd></div>
-        <div><dt>Record</dt><dd title="${escapeHtml(resolved.record_url)}">${escapeHtml(resolved.record_url || "--")}</dd></div>
+        <div><dt>RTSP</dt><dd title="${escapeHtml(resolved.record_url)}">${escapeHtml(resolved.record_url || "--")}</dd></div>
         <div><dt>Order</dt><dd>${camera.display_order ?? "--"}</dd></div>
       </dl>
       <div class="camera-list__actions">
@@ -409,7 +409,7 @@ function renderPrinterList() {
       <header class="printer-config-card__header">
         <div>
           <h3>${escapeHtml(printer.name)}</h3>
-          <p>${escapeHtml(printer.id)} · ${printer.enabled === false ? "disabled" : "enabled"}</p>
+          <p>${escapeHtml(printer.id)} &middot; ${printer.enabled === false ? "disabled" : "enabled"}</p>
         </div>
         <div class="camera-list__actions">
           <button type="button" class="control-button control-button--secondary" data-action="edit-printer" data-printer-id="${escapeHtml(printer.id)}">Edit Printer</button>
@@ -619,7 +619,7 @@ async function saveCamera(event) {
     if (allCameraIds(editingCameraId).has(newCamera.id)) throw new Error(`Camera id '${newCamera.id}' already exists.`);
     if (newCamera.mode === "go2rtc_helper" && !newCamera.go2rtc_base_url) throw new Error("go2rtc Base URL is required.");
     if (newCamera.mode === "manual_urls" && !newCamera.preview_url && !newCamera.record_url) {
-      throw new Error("Manual cameras need at least a preview URL or a record URL.");
+      throw new Error("Manual cameras need at least a preview URL or RTSP URL.");
     }
     if (newCamera.mode === "gopro" && !newCamera.gopro_host) throw new Error("GoPro host is required for deprecated GoPro compatibility cameras.");
 
@@ -660,7 +660,7 @@ async function probeCamera(cameraOverride = null, printerOverride = null) {
   updatePreviewPanel(camera);
   updateRecordUrlWarning(resolved.record_url);
   if (camera.mode !== "gopro" && !resolved.record_url) {
-    showError(probe.error, "This camera has no recording URL to probe.");
+    showError(probe.error, "This camera has no RTSP URL to probe.");
     return;
   }
 

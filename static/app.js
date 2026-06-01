@@ -62,7 +62,7 @@ function setBadge(cameraId, status) {
 
   const normalized = (status || "idle").toLowerCase();
   const label = normalized.charAt(0).toUpperCase() + normalized.slice(1);
-  badge.textContent = label;
+  badge.textContent = `Recording: ${label}`;
   badge.classList.remove(
     "status-idle",
     "status-starting",
@@ -81,7 +81,6 @@ function updateControlStates(cameraId, state) {
   }
 
   const enabled = card.dataset.cameraEnabled === "true";
-  const mode = card.dataset.cameraMode;
   const status = (state.status || "idle").toLowerCase();
   const busy = ["starting", "recording", "stopping", "downloading"].includes(status);
   const buttons = bySelectorAll(`[data-camera-card="${cameraId}"] .control-button`);
@@ -96,11 +95,6 @@ function updateControlStates(cameraId, state) {
 
     if (action === "stop") {
       button.disabled = !["starting", "recording"].includes(status);
-      return;
-    }
-
-    if (mode === "gopro") {
-      button.disabled = busy;
       return;
     }
 
@@ -264,13 +258,6 @@ async function stopRecording(cameraId) {
   await refreshAll();
 }
 
-async function downloadLatest(cameraId) {
-  await fetchJson(`/api/gopro/${cameraId}/download_latest`, {
-    method: "POST",
-  });
-  await refreshAll();
-}
-
 async function manualCleanup() {
   try {
     const payload = await fetchJson("/api/storage/cleanup", { method: "POST" });
@@ -320,8 +307,6 @@ function bindCameraControls() {
             throw new Error("Custom duration must be greater than zero");
           }
           await startRecording(cameraId, duration);
-        } else if (action === "download-latest") {
-          await downloadLatest(cameraId);
         }
       } catch (error) {
         console.error(error);

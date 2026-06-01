@@ -100,7 +100,7 @@
               <select id="camera-mode" name="mode">
                 <option value="manual_urls">manual_urls</option>
                 <option value="go2rtc_helper">go2rtc_helper</option>
-                <option value="gopro">gopro (deprecated)</option>
+                <option value="gopro" hidden disabled>gopro (deprecated compatibility)</option>
               </select>
             </label>
             <label>
@@ -140,7 +140,7 @@
               <input id="camera-stream-name" name="stream_name" type="text" placeholder="sv08_front">
             </label>
             <p class="form-helper form-grid__full">
-              Recording URL is generated as <code>rtsp://&lt;host&gt;:8554/&lt;stream_name&gt;</code>.
+              RTSP URL is generated as <code>rtsp://&lt;host&gt;:8554/&lt;stream_name&gt;</code>.
             </p>
           </div>
 
@@ -148,14 +148,14 @@
             <label class="form-grid__full">
               Preview URL
               <input id="camera-preview-url" name="preview_url" type="text" placeholder="http://host:1984/stream.html?src=sv08_front">
-              <span class="form-helper">Browser-compatible preview stream used by /live and /printers.</span>
+              <span class="form-helper">Browser-friendly preview page or stream used by /live and /printers.</span>
             </label>
             <label class="form-grid__full">
-              Record URL
+              RTSP URL
               <input id="camera-record-url" name="record_url" type="text" placeholder="rtsp://host:8554/sv08_front">
-              <span class="form-helper">ffmpeg-compatible recording stream. Usually RTSP for go2rtc.</span>
+              <span class="form-helper">ffmpeg-compatible recording stream, usually <code>rtsp://...</code> for go2rtc. Internal config field remains <code>record_url</code>.</span>
               <span id="record-url-warning" class="form-warning" hidden>
-                This URL appears to be a browser preview stream. Recording usually requires an RTSP stream such as <code>rtsp://host:8554/&lt;stream&gt;</code>.
+                This URL appears to be a browser preview stream. Recording usually requires an RTSP URL such as <code>rtsp://host:8554/&lt;stream&gt;</code>.
               </span>
             </label>
           </div>
@@ -213,12 +213,12 @@
             <dd id="resolved-preview-url">--</dd>
           </div>
           <div>
-            <dt>Resolved record URL</dt>
+            <dt>Resolved RTSP URL</dt>
             <dd id="resolved-record-url">--</dd>
           </div>
         </dl>
         <div id="probe-result" class="probe-result">
-          <p class="probe-result__summary">Use Test Stream to verify recording compatibility.</p>
+          <p class="probe-result__summary">Use Test Stream to verify RTSP/recording compatibility.</p>
           <dl class="camera-meta camera-meta--stacked">
             <div>
               <dt>Status</dt>

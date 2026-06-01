@@ -13,7 +13,7 @@
         <a href="/">Dashboard</a>
         <a href="/live">Live View</a>
         <a href="/printers" aria-current="page">Printers</a>
-        <a href="/cameras">Cameras</a>
+        <a href="/cameras">Printers & Cameras</a>
         <a href="/clips">Clips</a>
       </nav>
       <h1>Live Printers</h1>
@@ -135,7 +135,7 @@
         <div class="printer-card__details">
           <dl class="printer-stats">
             <div>
-              <dt>Status</dt>
+              <dt>Printer State</dt>
               <dd>
                 <span class="printer-status-pill printer-status-pill--{{ printer.monitor_state }}" data-printer-status-badge="{{ printer.printer_id }}">{{ printer.printer_status_text }}</span>
               </dd>
@@ -176,7 +176,7 @@
 
           <section class="printer-recording" data-printer-recording="{{ printer.printer_id }}">
             <div class="printer-recording__head">
-              <span class="recording-state-pill recording-state-pill--idle" data-printer-recording-badge="{{ printer.printer_id }}">Idle</span>
+              <span class="recording-state-pill recording-state-pill--idle" data-printer-recording-badge="{{ printer.printer_id }}">Recording: Idle</span>
               <a class="inline-link" href="/clips?camera_id={{ printer.default_camera_id or '' }}" data-printer-clips-link="{{ printer.printer_id }}">View Clips</a>
             </div>
             <div class="printer-recording__controls">
@@ -215,52 +215,55 @@
             <p class="camera-error" data-printer-recording-error="{{ printer.printer_id }}" hidden></p>
           </section>
 
-          <section class="printer-latest-clip" data-printer-latest-clip="{{ printer.printer_id }}">
-            <div class="printer-latest-clip__head">
-              <div>
-                <h3>Latest Clip</h3>
-                <p data-printer-latest-clip-name="{{ printer.printer_id }}">
+          <details class="printer-card__extra">
+            <summary>Clip and camera details</summary>
+            <section class="printer-latest-clip" data-printer-latest-clip="{{ printer.printer_id }}">
+              <div class="printer-latest-clip__head">
+                <div>
+                  <h3>Latest Clip</h3>
+                  <p data-printer-latest-clip-name="{{ printer.printer_id }}">
+                    {% if printer.latest_clip and printer.latest_clip.has_latest_clip %}
+                    {{ printer.latest_clip.filename }}
+                    {% else %}
+                    No clips yet
+                    {% endif %}
+                  </p>
+                </div>
+                <span data-printer-latest-clip-meta="{{ printer.printer_id }}">
                   {% if printer.latest_clip and printer.latest_clip.has_latest_clip %}
-                  {{ printer.latest_clip.filename }}
+                  {{ printer.latest_clip.size_human or "" }}
                   {% else %}
-                  No clips yet
+                  --
                   {% endif %}
-                </p>
+                </span>
               </div>
-              <span data-printer-latest-clip-meta="{{ printer.printer_id }}">
-                {% if printer.latest_clip and printer.latest_clip.has_latest_clip %}
-                {{ printer.latest_clip.size_human or "" }}
+              <div class="printer-latest-clip__actions">
+                <button type="button" class="control-button control-button--secondary" data-printer-latest-preview="{{ printer.printer_id }}" {% if not printer.latest_clip or not printer.latest_clip.has_latest_clip %}disabled{% endif %}>
+                  Preview
+                </button>
+                <a class="control-button control-button--secondary table-link" href="{{ printer.latest_clip.download_url if printer.latest_clip and printer.latest_clip.download_url else '#' }}" data-printer-latest-download="{{ printer.printer_id }}" {% if not printer.latest_clip or not printer.latest_clip.has_latest_clip %}aria-disabled="true"{% endif %}>
+                  Download
+                </a>
+                <a class="control-button control-button--secondary table-link" href="/clips?camera_id={{ printer.default_camera_id or '' }}" data-printer-latest-all="{{ printer.printer_id }}">
+                  View All
+                </a>
+              </div>
+            </section>
+
+            <div class="printer-card__footer">
+              <span data-printer-updated-text="{{ printer.printer_id }}">
+                {% if printer.last_metadata_success_at %}
+                Updated just now
+                {% elif printer.has_metadata_source %}
+                Waiting for successful refresh
                 {% else %}
-                --
+                No metadata source
                 {% endif %}
               </span>
+              <span>Default view: {{ printer.default_camera_name or printer.default_camera_id or "--" }}</span>
+              <span>{{ printer.available_camera_count }} configured view{% if printer.available_camera_count != 1 %}s{% endif %}</span>
             </div>
-            <div class="printer-latest-clip__actions">
-              <button type="button" class="control-button control-button--secondary" data-printer-latest-preview="{{ printer.printer_id }}" {% if not printer.latest_clip or not printer.latest_clip.has_latest_clip %}disabled{% endif %}>
-                Preview
-              </button>
-              <a class="control-button control-button--secondary table-link" href="{{ printer.latest_clip.download_url if printer.latest_clip and printer.latest_clip.download_url else '#' }}" data-printer-latest-download="{{ printer.printer_id }}" {% if not printer.latest_clip or not printer.latest_clip.has_latest_clip %}aria-disabled="true"{% endif %}>
-                Download
-              </a>
-              <a class="control-button control-button--secondary table-link" href="/clips?camera_id={{ printer.default_camera_id or '' }}" data-printer-latest-all="{{ printer.printer_id }}">
-                View All
-              </a>
-            </div>
-          </section>
-
-          <div class="printer-card__footer">
-            <span data-printer-updated-text="{{ printer.printer_id }}">
-              {% if printer.last_metadata_success_at %}
-              Updated just now
-              {% elif printer.has_metadata_source %}
-              Waiting for successful refresh
-              {% else %}
-              No metadata source
-              {% endif %}
-            </span>
-            <span>Default view: {{ printer.default_camera_name or printer.default_camera_id or "--" }}</span>
-            <span>{{ printer.available_camera_count }} configured view{% if printer.available_camera_count != 1 %}s{% endif %}</span>
-          </div>
+          </details>
           <p class="camera-error" data-printer-error="{{ printer.printer_id }}" {% if not printer.error_message %}hidden{% endif %}>{{ printer.error_message or "" }}</p>
         </div>
       </article>
@@ -269,7 +272,7 @@
     {% else %}
     <section class="empty-state">
       <h2>No printers configured.</h2>
-      <p>Add cameras in <a class="inline-link" href="/cameras">Camera Management</a>. Each camera defaults to its own printer card until you group multiple cameras under the same printer.</p>
+      <p>Add printers and cameras in <a class="inline-link" href="/cameras">Printers & Cameras</a>. Each camera defaults to its own printer card until you group multiple cameras under the same printer.</p>
     </section>
     {% endif %}
   </main>

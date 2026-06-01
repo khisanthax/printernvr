@@ -568,7 +568,7 @@ Goals:
 Tasks:
 - Add printer-first config models for printers and nested camera views
 - Normalize printer-first and legacy camera-first config into the existing resolved camera runtime model
-- Preserve printer-first config shape on camera management writes when the file already uses `printers`
+- Preserve printer-first config shape on Printers & Cameras writes when the file already uses `printers`
 - Update the example camera config to show one printer with multiple cameras
 - Increase `/live` polling interval and update only text/status/freshness fields during normal polling
 - Sort printing cards with CSS `order` only, without moving or re-rendering card DOM nodes
@@ -673,6 +673,26 @@ Implementation notes:
 - Swap exchanges the current primary and secondary camera selections for that printer and updates browser-local selections.
 - Primary and secondary views remain distinct; if a view choice would duplicate the other, `/live` chooses another available secondary view or hides the secondary card.
 - Normal `/live` polling still updates status text in place and does not rebuild or reload preview iframes.
+
+### Phase 10.7 - UI Terminology, Layout, and Deprecated GoPro Cleanup [x]
+
+Purpose:
+- Clean up user-facing terminology and layout details after the printer-first and multi-camera phases.
+- Make the active app direction clearer: printer camera streams, RTSP recording, and filesystem clip review.
+
+Implemented behavior:
+- User-facing camera configuration labels now say `RTSP URL` instead of `Record URL`.
+- Internal config still uses `record_url` so existing configs and recording APIs remain compatible.
+- Long preview/RTSP URLs wrap safely in `/cameras`, the dashboard, and dense card metadata instead of overflowing cards.
+- Main navigation consistently labels `/cameras` as `Printers & Cameras`.
+- Recording state badges explicitly say `Recording: Idle` to avoid confusing recording idle with printer idle.
+- `/printers` uses a collapsible `Clip and camera details` section to reduce dense card height while leaving recording controls visible.
+- GoPro is hidden from active UI choices and remains deprecated compatibility only.
+
+Implementation notes:
+- Deprecated GoPro backend/routes are retained to avoid breaking older configs, but they are not presented as an active capture path.
+- `/printers` still shows printer state separately from recording state.
+- URL terminology is UI-only; backend field names and clip/recording storage are unchanged.
 
 ### Phase 11 - Installer and Optional go2rtc Bundle [ ]
 
@@ -803,6 +823,7 @@ Completed:
 - Phase 10.4 optional secondary camera cards on `/live`
 - Phase 10.5 live view tab resume stream recovery
 - Phase 10.6 multi-camera live view polish
+- Phase 10.7 UI terminology, layout, and deprecated GoPro cleanup
 - Phase 6 retention and storage protection
 
 In progress:
@@ -822,9 +843,9 @@ Implemented highlights:
 - ffmpeg recording manager with start, stop, timed capture, and one-recording-per-camera enforcement
 - RTSP-over-TCP recording and probing defaults for `rtsp://` inputs
 - Video-only MP4 recording profile using `-map 0:v:0 -an -c:v copy`
-- Config-backed camera management UI with live preview/external preview and mode-aware testing
+- Config-backed Printers & Cameras UI with live preview/external preview and mode-aware testing
 - Nested printer-first config management UI with per-printer camera views and default camera selection
-- Expanded ffmpeg and ffprobe diagnostics surfaced in the dashboard and camera management UI
+- Expanded ffmpeg and ffprobe diagnostics surfaced in the dashboard and Printers & Cameras UI
 - Filesystem-based clip browser with camera filter, download, and manual delete
 - Filesystem-based clip review metadata for favorite/rejected state and safe clip rename
 - Inline clip preview endpoint and browser preview player on `/clips`
@@ -838,6 +859,9 @@ Implemented highlights:
 - `/live` optional secondary camera cards for multi-camera printers, with browser-persisted secondary view settings
 - `/live` tab-resume recovery and manual Refresh Streams action reload visible iframe previews only outside normal polling
 - `/live` multi-camera polish with clearer primary/secondary labels, secondary controls, and Swap action
+- `/cameras` uses `RTSP URL` user-facing terminology while preserving internal `record_url` config compatibility
+- `/printers` separates printer state from recording state and keeps optional clip/camera details collapsible
+- Active UI no longer offers GoPro as a normal camera type; legacy GoPro compatibility code remains deprecated
 - Per-printer camera/view selector on `/printers` with browser-side selection persistence and backend default fallback
 - Enlarged preview modal, printer-state badges, degraded-state placeholders, freshness text, and lightweight manual refresh controls on `/printers`
 - Printer-card Start, Stop, quick duration, and custom duration controls that target the currently selected camera/view and reuse the existing camera recording APIs

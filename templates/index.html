@@ -13,7 +13,7 @@
         <a href="/" aria-current="page">Dashboard</a>
         <a href="/live">Live View</a>
         <a href="/printers">Printers</a>
-        <a href="/cameras">Cameras</a>
+        <a href="/cameras">Printers & Cameras</a>
         <a href="/clips">Clips</a>
       </nav>
       <h1>Printer NVR</h1>
@@ -61,21 +61,17 @@
           <p class="camera-description">{{ camera.description }}</p>
           {% endif %}
         </div>
-        <span class="status-badge status-idle" data-camera-status="{{ camera.id }}">Idle</span>
+        <span class="status-badge status-idle" data-camera-status="{{ camera.id }}">Recording: Idle</span>
       </div>
 
       <div class="camera-preview-wrap">
-        {% if camera.mode == "gopro" %}
-          {% if camera.preview_mode == "external_link" and camera.preview_url %}
+        {% if camera.preview_mode == "external_link" and camera.preview_url %}
           <div class="preview-link-state">
-            <p>Open the GoPro preview in a separate tab or app.</p>
+            <p>Open this preview in a separate tab or app.</p>
             <a class="control-button control-button--secondary table-link" href="{{ camera.preview_url }}" target="_blank" rel="noopener noreferrer">
               Open Preview
             </a>
           </div>
-          {% else %}
-          <div class="no-preview">Preview unavailable for this GoPro configuration</div>
-          {% endif %}
         {% elif camera.preview_url %}
         <iframe
           title="{{ camera.name }} preview"
@@ -129,12 +125,6 @@
       </details>
 
       <div class="camera-controls" data-camera-id="{{ camera.id }}" data-camera-mode="{{ camera.mode }}">
-        {% if camera.mode == "gopro" %}
-        <button type="button" class="control-button" data-action="start" {% if not camera.enabled %}disabled{% endif %}>Start Recording</button>
-        <button type="button" class="control-button" data-action="stop" {% if not camera.enabled %}disabled{% endif %}>Stop Recording</button>
-        <button type="button" class="control-button" data-action="timed" data-duration="30" {% if not camera.enabled %}disabled{% endif %}>Record 30s</button>
-        <button type="button" class="control-button control-button--secondary" data-action="download-latest" {% if not camera.enabled %}disabled{% endif %}>Download Latest</button>
-        {% else %}
         <button type="button" class="control-button" data-action="start" {% if not camera.enabled %}disabled{% endif %}>Start</button>
         <button type="button" class="control-button" data-action="stop" {% if not camera.enabled %}disabled{% endif %}>Stop</button>
         <button type="button" class="control-button" data-action="timed" data-duration="30" {% if not camera.enabled %}disabled{% endif %}>30s</button>
@@ -147,7 +137,6 @@
             <button type="button" class="control-button control-button--secondary" data-action="custom" {% if not camera.enabled %}disabled{% endif %}>Custom</button>
           </div>
         </div>
-        {% endif %}
       </div>
     </article>
     {% endfor %}

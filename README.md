@@ -29,6 +29,7 @@ This repository currently includes:
 - Phase 10.4 optional secondary camera cards on `/live`
 - Phase 10.5 live view tab resume stream recovery
 - Phase 10.6 multi-camera live view polish
+- Phase 10.7 UI terminology, layout, and deprecated GoPro cleanup
 - Planned: Phase 11 installer and optional go2rtc bundle
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
@@ -78,7 +79,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8787 --reload
 Open `http://localhost:8787`.
 Compact camera wall viewing is available at `http://localhost:8787/live`.
 Live printer monitoring is available at `http://localhost:8787/printers`.
-Camera management is available at `http://localhost:8787/cameras`.
+Printers & Cameras management is available at `http://localhost:8787/cameras`.
 Clip browsing is available at `http://localhost:8787/clips`.
 
 ## Docker Run Instructions
@@ -109,7 +110,7 @@ The app is available at `http://localhost:8787` by default.
 If `PORT` is set in `.env`, Docker Compose uses that host port.
 Compact camera wall viewing is available at `/live`.
 Live printer monitoring is available at `/printers`.
-Camera management is available at `/cameras`.
+Printers & Cameras management is available at `/cameras`.
 Clip browsing is available at `/clips`.
 
 Planned installer direction:
@@ -232,9 +233,9 @@ Preview resolution order:
 2. go2rtc-generated preview URL
 3. Dashboard shows `no preview configured`
 
-Record resolution order:
+RTSP recording resolution order:
 1. Manual `record_url`
-2. go2rtc-generated record URL
+2. go2rtc-generated RTSP URL
 
 Manual URLs always override generated values.
 
@@ -270,11 +271,11 @@ The codebase still contains legacy `mode: "gopro"` support for older configs, bu
 
 Current project direction is:
 - go2rtc-assisted camera streams
-- manual preview/record URL cameras
+- manual preview/RTSP URL cameras
 - live printer monitoring
 - filesystem-based clip review and export workflow
 
-## Camera Management UI
+## Printers & Cameras Management UI
 
 The `/cameras` page supports:
 - listing printers with nested camera views
@@ -282,7 +283,7 @@ The `/cameras` page supports:
 - adding, editing, and deleting cameras under a printer
 - choosing the default camera per printer
 - live preview while editing a camera
-- ffprobe-based stream testing for camera recording URLs
+- ffprobe-based stream testing for camera RTSP URLs
 - saving top-level `printers` config
 - loading legacy top-level `cameras` config and migrating it to printer-first shape on save
 
@@ -293,11 +294,12 @@ Behavior notes:
 - deleting a printer or camera removes it from config only
 - deleting config entries does not delete recordings or clips
 - actively recording cameras must be stopped before config changes are saved
-- the form warns if the recording URL looks like a browser preview stream, but does not block saving
+- the form warns if the RTSP URL looks like a browser preview stream, but does not block saving
+- the UI labels the internal `record_url` field as `RTSP URL` for clarity
 
-### Preview URL vs Recording URL
+### Preview URL vs RTSP URL
 
-Use `preview_url` for the browser-facing preview stream and `record_url` for the media stream consumed by `ffmpeg` and `ffprobe`.
+Use `preview_url` for the browser-facing preview stream and `record_url` for the RTSP/media stream consumed by `ffmpeg` and `ffprobe`.
 
 Example preview URL:
 
@@ -305,13 +307,13 @@ Example preview URL:
 http://host:1984/stream.html?src=camera
 ```
 
-Example recording URL:
+Example RTSP URL:
 
 ```text
 rtsp://host:8554/camera
 ```
 
-In most go2rtc setups, the recording URL should be the RTSP stream or another ffmpeg-compatible media stream rather than the browser preview URL.
+In most go2rtc setups, the RTSP URL should be the RTSP stream or another ffmpeg-compatible media stream rather than the browser preview URL.
 
 ## App Configuration
 
@@ -454,7 +456,9 @@ If Moonraker is not configured or unavailable:
 Monitoring polish notes:
 - enlarged preview uses a lightweight modal overlay; it does not replace the card grid
 - status badges are normalized to `Printing`, `Idle`, `Complete`, `Paused`, `Error`, `Offline`, or `Status unavailable`
+- recording badges are separately prefixed with `Recording:` so recording idle and printer idle are not confused
 - preview-unavailable and offline states are handled per card and do not affect other printers
+- optional clip/camera details on `/printers` are collapsible to keep dense cards usable while keeping recording controls visible
 
 Printer-card recording notes:
 - `/printers` reuses the same `/api/record/start/{camera_id}`, `/api/record/stop/{camera_id}`, and `/api/record/status` endpoints used by the camera dashboard
@@ -543,7 +547,7 @@ Secondary live card notes:
 The dashboard also shows storage usage, warning state, cleanup mode, and a manual cleanup button when retention cleanup is enabled.
 
 Deprecated compatibility note:
-- Legacy GoPro endpoints still exist in the codebase for older configs, but they are not part of the active recommended workflow and are intentionally omitted from the main feature guidance above.
+- Legacy GoPro endpoints still exist in the codebase for older configs, but they are not part of the active recommended workflow, are hidden from normal active UI creation, and are intentionally omitted from the main feature guidance above.
 
 ## Notes
 

@@ -17,7 +17,7 @@ Legacy GoPro support still exists in the codebase for backward compatibility, bu
 - ffmpeg subprocess recording manager
 - Moonraker status service for optional printer metadata
 - Local recordings retention manager
-- Config-backed camera management UI
+- Config-backed Printers & Cameras management UI
 - Compact live camera wall
 - Live multi-printer dashboard
 - Filesystem-based clip browser, review metadata, and preview/download/delete API
@@ -122,10 +122,11 @@ Deprecated GoPro config behavior:
 - GoPro clips are still written into `recordings/<output_subdir>/`
 - this backend remains loadable for compatibility but is not the recommended capture path
 
-Preview and recording URLs are intentionally different concerns:
+Preview and RTSP/recording URLs are intentionally different concerns:
 - `preview_url` should be browser-compatible and is used only for UI preview rendering
-- `record_url` should be ffmpeg/ffprobe-compatible and is used for recording and probing
-- the camera management UI warns when a `record_url` looks like a preview-style URL, but this is heuristic guidance only and does not block saving
+- `record_url` remains the internal config field for the user-facing `RTSP URL`; it should be ffmpeg/ffprobe-compatible and is used for recording and probing
+- the Printers & Cameras UI warns when the effective RTSP URL looks like a preview-style URL, but this is heuristic guidance only and does not block saving
+- GoPro is not offered as an active camera type in the UI; legacy `mode=gopro` compatibility remains loadable for older configs
 
 Retention config:
 - `enabled`
@@ -269,7 +270,7 @@ Current policy:
 - do not present GoPro as the recommended capture workflow
 - remove the deprecated backend in a future cleanup pass once no configs depend on it
 
-## Camera Management Flow
+## Printers & Cameras Management Flow
 
 1. `/cameras` loads printer-first config from `GET /api/cameras/config`.
 2. Browser-side form logic handles:
@@ -278,7 +279,7 @@ Current policy:
 - nested camera create/edit/delete
 - mode-specific camera fields
 - preview URL derivation for live preview
-- heuristic warning when the effective recording URL looks like a browser preview stream
+- heuristic warning when the effective RTSP URL looks like a browser preview stream
 3. Save and delete requests update `config/cameras.json` as top-level `printers` through `CameraConfigStore`.
 4. After each successful write, the running app refreshes:
 - `app.state.cameras`
@@ -289,13 +290,13 @@ Current policy:
 7. If a default camera is deleted, the config layer falls back to the first enabled camera by display/name order, or clears the default when no cameras remain.
 8. RTSP stream probing uses `ffprobe` on the resolved `record_url` through `POST /api/camera/probe`.
 9. If the probe input is `rtsp://`, ffprobe also uses TCP transport by default.
-10. Deprecated compatibility testing for legacy GoPro configs still uses `POST /api/gopro/test`.
+10. Deprecated compatibility testing for legacy GoPro configs still uses `POST /api/gopro/test` if an older config already contains `mode=gopro`; GoPro is hidden from normal active UI creation.
 11. Probe results distinguish:
 - input/open failure
 - reachable stream with no video stream found
 - reachable stream with a usable video stream
 
-Camera management constraints:
+Printers & Cameras management constraints:
 - printer ids must be unique
 - camera ids must be globally unique because recording and clips remain camera-id based
 - edits are blocked while any configured camera is actively recording
