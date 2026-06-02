@@ -265,6 +265,31 @@ body {
   color: var(--muted);
 }
 
+.camera-card__details-box {
+  margin-top: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-alt);
+  padding: 0.65rem;
+}
+
+.camera-card__details-box summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.camera-card__details-box[open] {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.camera-card__details-box .camera-meta,
+.camera-card__details-box .recording-info {
+  margin-top: 0;
+}
+
 .camera-error {
   margin: 0.8rem 0 0;
   padding: 0.7rem 0.8rem;
