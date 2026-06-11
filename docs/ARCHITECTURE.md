@@ -270,17 +270,18 @@ Phase 12 implements timelapse sessions as a separate backend path from normal sh
 
 Implemented behavior:
 1. `/printers` adds a compact Timelapse section to each printer card.
-2. The user manually starts or stops a timelapse for a printer.
-3. The frontend resolves the active selected/default printer camera view, but the API is printer-oriented:
+2. The root Dashboard adds a compact Timelapse section to each camera card as a shortcut into the same printer timelapse backend.
+3. The user manually starts or stops a timelapse for a printer.
+4. The `/printers` frontend resolves the active selected/default printer camera view, while the root Dashboard uses the current camera card's camera id. The API remains printer-oriented:
 - `POST /api/timelapse/start/{printer_id}`
 - `POST /api/timelapse/stop/{printer_id}`
 - `GET /api/timelapse/status`
 - `GET /api/timelapse/download/{printer_id}/{session_id}/{filename}`
-4. A dedicated in-memory timelapse manager tracks active sessions independently from `RecordingManager`.
-5. The manager captures frames from the resolved printer camera's recording/RTSP URL at a configurable interval.
-6. For active sessions with Moonraker metadata, the manager watches print state and auto-stops when the print completes, cancels, errors, or reaches an idle-after-print terminal state.
-7. When stopped, the manager renders captured frames into a final MP4 with ffmpeg.
-8. Runtime state exposes:
+5. A dedicated in-memory timelapse manager tracks active sessions independently from `RecordingManager`.
+6. The manager captures frames from the resolved printer camera's recording/RTSP URL at a configurable interval.
+7. For active sessions with Moonraker metadata, the manager watches print state and auto-stops when the print completes, cancels, errors, or reaches an idle-after-print terminal state.
+8. When stopped, the manager renders captured frames into a final MP4 with ffmpeg.
+9. Runtime state exposes:
 - printer id
 - selected camera id
 - frame count
@@ -291,8 +292,8 @@ Implemented behavior:
 - output path
 - output URL
 - latest error
-9. Failures are surfaced through API state and the `/printers` card UI.
-10. The latest completed timelapse output per printer is restored from disk on startup.
+10. Failures are surfaced through API state and the `/printers` and root Dashboard card UIs.
+11. The latest completed timelapse output per printer is restored from disk on startup.
 
 Planned local storage layout:
 

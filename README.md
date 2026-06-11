@@ -476,7 +476,9 @@ Printer-card recording notes:
 
 Printer-card timelapse notes:
 - `/printers` includes manual Start Timelapse and Stop Timelapse controls
-- timelapses target the selected camera/view at start time
+- the root Dashboard also includes Start Timelapse and Stop Timelapse controls on each camera card
+- `/printers` timelapses target the selected camera/view at start time
+- root Dashboard timelapses use the current camera card's camera as the capture camera
 - interval capture supports 2s, 5s, 10s, 30s, and 60s options
 - active sessions auto-stop when Moonraker reports complete, cancelled, error, or idle-after-print after printing has been observed
 - source frames and final MP4s are stored locally under `recordings/timelapses/<printer_id>/<session_id>/`

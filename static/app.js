@@ -1,4 +1,7 @@
 const POLL_INTERVAL_MS = 4000;
+const TIMELAPSE_POLL_INTERVAL_MS = 5000;
+const timelapseStates = new Map();
+const localTimelapseErrors = new Map();
 
 function bySelector(selector) {
   return document.querySelector(selector);
@@ -83,7 +86,7 @@ function updateControlStates(cameraId, state) {
   const enabled = card.dataset.cameraEnabled === "true";
   const status = (state.status || "idle").toLowerCase();
   const busy = ["starting", "recording", "stopping", "downloading"].includes(status);
-  const buttons = bySelectorAll(`[data-camera-card="${cameraId}"] .control-button`);
+  const buttons = bySelectorAll(`[data-camera-card="${cameraId}"] .camera-controls .control-button`);
   const input = bySelector(`[data-custom-duration="${cameraId}"]`);
 
   buttons.forEach((button) => {
@@ -225,6 +228,181 @@ async function refreshRecordings() {
   (payload.cameras || []).forEach(updateCameraState);
 }
 
+function getTimelapseStatusTone(status) {
+  const normalized = String(status || "idle").toLowerCase();
+  return ["starting", "running", "stopping", "rendering", "complete", "error"].includes(normalized)
+    ? normalized
+    : "idle";
+}
+
+function getTimelapseStatusLabel(status) {
+  const tone = getTimelapseStatusTone(status);
+  return `Timelapse: ${tone.charAt(0).toUpperCase() + tone.slice(1)}`;
+}
+
+function getDashboardTimelapseInterval(cameraId) {
+  const select = bySelector(`[data-dashboard-timelapse-interval="${cameraId}"]`);
+  if (!(select instanceof HTMLSelectElement)) {
+    return 10;
+  }
+  const interval = Number(select.value);
+  return Number.isInteger(interval) && interval >= 1 && interval <= 300 ? interval : 10;
+}
+
+function setDashboardTimelapseError(cameraId, message) {
+  const errorNode = bySelector(`[data-dashboard-timelapse-error="${cameraId}"]`);
+  if (!errorNode) {
+    return;
+  }
+
+  if (message) {
+    errorNode.hidden = false;
+    errorNode.textContent = message;
+    return;
+  }
+
+  errorNode.hidden = true;
+  errorNode.textContent = "";
+}
+
+function updateText(selector, value) {
+  const node = bySelector(selector);
+  if (node) {
+    node.textContent = value;
+  }
+}
+
+function describeDashboardTimelapse(card, state) {
+  const cameraName = card.dataset.dashboardTimelapseCameraName || card.dataset.dashboardTimelapseCamera || "camera";
+  const backend = card.dataset.dashboardTimelapseBackend || "";
+  if (backend !== "ffmpeg") {
+    return "Timelapse requires an RTSP/ffmpeg camera.";
+  }
+
+  if (!state || !state.status || state.status === "idle") {
+    return `Timelapse idle. Capture camera: ${cameraName}`;
+  }
+
+  const activeCamera = state.camera_name || state.camera_id || cameraName;
+  const frames = Number(state.frame_count || 0);
+  const interval = state.interval_seconds ? `${state.interval_seconds}s` : "--";
+  const tone = getTimelapseStatusTone(state.status);
+  if (tone === "starting") {
+    return `Starting timelapse from ${activeCamera}...`;
+  }
+  if (tone === "running") {
+    return `Capturing ${activeCamera} every ${interval}. ${frames} frame${frames === 1 ? "" : "s"} captured.`;
+  }
+  if (tone === "stopping") {
+    return `Stopping timelapse from ${activeCamera}...`;
+  }
+  if (tone === "rendering") {
+    return `Rendering MP4 from ${frames} frame${frames === 1 ? "" : "s"}...`;
+  }
+  if (tone === "complete") {
+    return state.output_file ? `Timelapse complete: ${state.output_file}` : "Timelapse complete.";
+  }
+  if (tone === "error") {
+    return state.render_error || state.last_error || "Timelapse error";
+  }
+  return `Timelapse idle. Capture camera: ${cameraName}`;
+}
+
+function updateDashboardTimelapseCard(card) {
+  const cameraId = card.dataset.dashboardTimelapseCamera;
+  const printerId = card.dataset.dashboardTimelapsePrinter;
+  if (!cameraId || !printerId) {
+    return;
+  }
+
+  const state = timelapseStates.get(printerId) || null;
+  const tone = getTimelapseStatusTone(state && state.status);
+  const busy = ["starting", "running", "stopping", "rendering"].includes(tone);
+  const enabled = card.dataset.dashboardTimelapseEnabled === "true";
+  const backend = card.dataset.dashboardTimelapseBackend || "";
+  const canStart = enabled && backend === "ffmpeg";
+
+  const badge = bySelector(`[data-dashboard-timelapse-badge="${cameraId}"]`);
+  if (badge) {
+    badge.textContent = getTimelapseStatusLabel(tone);
+    badge.classList.remove(
+      "recording-state-pill--idle",
+      "recording-state-pill--starting",
+      "recording-state-pill--recording",
+      "recording-state-pill--stopping",
+      "recording-state-pill--downloading",
+      "recording-state-pill--error",
+    );
+    const badgeTone = {
+      idle: "idle",
+      starting: "starting",
+      running: "recording",
+      stopping: "stopping",
+      rendering: "downloading",
+      complete: "recording",
+      error: "error",
+    }[tone] || "idle";
+    badge.classList.add(`recording-state-pill--${badgeTone}`);
+  }
+
+  updateText(`[data-dashboard-timelapse-message="${cameraId}"]`, describeDashboardTimelapse(card, state));
+  updateText(`[data-dashboard-timelapse-frames="${cameraId}"]`, state ? String(state.frame_count || 0) : "0");
+  updateText(
+    `[data-dashboard-timelapse-camera-label="${cameraId}"]`,
+    state && state.camera_name ? state.camera_name : (card.dataset.dashboardTimelapseCameraName || "--"),
+  );
+  updateText(`[data-dashboard-timelapse-stop-reason="${cameraId}"]`, state && state.stop_reason ? state.stop_reason : "--");
+  updateText(`[data-dashboard-timelapse-render="${cameraId}"]`, state && state.render_status ? state.render_status : "idle");
+
+  const outputLink = bySelector(`[data-dashboard-timelapse-output="${cameraId}"]`);
+  if (outputLink instanceof HTMLAnchorElement) {
+    if (state && state.output_url && tone === "complete") {
+      outputLink.href = state.output_url;
+      outputLink.removeAttribute("aria-disabled");
+      outputLink.textContent = state.output_file || "Latest Timelapse";
+    } else {
+      outputLink.href = "#";
+      outputLink.setAttribute("aria-disabled", "true");
+      outputLink.textContent = "Latest Timelapse";
+    }
+  }
+
+  const localError = localTimelapseErrors.get(`${printerId}::${cameraId}`);
+  setDashboardTimelapseError(
+    cameraId,
+    localError || (state && (state.last_error || state.render_error) ? `Error: ${state.last_error || state.render_error}` : ""),
+  );
+
+  bySelectorAll(`[data-dashboard-timelapse-camera="${cameraId}"][data-dashboard-timelapse-action]`).forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    const action = button.dataset.dashboardTimelapseAction;
+    if (action === "stop") {
+      button.disabled = !["starting", "running"].includes(tone);
+      return;
+    }
+    button.disabled = busy || !canStart;
+  });
+
+  const intervalSelect = bySelector(`[data-dashboard-timelapse-interval="${cameraId}"]`);
+  if (intervalSelect instanceof HTMLSelectElement) {
+    intervalSelect.disabled = busy || !canStart;
+  }
+}
+
+function updateAllDashboardTimelapseCards() {
+  bySelectorAll("[data-dashboard-timelapse-card]").forEach(updateDashboardTimelapseCard);
+}
+
+async function refreshTimelapses() {
+  const payload = await fetchJson("/api/timelapse/status");
+  Object.entries(payload.printers || {}).forEach(([printerId, state]) => {
+    timelapseStates.set(printerId, state);
+  });
+  updateAllDashboardTimelapseCards();
+}
+
 async function refreshStorage() {
   const payload = await fetchJson("/api/storage/status");
   updateStorageStatus(payload);
@@ -232,7 +410,7 @@ async function refreshStorage() {
 
 async function refreshAll() {
   try {
-    await Promise.all([refreshRecordings(), refreshStorage()]);
+    await Promise.all([refreshRecordings(), refreshStorage(), refreshTimelapses()]);
   } catch (error) {
     console.error(error);
   }
@@ -256,6 +434,30 @@ async function stopRecording(cameraId) {
     method: "POST",
   });
   await refreshAll();
+}
+
+async function startTimelapse(printerId, cameraId, intervalSeconds) {
+  const payload = await fetchJson(`/api/timelapse/start/${encodeURIComponent(printerId)}`, {
+    method: "POST",
+    body: JSON.stringify({
+      camera_id: cameraId,
+      interval_seconds: intervalSeconds,
+    }),
+  });
+  if (payload.timelapse) {
+    timelapseStates.set(printerId, payload.timelapse);
+  }
+  updateAllDashboardTimelapseCards();
+}
+
+async function stopTimelapse(printerId) {
+  const payload = await fetchJson(`/api/timelapse/stop/${encodeURIComponent(printerId)}`, {
+    method: "POST",
+  });
+  if (payload.timelapse) {
+    timelapseStates.set(printerId, payload.timelapse);
+  }
+  updateAllDashboardTimelapseCards();
 }
 
 async function manualCleanup() {
@@ -320,6 +522,47 @@ function bindCameraControls() {
   });
 }
 
+function bindTimelapseControls() {
+  bySelectorAll("[data-dashboard-timelapse-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const printerId = button.dataset.dashboardTimelapsePrinter;
+      const cameraId = button.dataset.dashboardTimelapseCamera;
+      const action = button.dataset.dashboardTimelapseAction;
+      if (!printerId || !cameraId || !action) {
+        return;
+      }
+
+      const localErrorKey = `${printerId}::${cameraId}`;
+      localTimelapseErrors.delete(localErrorKey);
+      setDashboardTimelapseError(cameraId, "");
+
+      try {
+        if (action === "start") {
+          updateText(`[data-dashboard-timelapse-message="${cameraId}"]`, "Starting timelapse...");
+          await startTimelapse(printerId, cameraId, getDashboardTimelapseInterval(cameraId));
+        } else if (action === "stop") {
+          updateText(`[data-dashboard-timelapse-message="${cameraId}"]`, "Stopping timelapse...");
+          await stopTimelapse(printerId);
+        }
+        await refreshTimelapses();
+      } catch (error) {
+        console.error(error);
+        localTimelapseErrors.set(localErrorKey, `Error: ${error.message}`);
+        updateAllDashboardTimelapseCards();
+        await refreshTimelapses().catch((refreshError) => console.error(refreshError));
+      }
+    });
+  });
+
+  bySelectorAll("[data-dashboard-timelapse-output]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      if (link.getAttribute("aria-disabled") === "true") {
+        event.preventDefault();
+      }
+    });
+  });
+}
+
 function bindCleanupControl() {
   const cleanupButton = bySelector("#manual-cleanup-button");
   if (!cleanupButton) {
@@ -337,6 +580,10 @@ function bindCleanupControl() {
 }
 
 bindCameraControls();
+bindTimelapseControls();
 bindCleanupControl();
 refreshAll();
 setInterval(refreshAll, POLL_INTERVAL_MS);
+setInterval(() => {
+  refreshTimelapses().catch((error) => console.error(error));
+}, TIMELAPSE_POLL_INTERVAL_MS);

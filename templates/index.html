@@ -141,6 +141,74 @@
           </div>
         </div>
       </div>
+
+      <section
+        class="printer-timelapse camera-timelapse"
+        data-dashboard-timelapse-card="{{ camera.id }}"
+        data-dashboard-timelapse-printer="{{ camera.printer_id }}"
+        data-dashboard-timelapse-camera="{{ camera.id }}"
+        data-dashboard-timelapse-camera-name="{{ camera.name }}"
+        data-dashboard-timelapse-enabled="{{ 'true' if camera.enabled else 'false' }}"
+        data-dashboard-timelapse-backend="{{ camera.backend_type }}">
+        <div class="printer-timelapse__head">
+          <span class="recording-state-pill recording-state-pill--idle" data-dashboard-timelapse-badge="{{ camera.id }}">Timelapse: Idle</span>
+          <a class="inline-link" href="#" data-dashboard-timelapse-output="{{ camera.id }}" aria-disabled="true">Latest Timelapse</a>
+        </div>
+        <div class="printer-timelapse__controls">
+          <button
+            type="button"
+            class="control-button control-button--secondary"
+            data-dashboard-timelapse-action="start"
+            data-dashboard-timelapse-printer="{{ camera.printer_id }}"
+            data-dashboard-timelapse-camera="{{ camera.id }}"
+            {% if not camera.enabled or camera.backend_type != "ffmpeg" %}disabled{% endif %}>
+            Start Timelapse
+          </button>
+          <button
+            type="button"
+            class="control-button control-button--secondary"
+            data-dashboard-timelapse-action="stop"
+            data-dashboard-timelapse-printer="{{ camera.printer_id }}"
+            data-dashboard-timelapse-camera="{{ camera.id }}"
+            disabled>
+            Stop Timelapse
+          </button>
+          <label class="printer-timelapse__interval">
+            <span>Interval</span>
+            <select data-dashboard-timelapse-interval="{{ camera.id }}" {% if not camera.enabled or camera.backend_type != "ffmpeg" %}disabled{% endif %}>
+              {% for interval in [2, 5, 10, 30, 60] %}
+              <option value="{{ interval }}" {% if interval == 10 %}selected{% endif %}>{{ interval }}s</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <dl class="printer-timelapse__stats">
+          <div>
+            <dt>Frames</dt>
+            <dd data-dashboard-timelapse-frames="{{ camera.id }}">0</dd>
+          </div>
+          <div>
+            <dt>Using</dt>
+            <dd data-dashboard-timelapse-camera-label="{{ camera.id }}">{{ camera.name }}</dd>
+          </div>
+          <div>
+            <dt>Stop reason</dt>
+            <dd data-dashboard-timelapse-stop-reason="{{ camera.id }}">--</dd>
+          </div>
+          <div>
+            <dt>Render</dt>
+            <dd data-dashboard-timelapse-render="{{ camera.id }}">idle</dd>
+          </div>
+        </dl>
+        <p class="printer-recording__message" data-dashboard-timelapse-message="{{ camera.id }}">
+          {% if camera.backend_type == "ffmpeg" %}
+          Timelapse idle. Capture camera: {{ camera.name }}
+          {% else %}
+          Timelapse requires an RTSP/ffmpeg camera.
+          {% endif %}
+        </p>
+        <p class="camera-error" data-dashboard-timelapse-error="{{ camera.id }}" hidden></p>
+      </section>
     </article>
     {% endfor %}
     {% else %}

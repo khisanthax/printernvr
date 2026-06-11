@@ -948,6 +948,10 @@ body {
   background: rgba(11, 94, 215, 0.05);
 }
 
+.camera-timelapse {
+  margin-top: 0.85rem;
+}
+
 .printer-recording__head,
 .printer-recording__controls,
 .printer-timelapse__head,

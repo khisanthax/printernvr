@@ -783,6 +783,7 @@ Backend implementation:
 
 Dashboard implementation:
 - Added a compact Timelapse section to each `/printers` card.
+- Added compact Timelapse controls to the root camera Dashboard so the current camera card can start/stop that printer's timelapse.
 - Shows:
   - Start Timelapse
   - Stop Timelapse
@@ -790,7 +791,8 @@ Dashboard implementation:
   - running/rendering/error state
   - frame count
   - latest timelapse link when available
-- Controls are tied to the currently selected printer camera/view at start time.
+- `/printers` controls are tied to the currently selected printer camera/view at start time.
+- Dashboard camera-card controls use that card's camera as the capture camera and the camera's `printer_id` as the timelapse owner.
 - Running timelapses keep their original camera if the user changes the selected view later.
 - Invalid actions are disabled while a timelapse is starting, running, stopping, or rendering.
 - Moonraker unavailable state is shown without blocking manual stop.
@@ -977,7 +979,7 @@ Implemented highlights:
 - Printer-card Start, Stop, quick duration, and custom duration controls that target the currently selected camera/view and reuse the existing camera recording APIs
 - Printer-card latest clip shortcuts that preview, download, or open clips for the currently selected camera/view
 - Printer-card quick duration buttons and custom duration input for selected-view timed recordings
-- Printer-card timelapse controls with interval capture, Moonraker auto-stop, local frame storage, and MP4 render output
+- Printer-card and root Dashboard camera-card timelapse controls with interval capture, Moonraker auto-stop, local frame storage, and MP4 render output
 - Optional Moonraker-backed status polling for printer status, file name, progress, temperatures, and ETA
 - Endpoints: `GET /health`, `GET /api/cameras`, `GET /api/cameras/config`, `PUT /api/cameras/config`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/timelapse/status`, `POST /api/timelapse/start/{printer_id}`, `POST /api/timelapse/stop/{printer_id}`, `GET /api/timelapse/download/{printer_id}/{session_id}/{filename}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/latest/{camera_id}`, `PATCH /api/clips/{camera_id}/{filename}/metadata`, `POST /api/clips/{camera_id}/{filename}/rename`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /live`, `GET /printers`, `GET /cameras`, `GET /clips`
 - Legacy compatibility endpoints remain for existing GoPro deployments but are deprecated and not part of the active workflow
