@@ -295,7 +295,8 @@ Implemented behavior:
 - output URL
 - latest error
 10. Failures are surfaced through API state and the `/printers` and root Dashboard card UIs.
-11. The latest completed timelapse output per printer is restored from disk on startup.
+11. The root Dashboard shows the active/running/completed timelapse state only on the camera card whose camera id matches the active session; sibling camera cards for the same printer show that the printer timelapse is active on another camera.
+12. The latest completed timelapse output per printer is restored from disk on startup.
 
 Planned local storage layout:
 

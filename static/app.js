@@ -240,6 +240,10 @@ function getTimelapseStatusLabel(status) {
   return `Timelapse: ${tone.charAt(0).toUpperCase() + tone.slice(1)}`;
 }
 
+function isActiveTimelapseTone(tone) {
+  return ["starting", "running", "stopping", "rendering"].includes(tone);
+}
+
 function getDashboardTimelapseInterval(cameraId) {
   const select = bySelector(`[data-dashboard-timelapse-interval="${cameraId}"]`);
   if (!(select instanceof HTMLSelectElement)) {
@@ -273,6 +277,7 @@ function updateText(selector, value) {
 }
 
 function describeDashboardTimelapse(card, state) {
+  const cameraId = card.dataset.dashboardTimelapseCamera;
   const cameraName = card.dataset.dashboardTimelapseCameraName || card.dataset.dashboardTimelapseCamera || "camera";
   const backend = card.dataset.dashboardTimelapseBackend || "";
   if (backend !== "ffmpeg") {
@@ -287,6 +292,13 @@ function describeDashboardTimelapse(card, state) {
   const frames = Number(state.frame_count || 0);
   const interval = state.interval_seconds ? `${state.interval_seconds}s` : "--";
   const tone = getTimelapseStatusTone(state.status);
+  const ownsSession = Boolean(state.camera_id && state.camera_id === cameraId);
+  if (isActiveTimelapseTone(tone) && !ownsSession) {
+    return `Printer timelapse is active on ${activeCamera}.`;
+  }
+  if (!ownsSession) {
+    return `Timelapse idle. Capture camera: ${cameraName}`;
+  }
   if (tone === "starting") {
     return `Starting timelapse from ${activeCamera}...`;
   }
@@ -317,14 +329,16 @@ function updateDashboardTimelapseCard(card) {
 
   const state = timelapseStates.get(printerId) || null;
   const tone = getTimelapseStatusTone(state && state.status);
-  const busy = ["starting", "running", "stopping", "rendering"].includes(tone);
+  const busy = isActiveTimelapseTone(tone);
+  const ownsSession = Boolean(state && state.camera_id && state.camera_id === cameraId);
+  const displayTone = ownsSession ? tone : "idle";
   const enabled = card.dataset.dashboardTimelapseEnabled === "true";
   const backend = card.dataset.dashboardTimelapseBackend || "";
   const canStart = enabled && backend === "ffmpeg";
 
   const badge = bySelector(`[data-dashboard-timelapse-badge="${cameraId}"]`);
   if (badge) {
-    badge.textContent = getTimelapseStatusLabel(tone);
+    badge.textContent = getTimelapseStatusLabel(displayTone);
     badge.classList.remove(
       "recording-state-pill--idle",
       "recording-state-pill--starting",
@@ -341,22 +355,22 @@ function updateDashboardTimelapseCard(card) {
       rendering: "downloading",
       complete: "recording",
       error: "error",
-    }[tone] || "idle";
+    }[displayTone] || "idle";
     badge.classList.add(`recording-state-pill--${badgeTone}`);
   }
 
   updateText(`[data-dashboard-timelapse-message="${cameraId}"]`, describeDashboardTimelapse(card, state));
-  updateText(`[data-dashboard-timelapse-frames="${cameraId}"]`, state ? String(state.frame_count || 0) : "0");
+  updateText(`[data-dashboard-timelapse-frames="${cameraId}"]`, ownsSession && state ? String(state.frame_count || 0) : "0");
   updateText(
     `[data-dashboard-timelapse-camera-label="${cameraId}"]`,
-    state && state.camera_name ? state.camera_name : (card.dataset.dashboardTimelapseCameraName || "--"),
+    ownsSession && state && state.camera_name ? state.camera_name : (card.dataset.dashboardTimelapseCameraName || "--"),
   );
-  updateText(`[data-dashboard-timelapse-stop-reason="${cameraId}"]`, state && state.stop_reason ? state.stop_reason : "--");
-  updateText(`[data-dashboard-timelapse-render="${cameraId}"]`, state && state.render_status ? state.render_status : "idle");
+  updateText(`[data-dashboard-timelapse-stop-reason="${cameraId}"]`, ownsSession && state && state.stop_reason ? state.stop_reason : "--");
+  updateText(`[data-dashboard-timelapse-render="${cameraId}"]`, ownsSession && state && state.render_status ? state.render_status : "idle");
 
   const outputLink = bySelector(`[data-dashboard-timelapse-output="${cameraId}"]`);
   if (outputLink instanceof HTMLAnchorElement) {
-    if (state && state.output_url && tone === "complete") {
+    if (ownsSession && state && state.output_url && tone === "complete") {
       outputLink.href = state.output_url;
       outputLink.removeAttribute("aria-disabled");
       outputLink.textContent = state.output_file || "Latest Timelapse";
@@ -370,7 +384,7 @@ function updateDashboardTimelapseCard(card) {
   const localError = localTimelapseErrors.get(`${printerId}::${cameraId}`);
   setDashboardTimelapseError(
     cameraId,
-    localError || (state && (state.last_error || state.render_error) ? `Error: ${state.last_error || state.render_error}` : ""),
+    localError || (ownsSession && state && (state.last_error || state.render_error) ? `Error: ${state.last_error || state.render_error}` : ""),
   );
 
   bySelectorAll(`[data-dashboard-timelapse-camera="${cameraId}"][data-dashboard-timelapse-action]`).forEach((button) => {
@@ -379,7 +393,7 @@ function updateDashboardTimelapseCard(card) {
     }
     const action = button.dataset.dashboardTimelapseAction;
     if (action === "stop") {
-      button.disabled = !["starting", "running"].includes(tone);
+      button.disabled = !(ownsSession && ["starting", "running"].includes(tone));
       return;
     }
     button.disabled = busy || !canStart;

@@ -793,6 +793,7 @@ Dashboard implementation:
   - latest timelapse link when available
 - `/printers` controls are tied to the currently selected printer camera/view at start time.
 - Dashboard camera-card controls use that card's camera as the capture camera and the camera's `printer_id` as the timelapse owner.
+- Dashboard camera cards for sibling views on the same printer stay visually distinct: only the camera card that owns the active session shows running/completed timelapse state.
 - Running timelapses keep their original camera if the user changes the selected view later.
 - Invalid actions are disabled while a timelapse is starting, running, stopping, or rendering.
 - Moonraker unavailable state is shown without blocking manual stop.
