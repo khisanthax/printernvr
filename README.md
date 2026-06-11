@@ -114,6 +114,8 @@ Live printer monitoring is available at `/printers`.
 Printers & Cameras management is available at `/cameras`.
 Clip browsing is available at `/clips`.
 
+Static CSS and JavaScript URLs include a startup cache-busting version so browsers load updated UI code after the container is rebuilt or restarted.
+
 Planned installer direction:
 - install and update scripts for common Docker deployments
 - optional go2rtc companion container for users who want a single local stack

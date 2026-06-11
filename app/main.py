@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -112,7 +113,9 @@ async def lifespan(app: FastAPI):
     app.state.cameras = loaded_config.cameras
     app.state.camera_index = {camera.id: camera for camera in loaded_config.cameras}
     app.state.runtime_state = runtime_state
-    app.state.templates = Jinja2Templates(directory="templates")
+    templates = Jinja2Templates(directory="templates")
+    templates.env.globals["asset_version"] = os.getenv("APP_ASSET_VERSION") or str(int(time.time()))
+    app.state.templates = templates
     app.state.recording_manager = recording_manager
     app.state.moonraker_service = moonraker_service
     app.state.timelapse_manager = timelapse_manager

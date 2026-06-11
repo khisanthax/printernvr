@@ -61,6 +61,8 @@ Two JSON files are used:
 - `config/app.json`: app-level settings such as retention
 - `config/cameras.example.json` and `config/app.example.json`: tracked templates for new deployments
 
+Templates append a startup `asset_version` query string to static CSS and JavaScript references so browser caches do not keep stale UI code after a Docker rebuild/restart.
+
 Printer-first definitions are now the preferred `config/cameras.json` shape:
 
 ```json
