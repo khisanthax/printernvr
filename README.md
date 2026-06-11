@@ -396,15 +396,20 @@ Behavior:
 - completed clips can be renamed safely inside their camera folder
 - clips can be previewed inline in the browser through a dedicated preview endpoint
 - clips can be selected and bulk-downloaded as individual files from one user action
+- clips can be selected and deleted in bulk after confirmation
 - clips can optionally be saved into a user-selected folder when the browser supports the File System Access API
 - downloads stream the file directly from disk
-- delete removes only the selected local clip
+- delete removes only selected local clips
 - active recording files cannot be deleted
 
 Bulk download notes:
 - Printer NVR does not create ZIP archives for bulk clip download
 - the browser triggers one direct download per selected file
 - some browsers may ask permission before allowing multiple downloads
+
+Bulk delete notes:
+- selected clips are deleted one at a time through the same secure delete endpoint used by single-clip delete
+- active recording files remain protected and report an error instead of being removed
 
 Optional chosen-folder download notes:
 - this enhancement is client-side only and uses the browser File System Access API

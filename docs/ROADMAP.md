@@ -959,6 +959,7 @@ Implemented highlights:
 - Filesystem-based clip review metadata for favorite/rejected state and safe clip rename
 - Inline clip preview endpoint and browser preview player on `/clips`
 - Client-side bulk direct download of selected clips as individual files with no ZIP packaging
+- Client-side bulk delete of selected clips through the existing safe per-file delete endpoint
 - Optional client-side chosen-folder clip saves using the browser File System Access API when available
 - Browser-download fallback remains the default when folder access is unavailable, denied, or unsupported
 - `/printers` live dashboard with top printer toggles, one default live view per printer, and status/details beneath each preview

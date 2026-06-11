@@ -136,6 +136,7 @@ function updateSelectionUi() {
   const selectedCount = getVisibleSelectedKeys().length;
   const countLabel = bySelector("#clips-selected-count");
   const downloadButton = bySelector("#download-selected-button");
+  const deleteButton = bySelector("#delete-selected-button");
   const clearButton = bySelector("#clear-selection-button");
 
   if (countLabel) {
@@ -144,6 +145,10 @@ function updateSelectionUi() {
 
   if (downloadButton) {
     downloadButton.disabled = selectedCount === 0;
+  }
+
+  if (deleteButton) {
+    deleteButton.disabled = selectedCount === 0;
   }
 
   if (clearButton) {
@@ -762,6 +767,53 @@ async function handleBulkDownload(clips) {
   updateFeedback(`Saved ${savedCount} of ${clips.length} file(s) to the selected folder. ${fallbackCount} file(s) fell back to browser downloads.`, true);
 }
 
+async function handleBulkDelete(clips) {
+  if (!clips.length) {
+    updateFeedback("Select at least one clip to delete.", true);
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Delete ${clips.length} selected clip(s)? This removes the local files and cannot be undone.`,
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  let deletedCount = 0;
+  const failures = [];
+
+  for (const clip of clips) {
+    try {
+      await deleteClip(clip.camera_id, clip.filename);
+      deletedCount += 1;
+      selectedClipKeys.delete(clipKey(clip.camera_id, clip.filename));
+    } catch (error) {
+      failures.push({
+        filename: clip.filename,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  await loadClips();
+
+  if (!failures.length) {
+    updateFeedback(`Deleted ${deletedCount} selected clip(s).`);
+    return;
+  }
+
+  const failureSummary = failures
+    .slice(0, 3)
+    .map((failure) => `${failure.filename}: ${failure.message}`)
+    .join("; ");
+  const extraCount = failures.length > 3 ? `; ${failures.length - 3} more failed` : "";
+  updateFeedback(
+    `Deleted ${deletedCount} of ${clips.length} selected clip(s). Failed to delete ${failures.length}: ${failureSummary}${extraCount}`,
+    true,
+  );
+}
+
 function bindFilters() {
   const select = bySelector("#clip-camera-filter");
   const reviewSelect = bySelector("#clip-review-filter");
@@ -854,6 +906,7 @@ function bindSelection() {
   const selectAllButton = bySelector("#select-all-clips-button");
   const clearButton = bySelector("#clear-selection-button");
   const downloadSelectedButton = bySelector("#download-selected-button");
+  const deleteSelectedButton = bySelector("#delete-selected-button");
 
   if (tbody) {
     tbody.addEventListener("change", (event) => {
@@ -910,6 +963,20 @@ function bindSelection() {
         await handleBulkDownload(clips);
       } catch (error) {
         updateFeedback(error.message, true);
+      }
+    });
+  }
+
+  if (deleteSelectedButton) {
+    deleteSelectedButton.addEventListener("click", async () => {
+      const clips = currentClips.filter((clip) => selectedClipKeys.has(clipKey(clip.camera_id, clip.filename)));
+      deleteSelectedButton.disabled = true;
+      try {
+        await handleBulkDelete(clips);
+      } catch (error) {
+        updateFeedback(error.message, true);
+      } finally {
+        updateSelectionUi();
       }
     });
   }

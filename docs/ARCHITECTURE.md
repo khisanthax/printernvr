@@ -391,8 +391,9 @@ Printers & Cameras management constraints:
 10. Review updates use `PATCH /api/clips/{camera_id}/{filename}/metadata`.
 11. Safe rename uses `POST /api/clips/{camera_id}/{filename}/rename` and keeps the clip inside the same camera storage directory.
 12. Manual delete uses `DELETE /api/clips/{camera_id}/{filename}` and is blocked for active recording outputs.
-13. Bulk direct download is handled client-side in `/clips` by iterating selected clip download URLs from one user action; the backend still validates each file request individually.
-14. Optional chosen-folder saves use the browser File System Access API entirely client-side:
+13. Bulk delete is handled client-side in `/clips` by iterating selected clips through the same safe per-file delete endpoint.
+14. Bulk direct download is handled client-side in `/clips` by iterating selected clip download URLs from one user action; the backend still validates each file request individually.
+15. Optional chosen-folder saves use the browser File System Access API entirely client-side:
 - the browser prompts the user to choose a directory
 - the frontend may persist the directory handle in IndexedDB when the browser allows it
 - the backend never receives local filesystem path data
@@ -407,6 +408,7 @@ Clip browser safety rules:
 - clip preview uses a separate inline-serving endpoint instead of changing the attachment behavior of the download route
 - clip review metadata is local sidecar state, not a database or clip index
 - bulk clip download does not generate ZIP archives or background jobs
+- bulk clip delete does not use a separate server-side batch endpoint; each file is validated and deleted through the existing delete path
 - export/copy helpers are deferred until favorite, reject, rename, and filter workflows are fully working
 - chosen-folder saves are a browser-only enhancement and require File System Access API support in a secure context
 
