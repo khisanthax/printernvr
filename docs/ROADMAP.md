@@ -735,6 +735,100 @@ Design constraints:
 - Keep deployment lightweight and practical.
 - Do not add a database.
 
+### Phase 12 - Timelapse Sessions [ ]
+
+Purpose:
+- Add per-printer timelapse capture from the main `/printers` dashboard.
+- Support manual start from the dashboard.
+- Automatically stop timelapse when the print finishes, cancels, or errors.
+- Save timelapse output locally on the recorder host, not on the printer.
+- Keep NAS sync/archive outside application logic.
+
+Initial scope:
+- Manual Start Timelapse button per printer card.
+- Manual Stop Timelapse button per printer card.
+- Timelapse status per printer/card.
+- Interval-based capture first.
+- Auto-stop based on Moonraker print state.
+- Generate final MP4 from captured frames using ffmpeg.
+- Store output locally under a timelapse-friendly recordings path.
+- Reuse the selected/default printer camera view from the existing printer-first camera model.
+
+Out of initial scope:
+- Layer-triggered Klipper macro integration.
+- Automatic start on print start.
+- Advanced render profiles.
+- NAS upload/sync logic.
+- Database-backed timelapse tracking.
+
+Backend tasks:
+- Add a timelapse backend manager separate from the normal recording manager.
+- Add in-memory timelapse session/runtime state.
+- Add API endpoints:
+  - `POST /api/timelapse/start/{printer_id}`
+  - `POST /api/timelapse/stop/{printer_id}`
+  - `GET /api/timelapse/status`
+- Resolve the capture camera from the current/default printer view.
+- Capture frames from the camera stream at a configurable interval.
+- Watch Moonraker printer state for active timelapse printers.
+- Stop active timelapse sessions when print state reaches complete, cancelled, error, or idle-after-print.
+- Render captured frames to MP4 with ffmpeg.
+- Track frame count, start time, stop reason, render status, output path, and errors.
+- Make failures visible through API state.
+
+Dashboard tasks:
+- Add a compact Timelapse section to each `/printers` card.
+- Show:
+  - Start Timelapse
+  - Stop Timelapse
+  - interval selector
+  - running/rendering/error state
+  - frame count
+  - latest timelapse link when available
+- Keep controls tied to the currently selected printer camera/view.
+- Disable invalid actions while a timelapse is starting, running, stopping, or rendering.
+- Handle Moonraker unavailable state gracefully.
+
+Storage behavior:
+- Store source frames locally first.
+- Store final MP4 locally.
+- Do not store anything on the printers.
+- Do not add NAS sync logic.
+- Consider a directory layout such as:
+  - `recordings/timelapses/<printer_id>/<session_id>/frames/`
+  - `recordings/timelapses/<printer_id>/<session_id>/<session_id>.mp4`
+- Ensure retention/storage protection does not delete active timelapse sessions.
+
+Validation:
+- `python -m compileall app`
+- `node --check static/printers.js`
+- `git diff --check`
+
+Manual test cases:
+- start timelapse while printing
+- manual stop
+- auto-stop on print complete
+- auto-stop on cancel/error
+- camera unavailable
+- Moonraker unavailable
+- ffmpeg frame capture failure
+- ffmpeg render failure
+- app restart while a session is active
+
+### Phase 12.1 - Layer-Based Timelapse Triggers [ ]
+
+Purpose:
+- Add optional Klipper/Moonraker-compatible layer-triggered frame capture.
+- Reuse existing slicer/Klipper timelapse layer G-code where practical.
+
+Scope:
+- Add endpoint such as `POST /api/timelapse/capture/{printer_id}`.
+- If a timelapse session is active, capture one frame.
+- If no session is active, ignore safely.
+- Debounce duplicate triggers.
+- Keep interval mode as fallback.
+- Auto-stop remains Moonraker print-state based.
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:
@@ -884,6 +978,7 @@ Next phase:
 - Phase 5 operational hardening
 - Phase 9.1 clip review quality-of-life
 - Phase 11 installer and optional go2rtc bundle
+- Phase 12 timelapse sessions
 - Phase 10 follow-ups such as fullscreen wall mode, drag/drop ordering, and additional compact mobile refinements
 
 ## Deployment Model
