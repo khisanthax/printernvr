@@ -17,6 +17,7 @@ from app.api.printers import router as printers_router
 from app.api.record import router as record_router
 from app.api.status import router as status_router
 from app.api.storage import router as storage_router
+from app.api.timelapse import router as timelapse_router
 from app.camera_store import CameraConfigStore
 from app.clips import ClipStore
 from app.config import load_app_config
@@ -26,6 +27,7 @@ from app.services.gopro_recording_manager import GoProRecordingManager
 from app.services.gopro_service import GoProService
 from app.services.moonraker_service import MoonrakerService
 from app.state import RuntimeStateManager
+from app.timelapse import TimelapseManager
 from app.util import configure_logging, ensure_directories
 
 LOGGER = logging.getLogger(__name__)
@@ -69,19 +71,29 @@ async def lifespan(app: FastAPI):
     )
     clip_store = ClipStore(settings["recordings_dir"])
 
+    moonraker_service = MoonrakerService()
+
+    def active_output_paths() -> set[str]:
+        return runtime_state.active_output_paths() | timelapse_manager.active_paths()
+
     def enforce_retention_after_recording() -> None:
         retention_manager.enforce_retention(
-            runtime_state.active_output_paths(),
+            active_output_paths(),
             triggered_by="recording_finished",
             manual=False,
         )
+
+    timelapse_manager = TimelapseManager(
+        settings["recordings_dir"],
+        moonraker_service,
+        on_timelapse_finished=enforce_retention_after_recording,
+    )
 
     recording_manager = RecordingManager(
         settings["recordings_dir"],
         runtime_state,
         on_recording_finished=enforce_retention_after_recording,
     )
-    moonraker_service = MoonrakerService()
     gopro_service = GoProService()
     gopro_recording_manager = GoProRecordingManager(
         settings["recordings_dir"],
@@ -91,7 +103,7 @@ async def lifespan(app: FastAPI):
     )
 
     retention_manager.enforce_retention(
-        runtime_state.active_output_paths(),
+        active_output_paths(),
         triggered_by="startup",
         manual=False,
     )
@@ -103,6 +115,7 @@ async def lifespan(app: FastAPI):
     app.state.templates = Jinja2Templates(directory="templates")
     app.state.recording_manager = recording_manager
     app.state.moonraker_service = moonraker_service
+    app.state.timelapse_manager = timelapse_manager
     app.state.gopro_service = gopro_service
     app.state.gopro_recording_manager = gopro_recording_manager
     app.state.retention_manager = retention_manager
@@ -115,6 +128,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         recording_manager.shutdown()
+        timelapse_manager.shutdown()
         gopro_recording_manager.shutdown()
         moonraker_service.shutdown()
         LOGGER.info("Printer NVR shutdown complete")
@@ -138,3 +152,4 @@ app.include_router(printers_router)
 app.include_router(status_router)
 app.include_router(record_router)
 app.include_router(storage_router)
+app.include_router(timelapse_router)

@@ -30,6 +30,7 @@ This repository currently includes:
 - Phase 10.5 live view tab resume stream recovery
 - Phase 10.6 multi-camera live view polish
 - Phase 10.7 UI terminology, layout, and deprecated GoPro cleanup
+- Phase 12 timelapse sessions
 - Planned: Phase 11 installer and optional go2rtc bundle
 - Phase 5 operational hardening improvements
 - Phase 6 retention and storage protection
@@ -468,6 +469,16 @@ Printer-card recording notes:
 - RTSP/go2rtc cameras still use the existing ffmpeg-based recording flow
 - clips still appear in `/clips` through the existing filesystem-based storage model
 
+Printer-card timelapse notes:
+- `/printers` includes manual Start Timelapse and Stop Timelapse controls
+- timelapses target the selected camera/view at start time
+- interval capture supports 2s, 5s, 10s, 30s, and 60s options
+- active sessions auto-stop when Moonraker reports complete, cancelled, error, or idle-after-print after printing has been observed
+- source frames and final MP4s are stored locally under `recordings/timelapses/<printer_id>/<session_id>/`
+- completed timelapse MP4s are linked from the printer card
+- `/clips` ignores timelapse frame/output folders in this phase
+- layer-triggered capture is deferred to Phase 12.1
+
 Latest clip shortcut notes:
 - each printer card shows the newest completed clip for the currently selected camera/view
 - Preview Latest opens a lightweight video modal using the existing clip preview endpoint
@@ -523,6 +534,10 @@ Secondary live card notes:
 - `GET /api/record/status`
 - `POST /api/record/start/{camera_id}`
 - `POST /api/record/stop/{camera_id}`
+- `GET /api/timelapse/status`
+- `POST /api/timelapse/start/{printer_id}`
+- `POST /api/timelapse/stop/{printer_id}`
+- `GET /api/timelapse/download/{printer_id}/{session_id}/{filename}`
 - `GET /api/storage/status`
 - `POST /api/storage/cleanup`
 - `GET /api/clips`

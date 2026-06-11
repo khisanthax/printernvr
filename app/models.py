@@ -16,6 +16,8 @@ CameraPreviewMode = Literal["none", "external_link"]
 BackendType = Literal["ffmpeg", "gopro"]
 CameraStatus = Literal["idle", "starting", "recording", "stopping", "downloading", "error"]
 CameraAction = Literal["idle", "starting", "recording", "stopping", "downloading", "error"]
+TimelapseStatus = Literal["idle", "starting", "running", "stopping", "rendering", "complete", "error"]
+TimelapseRenderStatus = Literal["idle", "pending", "running", "complete", "skipped", "error"]
 PrinterConnectionState = Literal["online", "offline", "unknown"]
 PrinterPreviewMode = Literal["embedded", "external_link", "none"]
 PrinterMonitorState = Literal["printing", "idle", "complete", "paused", "error", "offline", "unavailable"]
@@ -302,6 +304,36 @@ class CameraRuntimeState(BaseModel):
 
 class RecordStartRequest(BaseModel):
     duration: int | None = Field(default=None, ge=1)
+
+
+class TimelapseStartRequest(BaseModel):
+    camera_id: str | None = None
+    interval_seconds: int = Field(default=10, ge=1, le=300)
+
+
+class TimelapseSessionState(BaseModel):
+    printer_id: str
+    printer_name: str | None = None
+    camera_id: str | None = None
+    camera_name: str | None = None
+    status: TimelapseStatus = "idle"
+    interval_seconds: int | None = None
+    frame_count: int = 0
+    started_at: datetime | None = None
+    stopped_at: datetime | None = None
+    stop_reason: str | None = None
+    session_id: str | None = None
+    frames_dir: str | None = None
+    output_file: str | None = None
+    output_path: str | None = None
+    output_url: str | None = None
+    last_error: str | None = None
+    render_status: TimelapseRenderStatus = "idle"
+    render_error: str | None = None
+    moonraker_auto_stop_enabled: bool = False
+    moonraker_state: str | None = None
+    moonraker_message: str | None = None
+    observed_printing: bool = False
 
 
 class CameraProbeResult(BaseModel):

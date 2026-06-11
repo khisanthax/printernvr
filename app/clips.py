@@ -50,6 +50,8 @@ class ClipStore:
 
             if len(relative.parts) < 2:
                 continue
+            if relative.parts[0] == "timelapses":
+                continue
 
             storage_dir = relative.parts[0]
             clip_camera_id = known_output_dirs.get(storage_dir) or storage_dir

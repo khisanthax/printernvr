@@ -31,11 +31,14 @@ def save_camera_config(payload: CameraConfigFile, request: Request) -> dict:
     camera_store = request.app.state.camera_store
     recorder = request.app.state.recording_manager
     gopro_recorder = request.app.state.gopro_recording_manager
+    timelapse_manager = request.app.state.timelapse_manager
     _current_raw, _current_resolved, _items = camera_store.list_cameras()
     busy_ids = [
         camera.id
         for camera in _current_raw
-        if recorder.is_recording(camera.id) or gopro_recorder.is_busy(camera.id)
+        if recorder.is_recording(camera.id)
+        or gopro_recorder.is_busy(camera.id)
+        or timelapse_manager.is_camera_busy(camera.id)
     ]
     if busy_ids:
         raise HTTPException(
@@ -72,10 +75,15 @@ def create_camera(payload: CameraUpsertRequest, request: Request) -> dict:
 def update_camera(camera_id: str, payload: CameraUpsertRequest, request: Request) -> dict:
     recorder = request.app.state.recording_manager
     gopro_recorder = request.app.state.gopro_recording_manager
-    if recorder.is_recording(camera_id) or gopro_recorder.is_busy(camera_id):
+    timelapse_manager = request.app.state.timelapse_manager
+    if (
+        recorder.is_recording(camera_id)
+        or gopro_recorder.is_busy(camera_id)
+        or timelapse_manager.is_camera_busy(camera_id)
+    ):
         raise HTTPException(
             status_code=409,
-            detail=f"Camera '{camera_id}' is actively recording and cannot be edited",
+            detail=f"Camera '{camera_id}' is actively recording or timelapsing and cannot be edited",
         )
 
     camera_store = request.app.state.camera_store
@@ -94,10 +102,15 @@ def update_camera(camera_id: str, payload: CameraUpsertRequest, request: Request
 def delete_camera(camera_id: str, request: Request) -> dict:
     recorder = request.app.state.recording_manager
     gopro_recorder = request.app.state.gopro_recording_manager
-    if recorder.is_recording(camera_id) or gopro_recorder.is_busy(camera_id):
+    timelapse_manager = request.app.state.timelapse_manager
+    if (
+        recorder.is_recording(camera_id)
+        or gopro_recorder.is_busy(camera_id)
+        or timelapse_manager.is_camera_busy(camera_id)
+    ):
         raise HTTPException(
             status_code=409,
-            detail=f"Camera '{camera_id}' is actively recording and must be stopped before deletion",
+            detail=f"Camera '{camera_id}' is actively recording or timelapsing and must be stopped before deletion",
         )
 
     camera_store = request.app.state.camera_store

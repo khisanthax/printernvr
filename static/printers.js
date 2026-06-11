@@ -1,12 +1,15 @@
 const PRINTER_POLL_INTERVAL_MS = 7000;
 const PRINTER_FRESHNESS_INTERVAL_MS = 5000;
 const PRINTER_RECORDING_POLL_INTERVAL_MS = 4000;
+const PRINTER_TIMELAPSE_POLL_INTERVAL_MS = 5000;
 const PRINTER_VISIBILITY_KEY = "printernvr-visible-printers";
 const PRINTER_VIEW_SELECTION_KEY = "printernvr-printer-view-selections";
 
 let refreshInFlight = false;
 const recordingStates = new Map();
 const localRecordingErrors = new Map();
+const timelapseStates = new Map();
+const localTimelapseErrors = new Map();
 const latestClipStates = new Map();
 const CUSTOM_DURATION_MIN_SECONDS = 1;
 const CUSTOM_DURATION_MAX_SECONDS = 600;
@@ -335,6 +338,7 @@ function renderPreview(printerId, view) {
   container.dataset.viewEnabled = view && view.enabled === false ? "false" : "true";
   container.replaceChildren(createPreviewNode(printerName, view));
   updatePrinterRecordingState(printerId);
+  updatePrinterTimelapseState(printerId);
   refreshLatestClipForPrinter(printerId).catch((error) => console.error(error));
 }
 
@@ -771,6 +775,164 @@ function updatePrinterRecordingState(printerId) {
   }
 }
 
+function getTimelapseStatusTone(status) {
+  const normalized = String(status || "idle").toLowerCase();
+  return ["starting", "running", "stopping", "rendering", "complete", "error"].includes(normalized)
+    ? normalized
+    : "idle";
+}
+
+function getTimelapseStatusLabel(status) {
+  const tone = getTimelapseStatusTone(status);
+  return `Timelapse: ${tone.charAt(0).toUpperCase() + tone.slice(1)}`;
+}
+
+function getTimelapseInterval(printerId) {
+  const select = query(`[data-printer-timelapse-interval="${printerId}"]`);
+  if (!(select instanceof HTMLSelectElement)) {
+    return 10;
+  }
+  const interval = Number(select.value);
+  return Number.isInteger(interval) && interval >= 1 && interval <= 300 ? interval : 10;
+}
+
+function setTimelapseError(printerId, message) {
+  const errorNode = query(`[data-printer-timelapse-error="${printerId}"]`);
+  if (!errorNode) {
+    return;
+  }
+
+  if (message) {
+    errorNode.hidden = false;
+    errorNode.textContent = message;
+  } else {
+    errorNode.hidden = true;
+    errorNode.textContent = "";
+  }
+}
+
+function describeTimelapseState(printerId, view, state) {
+  const selectedViewName = view && view.camera_name ? view.camera_name.trim() : "selected view";
+  if (!view || !view.camera_id) {
+    return "No timelapse camera selected.";
+  }
+  if (view.enabled === false) {
+    return `${selectedViewName} is disabled.`;
+  }
+  if (!state || !state.status || state.status === "idle") {
+    return `Timelapse idle. Selected view: ${selectedViewName}`;
+  }
+
+  const cameraName = state.camera_name || state.camera_id || selectedViewName;
+  const frames = Number(state.frame_count || 0);
+  const interval = state.interval_seconds ? `${state.interval_seconds}s` : "--";
+  const tone = getTimelapseStatusTone(state.status);
+  if (tone === "starting") {
+    return `Starting timelapse from ${cameraName}...`;
+  }
+  if (tone === "running") {
+    return `Capturing ${cameraName} every ${interval}. ${frames} frame${frames === 1 ? "" : "s"} captured.`;
+  }
+  if (tone === "stopping") {
+    return `Stopping timelapse from ${cameraName}...`;
+  }
+  if (tone === "rendering") {
+    return `Rendering MP4 from ${frames} frame${frames === 1 ? "" : "s"}...`;
+  }
+  if (tone === "complete") {
+    return state.output_file ? `Timelapse complete: ${state.output_file}` : "Timelapse complete.";
+  }
+  if (tone === "error") {
+    return state.render_error || state.last_error || "Timelapse error";
+  }
+  return `Timelapse idle. Selected view: ${selectedViewName}`;
+}
+
+function updatePrinterTimelapseState(printerId) {
+  const view = getCurrentView(printerId);
+  const state = timelapseStates.get(printerId) || null;
+  const tone = getTimelapseStatusTone(state && state.status);
+  const busy = ["starting", "running", "stopping", "rendering"].includes(tone);
+  const canStart = Boolean(view && view.camera_id && view.enabled !== false);
+
+  const badge = query(`[data-printer-timelapse-badge="${printerId}"]`);
+  if (badge) {
+    badge.textContent = getTimelapseStatusLabel(tone);
+    badge.classList.remove(
+      "recording-state-pill--idle",
+      "recording-state-pill--starting",
+      "recording-state-pill--recording",
+      "recording-state-pill--stopping",
+      "recording-state-pill--downloading",
+      "recording-state-pill--error",
+    );
+    const badgeTone = {
+      idle: "idle",
+      starting: "starting",
+      running: "recording",
+      stopping: "stopping",
+      rendering: "downloading",
+      complete: "recording",
+      error: "error",
+    }[tone] || "idle";
+    badge.classList.add(`recording-state-pill--${badgeTone}`);
+  }
+
+  updateText(`[data-printer-timelapse-message="${printerId}"]`, describeTimelapseState(printerId, view, state));
+  updateText(`[data-printer-timelapse-frames="${printerId}"]`, state ? String(state.frame_count || 0) : "0");
+  updateText(
+    `[data-printer-timelapse-camera="${printerId}"]`,
+    state && state.camera_name ? state.camera_name : (view && view.camera_name ? view.camera_name : "--"),
+  );
+  updateText(`[data-printer-timelapse-stop-reason="${printerId}"]`, state && state.stop_reason ? state.stop_reason : "--");
+  updateText(`[data-printer-timelapse-render="${printerId}"]`, state && state.render_status ? state.render_status : "idle");
+
+  const outputLink = query(`[data-printer-timelapse-output="${printerId}"]`);
+  if (outputLink instanceof HTMLAnchorElement) {
+    if (state && state.output_url && tone === "complete") {
+      outputLink.href = state.output_url;
+      outputLink.removeAttribute("aria-disabled");
+      outputLink.textContent = state.output_file || "Latest Timelapse";
+    } else {
+      outputLink.href = "#";
+      outputLink.setAttribute("aria-disabled", "true");
+      outputLink.textContent = "Latest Timelapse";
+    }
+  }
+
+  const localError = localTimelapseErrors.get(printerId);
+  setTimelapseError(
+    printerId,
+    localError || (state && (state.last_error || state.render_error) ? `Error: ${state.last_error || state.render_error}` : ""),
+  );
+
+  queryAll(`[data-printer-timelapse-printer="${printerId}"]`).forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    const action = button.dataset.printerTimelapseAction;
+    if (action === "stop") {
+      button.disabled = !["starting", "running"].includes(tone);
+      return;
+    }
+    button.disabled = busy || !canStart;
+  });
+
+  const intervalSelect = query(`[data-printer-timelapse-interval="${printerId}"]`);
+  if (intervalSelect instanceof HTMLSelectElement) {
+    intervalSelect.disabled = busy;
+  }
+}
+
+function updateAllPrinterTimelapseStates() {
+  queryAll("[data-printer-card]").forEach((card) => {
+    const printerId = card.dataset.printerCard;
+    if (printerId) {
+      updatePrinterTimelapseState(printerId);
+    }
+  });
+}
+
 function updateAllPrinterRecordingStates() {
   queryAll("[data-printer-card]").forEach((card) => {
     const printerId = card.dataset.printerCard;
@@ -898,6 +1060,20 @@ async function refreshRecordingStates() {
   updateAllPrinterRecordingStates();
 }
 
+function mergeTimelapseState(printerId, state) {
+  if (!printerId || !state) {
+    return;
+  }
+  timelapseStates.set(printerId, state);
+}
+
+async function refreshTimelapseStates() {
+  const payload = await fetchJson("/api/timelapse/status");
+  const states = payload.printers || {};
+  Object.entries(states).forEach(([printerId, state]) => mergeTimelapseState(printerId, state));
+  updateAllPrinterTimelapseStates();
+}
+
 async function startRecording(cameraId, duration) {
   const options = { method: "POST" };
   if (duration !== undefined && duration !== null) {
@@ -919,6 +1095,30 @@ async function stopRecording(cameraId) {
     mergeRecordingState(payload.camera);
   }
   updateAllPrinterRecordingStates();
+}
+
+async function startTimelapse(printerId, cameraId, intervalSeconds) {
+  const payload = await fetchJson(`/api/timelapse/start/${encodeURIComponent(printerId)}`, {
+    method: "POST",
+    body: JSON.stringify({
+      camera_id: cameraId,
+      interval_seconds: intervalSeconds,
+    }),
+  });
+  if (payload.timelapse) {
+    mergeTimelapseState(printerId, payload.timelapse);
+  }
+  updateAllPrinterTimelapseStates();
+}
+
+async function stopTimelapse(printerId) {
+  const payload = await fetchJson(`/api/timelapse/stop/${encodeURIComponent(printerId)}`, {
+    method: "POST",
+  });
+  if (payload.timelapse) {
+    mergeTimelapseState(printerId, payload.timelapse);
+  }
+  updateAllPrinterTimelapseStates();
 }
 
 function openPreviewModal(printerId) {
@@ -1150,6 +1350,58 @@ function bindRecordingControls() {
   });
 }
 
+function bindTimelapseControls() {
+  queryAll("[data-printer-timelapse-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const printerId = button.dataset.printerTimelapsePrinter;
+      const action = button.dataset.printerTimelapseAction;
+      if (!printerId || !action) {
+        return;
+      }
+
+      const view = getCurrentView(printerId);
+      const cameraId = view && view.camera_id ? view.camera_id : null;
+      if (action === "start" && !cameraId) {
+        localTimelapseErrors.set(printerId, "Error: no timelapse camera selected");
+        updatePrinterTimelapseState(printerId);
+        return;
+      }
+      if (action === "start" && view && view.enabled === false) {
+        localTimelapseErrors.set(printerId, `Error: ${view.camera_name || cameraId} is disabled`);
+        updatePrinterTimelapseState(printerId);
+        return;
+      }
+
+      localTimelapseErrors.delete(printerId);
+      setTimelapseError(printerId, "");
+
+      try {
+        if (action === "start") {
+          updateText(`[data-printer-timelapse-message="${printerId}"]`, "Starting timelapse...");
+          await startTimelapse(printerId, cameraId, getTimelapseInterval(printerId));
+        } else if (action === "stop") {
+          updateText(`[data-printer-timelapse-message="${printerId}"]`, "Stopping timelapse...");
+          await stopTimelapse(printerId);
+        }
+        await refreshTimelapseStates();
+      } catch (error) {
+        console.error(error);
+        localTimelapseErrors.set(printerId, `Error: ${error.message}`);
+        updatePrinterTimelapseState(printerId);
+        await refreshTimelapseStates().catch((refreshError) => console.error(refreshError));
+      }
+    });
+  });
+
+  queryAll("[data-printer-timelapse-output]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      if (link.getAttribute("aria-disabled") === "true") {
+        event.preventDefault();
+      }
+    });
+  });
+}
+
 function bindLatestClipControls() {
   queryAll("[data-printer-latest-preview]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1219,12 +1471,14 @@ bindControls();
 bindViewSelectors();
 bindPreviewInteractions();
 bindRecordingControls();
+bindTimelapseControls();
 bindLatestClipControls();
 applySavedVisibility();
 restoreStoredViews();
 updateFreshnessLabels();
 refreshPrinterCards().catch((error) => console.error(error));
 refreshRecordingStates().catch((error) => console.error(error));
+refreshTimelapseStates().catch((error) => console.error(error));
 refreshAllLatestClips();
 setInterval(() => {
   refreshPrinterCards().catch((error) => console.error(error));
@@ -1232,4 +1486,7 @@ setInterval(() => {
 setInterval(() => {
   refreshRecordingStates().catch((error) => console.error(error));
 }, PRINTER_RECORDING_POLL_INTERVAL_MS);
+setInterval(() => {
+  refreshTimelapseStates().catch((error) => console.error(error));
+}, PRINTER_TIMELAPSE_POLL_INTERVAL_MS);
 setInterval(updateFreshnessLabels, PRINTER_FRESHNESS_INTERVAL_MS);

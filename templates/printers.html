@@ -215,6 +215,49 @@
             <p class="camera-error" data-printer-recording-error="{{ printer.printer_id }}" hidden></p>
           </section>
 
+          <section class="printer-timelapse" data-printer-timelapse="{{ printer.printer_id }}">
+            <div class="printer-timelapse__head">
+              <span class="recording-state-pill recording-state-pill--idle" data-printer-timelapse-badge="{{ printer.printer_id }}">Timelapse: Idle</span>
+              <a class="inline-link" href="#" data-printer-timelapse-output="{{ printer.printer_id }}" aria-disabled="true">Latest Timelapse</a>
+            </div>
+            <div class="printer-timelapse__controls">
+              <button type="button" class="control-button control-button--secondary" data-printer-timelapse-action="start" data-printer-timelapse-printer="{{ printer.printer_id }}">
+                Start Timelapse
+              </button>
+              <button type="button" class="control-button control-button--secondary" data-printer-timelapse-action="stop" data-printer-timelapse-printer="{{ printer.printer_id }}" disabled>
+                Stop Timelapse
+              </button>
+              <label class="printer-timelapse__interval">
+                <span>Interval</span>
+                <select data-printer-timelapse-interval="{{ printer.printer_id }}">
+                  {% for interval in [2, 5, 10, 30, 60] %}
+                  <option value="{{ interval }}" {% if interval == 10 %}selected{% endif %}>{{ interval }}s</option>
+                  {% endfor %}
+                </select>
+              </label>
+            </div>
+            <dl class="printer-timelapse__stats">
+              <div>
+                <dt>Frames</dt>
+                <dd data-printer-timelapse-frames="{{ printer.printer_id }}">0</dd>
+              </div>
+              <div>
+                <dt>Using</dt>
+                <dd data-printer-timelapse-camera="{{ printer.printer_id }}">{{ printer.camera_name or printer.default_camera_id or "--" }}</dd>
+              </div>
+              <div>
+                <dt>Stop reason</dt>
+                <dd data-printer-timelapse-stop-reason="{{ printer.printer_id }}">--</dd>
+              </div>
+              <div>
+                <dt>Render</dt>
+                <dd data-printer-timelapse-render="{{ printer.printer_id }}">idle</dd>
+              </div>
+            </dl>
+            <p class="printer-recording__message" data-printer-timelapse-message="{{ printer.printer_id }}">Timelapse idle. Selected view: {{ printer.camera_name or printer.default_camera_id or "--" }}</p>
+            <p class="camera-error" data-printer-timelapse-error="{{ printer.printer_id }}" hidden></p>
+          </section>
+
           <details class="printer-card__extra">
             <summary>Clip and camera details</summary>
             <section class="printer-latest-clip" data-printer-latest-clip="{{ printer.printer_id }}">

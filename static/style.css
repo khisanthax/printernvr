@@ -939,8 +939,19 @@ body {
   background: var(--panel-alt);
 }
 
+.printer-timelapse {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(11, 94, 215, 0.05);
+}
+
 .printer-recording__head,
-.printer-recording__controls {
+.printer-recording__controls,
+.printer-timelapse__head,
+.printer-timelapse__controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -948,8 +959,60 @@ body {
   gap: 0.5rem;
 }
 
-.printer-recording__controls {
+.printer-recording__controls,
+.printer-timelapse__controls {
   justify-content: flex-start;
+}
+
+.printer-timelapse__interval {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.printer-timelapse__interval select {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.48rem 0.6rem;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+}
+
+.printer-timelapse__stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 0.75rem;
+}
+
+.printer-timelapse__stats div {
+  min-width: 0;
+}
+
+.printer-timelapse__stats dt {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.printer-timelapse__stats dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.printer-timelapse__head a[aria-disabled="true"] {
+  opacity: 0.55;
+  pointer-events: none;
+  cursor: not-allowed;
 }
 
 .printer-recording__durations {

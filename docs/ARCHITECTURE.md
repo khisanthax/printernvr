@@ -32,6 +32,7 @@ Legacy GoPro support still exists in the codebase for backward compatibility, bu
 - `app/models.py`: Pydantic models for config, runtime state, and storage status
 - `app/state.py`: runtime state manager for camera recording state
 - `app/recorder.py`: ffmpeg command building, process lifecycle, monitor threads
+- `app/timelapse.py`: interval timelapse session manager, frame capture, Moonraker auto-stop, and MP4 rendering
 - `app/services/gopro_service.py`: deprecated compatibility module for legacy GoPro HTTP control
 - `app/services/gopro_recording_manager.py`: deprecated compatibility module for legacy GoPro jobs
 - `app/retention.py`: storage scanning, threshold evaluation, cleanup planning and deletion
@@ -47,6 +48,7 @@ Legacy GoPro support still exists in the codebase for backward compatibility, bu
 - `app/api/gopro.py`: deprecated compatibility endpoints for legacy GoPro configs
 - `app/api/status.py`: legacy runtime status API
 - `app/api/record.py`: recording start, stop, and status API
+- `app/api/timelapse.py`: timelapse start, stop, status, and completed-output download API
 - `app/api/storage.py`: storage status and manual cleanup API
 - `app/api/printers.py`: live printer card status API
 - `app/api/clips.py`: clip list, preview, download, and delete API
@@ -178,7 +180,7 @@ Current phase limits:
 - polling-based status refresh remains intentionally simple; no websocket or push-based monitoring path was added
 - printer-card recording controls are a frontend entry point into the existing camera recording APIs, not a new recording backend
 - latest clip shortcuts are read-only convenience actions over the existing clip filesystem APIs
-- planned timelapse controls should be added as a separate timelapse manager/API rather than overloading the normal clip recording manager
+- timelapse controls use a separate timelapse manager/API rather than overloading the normal clip recording manager
 
 ## Camera Wall Flow
 
@@ -262,19 +264,20 @@ This recording profile is intentionally conservative for printer cameras:
 - RTSP over TCP improves compatibility with go2rtc and camera streams that are unreliable over default transport settings
 - video-only MP4 output avoids mux failures caused by audio or non-video side streams
 
-## Planned Timelapse Flow
+## Timelapse Flow
 
-Phase 12 plans timelapse sessions as a separate backend path from normal short-clip recording.
+Phase 12 implements timelapse sessions as a separate backend path from normal short-clip recording.
 
-Planned behavior:
+Implemented behavior:
 1. `/printers` adds a compact Timelapse section to each printer card.
 2. The user manually starts or stops a timelapse for a printer.
 3. The frontend resolves the active selected/default printer camera view, but the API is printer-oriented:
 - `POST /api/timelapse/start/{printer_id}`
 - `POST /api/timelapse/stop/{printer_id}`
 - `GET /api/timelapse/status`
+- `GET /api/timelapse/download/{printer_id}/{session_id}/{filename}`
 4. A dedicated in-memory timelapse manager tracks active sessions independently from `RecordingManager`.
-5. The manager captures frames from the resolved printer camera at a configurable interval.
+5. The manager captures frames from the resolved printer camera's recording/RTSP URL at a configurable interval.
 6. For active sessions with Moonraker metadata, the manager watches print state and auto-stops when the print completes, cancels, errors, or reaches an idle-after-print terminal state.
 7. When stopped, the manager renders captured frames into a final MP4 with ffmpeg.
 8. Runtime state exposes:
@@ -286,8 +289,10 @@ Planned behavior:
 - capture status
 - render status
 - output path
+- output URL
 - latest error
 9. Failures are surfaced through API state and the `/printers` card UI.
+10. The latest completed timelapse output per printer is restored from disk on startup.
 
 Planned local storage layout:
 
@@ -306,7 +311,14 @@ Timelapse storage constraints:
 - Nothing is stored on the printers.
 - NAS sync/archive remains outside application logic.
 - Retention/storage protection must not delete active timelapse session frames or outputs while a session is running or rendering.
+- The normal `/clips` browser ignores `recordings/timelapses/` so frame JPGs do not appear as review clips.
 - No database-backed timelapse tracking is planned for the initial phase.
+
+Phase 12 limitations:
+- Active timelapse sessions are in-memory and are not recovered as running sessions after an app restart.
+- App startup restores the latest completed timelapse MP4 per printer for linking from `/printers`.
+- Completed timelapse MP4s are not part of the normal `/clips` review grid in this phase.
+- Automatic start-on-print-start is out of scope.
 
 Phase 12.1 planned layer-trigger behavior:
 - add a safe endpoint such as `POST /api/timelapse/capture/{printer_id}`
@@ -458,5 +470,5 @@ go2rtc deployment policy:
 - Camera failures should set error state without crashing the app.
 - Retention checks run on startup and after recording completion.
 - No database, queue, scheduler, or NAS logic is included.
-- Planned timelapse sessions should remain local-filesystem based and separate from the normal recording manager.
+- Timelapse sessions remain local-filesystem based and separate from the normal recording manager.
 - GoPro support remains deprecated compatibility code, not an active architectural direction.
