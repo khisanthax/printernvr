@@ -480,14 +480,19 @@ Printer-card timelapse notes:
 - `/printers` includes manual Start Timelapse and Stop Timelapse controls
 - the root Dashboard also includes Start Timelapse and Stop Timelapse controls on each camera card
 - `/printers` timelapses target the selected camera/view at start time
+- `/printers` includes an optional browser-local `Auto start when printing` checkbox that starts the selected-view timelapse when Moonraker reports the printer entering `printing`
 - root Dashboard timelapses use the current camera card's camera as the capture camera
 - if multiple Dashboard camera cards belong to the same printer, only the camera card that owns the active session shows the running/completed timelapse state
 - interval capture supports 2s, 5s, 10s, 30s, and 60s options
 - active sessions auto-stop when Moonraker reports complete, cancelled, error, or idle-after-print after printing has been observed
 - source frames and final MP4s are stored locally under `recordings/timelapses/<printer_id>/<session_id>/`
-- completed timelapse MP4s are linked from the printer card
-- `/clips` ignores timelapse frame/output folders in this phase
+- completed timelapse MP4s are linked from the printer card and listed on `/timelapses`
+- `/timelapses` previews, downloads, filters, and deletes rendered timelapse MP4s
+- `/clips` ignores timelapse frame/output folders so normal clip review stays focused on short recordings
+- timelapse frame capture and MP4 rendering use higher-quality ffmpeg settings than the initial pass
+- recording and timelapse control groups are collapsible on dense dashboards
 - layer-triggered capture is deferred to Phase 12.1
+- auto-start is browser-local and requires `/printers` to remain open; a server-side auto-start daemon is not implemented
 
 Latest clip shortcut notes:
 - each printer card shows the newest completed clip for the currently selected camera/view
@@ -545,9 +550,12 @@ Secondary live card notes:
 - `POST /api/record/start/{camera_id}`
 - `POST /api/record/stop/{camera_id}`
 - `GET /api/timelapse/status`
+- `GET /api/timelapse/outputs`
 - `POST /api/timelapse/start/{printer_id}`
 - `POST /api/timelapse/stop/{printer_id}`
+- `GET /api/timelapse/preview/{printer_id}/{session_id}/{filename}`
 - `GET /api/timelapse/download/{printer_id}/{session_id}/{filename}`
+- `DELETE /api/timelapse/{printer_id}/{session_id}/{filename}`
 - `GET /api/storage/status`
 - `POST /api/storage/cleanup`
 - `GET /api/clips`
@@ -557,7 +565,12 @@ Secondary live card notes:
 - `GET /api/clips/preview/{camera_id}/{filename}`
 - `GET /api/clips/download/{camera_id}/{filename}`
 - `DELETE /api/clips/{camera_id}/{filename}`
+- `GET /`
 - `GET /live`
+- `GET /printers`
+- `GET /cameras`
+- `GET /clips`
+- `GET /timelapses`
 
 `POST /api/record/start/{camera_id}` accepts an optional JSON body:
 

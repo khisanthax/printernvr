@@ -17,6 +17,12 @@ def get_timelapse_status(request: Request) -> dict:
     return {"printers": manager.as_payload()}
 
 
+@router.get("/outputs")
+def get_timelapse_outputs(request: Request) -> dict:
+    manager = request.app.state.timelapse_manager
+    return {"timelapses": manager.list_outputs()}
+
+
 @router.post("/start/{printer_id}")
 def start_timelapse(
     printer_id: str,
@@ -90,6 +96,53 @@ def download_timelapse(
         filename=output_path.name,
         media_type=_guess_media_type(output_path),
     )
+
+
+@router.get("/preview/{printer_id}/{session_id}/{filename}")
+def preview_timelapse(
+    printer_id: str,
+    session_id: str,
+    filename: str,
+    request: Request,
+) -> FileResponse:
+    manager = request.app.state.timelapse_manager
+    try:
+        output_path = manager.resolve_output_path(printer_id, session_id, filename)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not output_path.exists() or not output_path.is_file():
+        raise HTTPException(status_code=404, detail="Timelapse output not found")
+
+    return FileResponse(path=output_path, media_type=_guess_media_type(output_path))
+
+
+@router.delete("/{printer_id}/{session_id}/{filename}")
+def delete_timelapse(
+    printer_id: str,
+    session_id: str,
+    filename: str,
+    request: Request,
+) -> dict:
+    manager = request.app.state.timelapse_manager
+    try:
+        deleted_path = manager.delete_output(printer_id, session_id, filename)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Timelapse output not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Unable to delete timelapse: {exc}") from exc
+
+    return {
+        "deleted": True,
+        "printer_id": printer_id,
+        "session_id": session_id,
+        "filename": filename,
+        "relative_path": deleted_path.relative_to(
+            Path(request.app.state.settings["recordings_dir"]).resolve(strict=False)
+        ).as_posix(),
+    }
 
 
 def _resolve_timelapse_camera(

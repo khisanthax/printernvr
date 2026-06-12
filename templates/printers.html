@@ -15,6 +15,7 @@
         <a href="/printers" aria-current="page">Printers</a>
         <a href="/cameras">Printers & Cameras</a>
         <a href="/clips">Clips</a>
+        <a href="/timelapses">Timelapses</a>
       </nav>
       <h1>Live Printers</h1>
       <p>Monitor printer cards with live camera views and printer details beneath each preview.</p>
@@ -174,11 +175,11 @@
             </div>
           </dl>
 
-          <section class="printer-recording" data-printer-recording="{{ printer.printer_id }}">
-            <div class="printer-recording__head">
+          <details class="printer-recording" data-printer-recording="{{ printer.printer_id }}">
+            <summary class="printer-recording__head">
+              <span>Recording controls</span>
               <span class="recording-state-pill recording-state-pill--idle" data-printer-recording-badge="{{ printer.printer_id }}">Recording: Idle</span>
-              <a class="inline-link" href="/clips?camera_id={{ printer.default_camera_id or '' }}" data-printer-clips-link="{{ printer.printer_id }}">View Clips</a>
-            </div>
+            </summary>
             <div class="printer-recording__controls">
               <button type="button" class="control-button" data-printer-record-action="start" data-printer-record-printer="{{ printer.printer_id }}">
                 Start
@@ -212,14 +213,15 @@
               </div>
             </div>
             <p class="printer-recording__message" data-printer-recording-message="{{ printer.printer_id }}">Selected view: {{ printer.camera_name or printer.default_camera_id or "--" }}</p>
+            <a class="inline-link" href="/clips?camera_id={{ printer.default_camera_id or '' }}" data-printer-clips-link="{{ printer.printer_id }}">View Clips for selected view</a>
             <p class="camera-error" data-printer-recording-error="{{ printer.printer_id }}" hidden></p>
-          </section>
+          </details>
 
-          <section class="printer-timelapse" data-printer-timelapse="{{ printer.printer_id }}">
-            <div class="printer-timelapse__head">
+          <details class="printer-timelapse" data-printer-timelapse="{{ printer.printer_id }}">
+            <summary class="printer-timelapse__head">
+              <span>Timelapse</span>
               <span class="recording-state-pill recording-state-pill--idle" data-printer-timelapse-badge="{{ printer.printer_id }}">Timelapse: Idle</span>
-              <a class="inline-link" href="#" data-printer-timelapse-output="{{ printer.printer_id }}" aria-disabled="true">Latest Timelapse</a>
-            </div>
+            </summary>
             <div class="printer-timelapse__controls">
               <button type="button" class="control-button control-button--secondary" data-printer-timelapse-action="start" data-printer-timelapse-printer="{{ printer.printer_id }}">
                 Start Timelapse
@@ -234,6 +236,10 @@
                   <option value="{{ interval }}" {% if interval == 10 %}selected{% endif %}>{{ interval }}s</option>
                   {% endfor %}
                 </select>
+              </label>
+              <label class="printer-timelapse__auto">
+                <input type="checkbox" data-printer-timelapse-auto="{{ printer.printer_id }}">
+                <span>Auto start when printing</span>
               </label>
             </div>
             <dl class="printer-timelapse__stats">
@@ -255,8 +261,11 @@
               </div>
             </dl>
             <p class="printer-recording__message" data-printer-timelapse-message="{{ printer.printer_id }}">Timelapse idle. Selected view: {{ printer.camera_name or printer.default_camera_id or "--" }}</p>
+            <p class="printer-recording__message">Timelapse MP4s are stored separately from normal clips and are linked here when rendering completes.</p>
+            <a class="inline-link" href="#" data-printer-timelapse-output="{{ printer.printer_id }}" aria-disabled="true">Latest Timelapse</a>
+            <a class="inline-link" href="/timelapses">View All Timelapses</a>
             <p class="camera-error" data-printer-timelapse-error="{{ printer.printer_id }}" hidden></p>
-          </section>
+          </details>
 
           <details class="printer-card__extra">
             <summary>Clip and camera details</summary>

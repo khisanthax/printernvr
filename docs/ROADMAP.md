@@ -747,6 +747,7 @@ Purpose:
 Initial scope:
 - Manual Start Timelapse button per printer card.
 - Manual Stop Timelapse button per printer card.
+- Optional browser-local auto-start checkbox per printer card.
 - Timelapse status per printer/card.
 - Interval-based capture first.
 - Auto-stop based on Moonraker print state.
@@ -756,7 +757,7 @@ Initial scope:
 
 Out of initial scope:
 - Layer-triggered Klipper macro integration.
-- Automatic start on print start.
+- Server-side automatic start daemon independent of an open browser tab.
 - Advanced render profiles.
 - NAS upload/sync logic.
 - Database-backed timelapse tracking.
@@ -770,10 +771,15 @@ Backend implementation:
   - `GET /api/timelapse/status`
 - Added secure completed-output download endpoint:
   - `GET /api/timelapse/download/{printer_id}/{session_id}/{filename}`
+- Added completed-output review endpoints:
+  - `GET /api/timelapse/outputs`
+  - `GET /api/timelapse/preview/{printer_id}/{session_id}/{filename}`
+  - `DELETE /api/timelapse/{printer_id}/{session_id}/{filename}`
 - Start accepts `camera_id` and `interval_seconds`.
 - Capture camera is resolved from the selected/default printer view.
 - Frames are captured from the camera recording/RTSP URL at a configurable interval.
 - RTSP frame capture uses TCP transport.
+- Frame snapshots use high-quality JPEG capture, and final MP4 rendering uses x264 CRF 18 with a slower preset for cleaner output.
 - Moonraker print state is watched for active timelapse printers.
 - Active timelapse sessions auto-stop when print state reaches complete, cancelled, error, or idle-after-print after printing has been observed.
 - Captured frames are rendered to MP4 with ffmpeg after stop.
@@ -784,9 +790,11 @@ Backend implementation:
 Dashboard implementation:
 - Added a compact Timelapse section to each `/printers` card.
 - Added compact Timelapse controls to the root camera Dashboard so the current camera card can start/stop that printer's timelapse.
+- Recording and timelapse control groups are collapsible to reduce card height on dense dashboards.
 - Shows:
   - Start Timelapse
   - Stop Timelapse
+  - optional auto-start when printing checkbox on `/printers`
   - interval selector
   - running/rendering/error state
   - frame count
@@ -795,8 +803,10 @@ Dashboard implementation:
 - Dashboard camera-card controls use that card's camera as the capture camera and the camera's `printer_id` as the timelapse owner.
 - Dashboard camera cards for sibling views on the same printer stay visually distinct: only the camera card that owns the active session shows running/completed timelapse state.
 - Running timelapses keep their original camera if the user changes the selected view later.
+- `/printers` browser-side auto-start observes Moonraker printer state through the existing card polling API and starts a timelapse for the currently selected view when the printer enters `printing`.
 - Invalid actions are disabled while a timelapse is starting, running, stopping, or rendering.
 - Moonraker unavailable state is shown without blocking manual stop.
+- Added `/timelapses` as a review page for completed rendered timelapse MP4s with preview, download, filtering, and delete.
 
 Storage behavior:
 - Source frames are stored locally first.
@@ -807,7 +817,8 @@ Storage behavior:
   - `recordings/timelapses/<printer_id>/<session_id>/frames/`
   - `recordings/timelapses/<printer_id>/<session_id>/<session_id>.mp4`
 - Retention/storage protection excludes active timelapse frame/output paths.
-- `/clips` ignores the timelapse frame/output tree so frame JPGs do not pollute normal clip review.
+- `/clips` ignores the timelapse frame/output tree so frame JPGs and rendered timelapse MP4s do not pollute normal clip review.
+- `/timelapses` scans the timelapse output tree and is the dedicated browser for rendered timelapse MP4s.
 
 Validation:
 - `python -m compileall app`
@@ -829,8 +840,8 @@ Implemented limitations:
 - Active timelapse sessions are in-memory; app restart stops active sessions without restart recovery.
 - The latest completed MP4 per printer is restored from local files on startup.
 - Layer-triggered capture is deferred to Phase 12.1.
-- Automatic start on print start is deferred.
-- Completed timelapse MP4s are linked from `/printers`; they are not folded into the normal `/clips` review workflow in this phase.
+- Auto-start is browser-local and requires the `/printers` page to be open; a server-side auto-start daemon remains a possible later phase if needed.
+- Completed timelapse MP4s are linked from `/printers` and listed on `/timelapses`; they are intentionally not folded into the normal `/clips` review workflow.
 
 ### Phase 12.1 - Layer-Based Timelapse Triggers [ ]
 
@@ -980,9 +991,9 @@ Implemented highlights:
 - Printer-card Start, Stop, quick duration, and custom duration controls that target the currently selected camera/view and reuse the existing camera recording APIs
 - Printer-card latest clip shortcuts that preview, download, or open clips for the currently selected camera/view
 - Printer-card quick duration buttons and custom duration input for selected-view timed recordings
-- Printer-card and root Dashboard camera-card timelapse controls with interval capture, Moonraker auto-stop, local frame storage, and MP4 render output
+- Printer-card and root Dashboard camera-card timelapse controls with interval capture, Moonraker auto-stop, local frame storage, high-quality MP4 render output, and a dedicated `/timelapses` review page
 - Optional Moonraker-backed status polling for printer status, file name, progress, temperatures, and ETA
-- Endpoints: `GET /health`, `GET /api/cameras`, `GET /api/cameras/config`, `PUT /api/cameras/config`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/timelapse/status`, `POST /api/timelapse/start/{printer_id}`, `POST /api/timelapse/stop/{printer_id}`, `GET /api/timelapse/download/{printer_id}/{session_id}/{filename}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/latest/{camera_id}`, `PATCH /api/clips/{camera_id}/{filename}/metadata`, `POST /api/clips/{camera_id}/{filename}/rename`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /live`, `GET /printers`, `GET /cameras`, `GET /clips`
+- Endpoints: `GET /health`, `GET /api/cameras`, `GET /api/cameras/config`, `PUT /api/cameras/config`, `POST /api/cameras`, `PUT /api/cameras/{camera_id}`, `DELETE /api/cameras/{camera_id}`, `POST /api/camera/probe`, `GET /api/printers/cards`, `GET /api/status`, `GET /api/record/status`, `POST /api/record/start/{camera_id}`, `POST /api/record/stop/{camera_id}`, `GET /api/timelapse/status`, `GET /api/timelapse/outputs`, `POST /api/timelapse/start/{printer_id}`, `POST /api/timelapse/stop/{printer_id}`, `GET /api/timelapse/download/{printer_id}/{session_id}/{filename}`, `GET /api/timelapse/preview/{printer_id}/{session_id}/{filename}`, `DELETE /api/timelapse/{printer_id}/{session_id}/{filename}`, `GET /api/storage/status`, `POST /api/storage/cleanup`, `GET /api/clips`, `GET /api/clips/latest/{camera_id}`, `PATCH /api/clips/{camera_id}/{filename}/metadata`, `POST /api/clips/{camera_id}/{filename}/rename`, `GET /api/clips/preview/{camera_id}/{filename}`, `GET /api/clips/download/{camera_id}/{filename}`, `DELETE /api/clips/{camera_id}/{filename}`, `GET /`, `GET /live`, `GET /printers`, `GET /cameras`, `GET /clips`, `GET /timelapses`
 - Legacy compatibility endpoints remain for existing GoPro deployments but are deprecated and not part of the active workflow
 - Dashboard camera cards with preview iframe, live status, output metadata, record controls, error display, and last recorded clip
 - Empty dashboard state when no cameras are configured

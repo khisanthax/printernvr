@@ -519,8 +519,27 @@ Why:
 Impact:
 - `/cameras` is consistently presented as `Printers & Cameras`.
 - Long preview and RTSP URLs wrap in dense UI cards instead of overflowing.
-- `/printers` keeps critical recording controls visible and collapses optional clip/camera details.
+- `/printers` and the root Dashboard may collapse recording/timelapse controls as long as summary badges keep state visible.
 - Legacy `mode=gopro` code remains deprecated compatibility only.
+
+## 2026-06-12 - Keep Timelapse Review Separate from Normal Clips
+
+Decision:
+- Add `/timelapses` as the dedicated review page for rendered timelapse MP4s.
+- Keep `/clips` focused on normal per-camera recording clips and exclude `recordings/timelapses/`.
+- Improve timelapse quality with higher-quality frame capture and x264 CRF 18 rendering.
+- Keep auto-start as browser-local `/printers` behavior for now.
+
+Why:
+- Timelapse sessions include source frame folders and rendered outputs that would clutter the short-clip review workflow.
+- A dedicated page can safely preview, download, filter, and delete rendered timelapse sessions without changing clip metadata or storage rules.
+- Browser-local auto-start avoids adding backend config, a daemon, or a database while still supporting the requested opt-in workflow.
+
+Impact:
+- Completed timelapse MP4s appear on `/timelapses`, not `/clips`.
+- Deleting a timelapse output removes the rendered MP4 and its source frame session folder, but does not affect normal recordings.
+- Auto-start requires `/printers` to remain open and uses the currently selected printer camera/view when Moonraker enters `printing`.
+- A future backend auto-start daemon can be considered if unattended auto-start is needed.
 
 ## 2026-05-09 - Plan Installer Without Requiring Bundled go2rtc
 

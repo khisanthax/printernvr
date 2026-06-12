@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Printer NVR - Timelapses</title>
+  <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
+</head>
+<body>
+  <header class="page-header page-header--single">
+    <div>
+      <nav class="page-nav">
+        <a href="/">Dashboard</a>
+        <a href="/live">Live View</a>
+        <a href="/printers">Printers</a>
+        <a href="/cameras">Printers & Cameras</a>
+        <a href="/clips">Clips</a>
+        <a href="/timelapses" aria-current="page">Timelapses</a>
+      </nav>
+      <h1>Timelapses</h1>
+      <p>Review rendered timelapse MP4s stored under the local timelapse recordings folder.</p>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <section class="clips-page">
+      <div class="clips-toolbar">
+        <label for="timelapse-printer-filter">
+          Printer filter
+          <select id="timelapse-printer-filter">
+            <option value="">All printers</option>
+          </select>
+        </label>
+        <label for="timelapse-search-filter">
+          Search
+          <input id="timelapse-search-filter" type="search" placeholder="Filename, printer, camera, or session">
+        </label>
+        <div class="table-actions">
+          <button type="button" id="clear-timelapse-filters-button" class="control-button control-button--secondary">Clear Filters</button>
+          <button type="button" id="refresh-timelapses-button" class="control-button control-button--secondary">Refresh</button>
+        </div>
+      </div>
+
+      <p id="timelapses-feedback" class="storage-summary" hidden></p>
+
+      <div id="timelapses-empty" class="empty-state" hidden>
+        <h2>No timelapses found.</h2>
+        <p>Rendered timelapse MP4s will appear here after a timelapse session stops and finishes rendering.</p>
+      </div>
+
+      <div id="timelapses-table-wrap" class="clips-table-wrap" hidden>
+        <table class="clips-table">
+          <thead>
+            <tr>
+              <th scope="col">Printer</th>
+              <th scope="col">Camera</th>
+              <th scope="col">Filename</th>
+              <th scope="col">Created</th>
+              <th scope="col">Frames</th>
+              <th scope="col">Size</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="timelapses-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/timelapses.js?v={{ asset_version }}"></script>
+</body>
+</html>

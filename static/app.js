@@ -59,22 +59,28 @@ async function fetchJson(url, options = {}) {
 
 function setBadge(cameraId, status) {
   const badge = bySelector(`[data-camera-status="${cameraId}"]`);
-  if (!badge) {
-    return;
-  }
+  const summaryBadge = bySelector(`[data-camera-status-summary="${cameraId}"]`);
 
   const normalized = (status || "idle").toLowerCase();
   const label = normalized.charAt(0).toUpperCase() + normalized.slice(1);
-  badge.textContent = `Recording: ${label}`;
-  badge.classList.remove(
-    "status-idle",
-    "status-starting",
-    "status-recording",
-    "status-stopping",
-    "status-downloading",
-    "status-error",
-  );
-  badge.classList.add(`status-${normalized}`);
+  [
+    [badge, `Recording: ${label}`],
+    [summaryBadge, label],
+  ].forEach(([node, text]) => {
+    if (!node) {
+      return;
+    }
+    node.textContent = text;
+    node.classList.remove(
+      "status-idle",
+      "status-starting",
+      "status-recording",
+      "status-stopping",
+      "status-downloading",
+      "status-error",
+    );
+    node.classList.add(`status-${normalized}`);
+  });
 }
 
 function updateControlStates(cameraId, state) {

@@ -15,6 +15,7 @@
         <a href="/printers">Printers</a>
         <a href="/cameras">Printers & Cameras</a>
         <a href="/clips">Clips</a>
+        <a href="/timelapses">Timelapses</a>
       </nav>
       <h1>Printer NVR</h1>
       <p>Recording dashboard for local 3D printer camera capture.</p>
@@ -127,22 +128,28 @@
         <pre data-error-details="{{ camera.id }}"></pre>
       </details>
 
-      <div class="camera-controls" data-camera-id="{{ camera.id }}" data-camera-mode="{{ camera.mode }}">
-        <button type="button" class="control-button" data-action="start" {% if not camera.enabled %}disabled{% endif %}>Start</button>
-        <button type="button" class="control-button" data-action="stop" {% if not camera.enabled %}disabled{% endif %}>Stop</button>
-        <button type="button" class="control-button" data-action="timed" data-duration="30" {% if not camera.enabled %}disabled{% endif %}>30s</button>
-        <button type="button" class="control-button" data-action="timed" data-duration="60" {% if not camera.enabled %}disabled{% endif %}>60s</button>
-        <button type="button" class="control-button" data-action="timed" data-duration="120" {% if not camera.enabled %}disabled{% endif %}>120s</button>
-        <div class="custom-duration">
-          <label for="duration-{{ camera.id }}">Custom duration (seconds)</label>
-          <div class="custom-duration__controls">
-            <input id="duration-{{ camera.id }}" type="number" min="1" step="1" placeholder="90" data-custom-duration="{{ camera.id }}" {% if not camera.enabled %}disabled{% endif %}>
-            <button type="button" class="control-button control-button--secondary" data-action="custom" {% if not camera.enabled %}disabled{% endif %}>Custom</button>
+      <details class="camera-card__details-box camera-card__control-box">
+        <summary>
+          <span>Recording controls</span>
+          <span class="status-badge status-idle" data-camera-status-summary="{{ camera.id }}">Idle</span>
+        </summary>
+        <div class="camera-controls" data-camera-id="{{ camera.id }}" data-camera-mode="{{ camera.mode }}">
+          <button type="button" class="control-button" data-action="start" {% if not camera.enabled %}disabled{% endif %}>Start</button>
+          <button type="button" class="control-button" data-action="stop" {% if not camera.enabled %}disabled{% endif %}>Stop</button>
+          <button type="button" class="control-button" data-action="timed" data-duration="30" {% if not camera.enabled %}disabled{% endif %}>30s</button>
+          <button type="button" class="control-button" data-action="timed" data-duration="60" {% if not camera.enabled %}disabled{% endif %}>60s</button>
+          <button type="button" class="control-button" data-action="timed" data-duration="120" {% if not camera.enabled %}disabled{% endif %}>120s</button>
+          <div class="custom-duration">
+            <label for="duration-{{ camera.id }}">Custom duration (seconds)</label>
+            <div class="custom-duration__controls">
+              <input id="duration-{{ camera.id }}" type="number" min="1" step="1" placeholder="90" data-custom-duration="{{ camera.id }}" {% if not camera.enabled %}disabled{% endif %}>
+              <button type="button" class="control-button control-button--secondary" data-action="custom" {% if not camera.enabled %}disabled{% endif %}>Custom</button>
+            </div>
           </div>
         </div>
-      </div>
+      </details>
 
-      <section
+      <details
         class="printer-timelapse camera-timelapse"
         data-dashboard-timelapse-card="{{ camera.id }}"
         data-dashboard-timelapse-printer="{{ camera.printer_id }}"
@@ -150,10 +157,10 @@
         data-dashboard-timelapse-camera-name="{{ camera.name }}"
         data-dashboard-timelapse-enabled="{{ 'true' if camera.enabled else 'false' }}"
         data-dashboard-timelapse-backend="{{ camera.backend_type }}">
-        <div class="printer-timelapse__head">
+        <summary class="printer-timelapse__head">
+          <span>Timelapse</span>
           <span class="recording-state-pill recording-state-pill--idle" data-dashboard-timelapse-badge="{{ camera.id }}">Timelapse: Idle</span>
-          <a class="inline-link" href="#" data-dashboard-timelapse-output="{{ camera.id }}" aria-disabled="true">Latest Timelapse</a>
-        </div>
+        </summary>
         <div class="printer-timelapse__controls">
           <button
             type="button"
@@ -207,8 +214,10 @@
           Timelapse requires an RTSP/ffmpeg camera.
           {% endif %}
         </p>
+        <a class="inline-link" href="#" data-dashboard-timelapse-output="{{ camera.id }}" aria-disabled="true">Latest Timelapse</a>
+        <a class="inline-link" href="/timelapses">View All Timelapses</a>
         <p class="camera-error" data-dashboard-timelapse-error="{{ camera.id }}" hidden></p>
-      </section>
+      </details>
     </article>
     {% endfor %}
     {% else %}

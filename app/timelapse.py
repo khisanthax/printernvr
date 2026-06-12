@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -171,6 +172,52 @@ class TimelapseManager:
                 for printer_id, state in sorted(self._states.items())
             }
 
+    def list_outputs(self) -> list[dict]:
+        timelapse_root = self._recordings_root / "timelapses"
+        if not timelapse_root.exists():
+            return []
+
+        with self._lock:
+            states = {
+                printer_id: state.model_copy(deep=True)
+                for printer_id, state in self._states.items()
+            }
+
+        outputs: list[dict] = []
+        for output_path in timelapse_root.glob("*/*/*.mp4"):
+            if not output_path.is_file():
+                continue
+            try:
+                printer_id = output_path.parent.parent.name
+                session_id = output_path.parent.name
+                stat = output_path.stat()
+                frames_dir = output_path.parent / "frames"
+                frame_count = len(list(frames_dir.glob("frame_*.jpg"))) if frames_dir.exists() else 0
+                state = states.get(printer_id)
+                is_state_match = bool(state and state.session_id == session_id)
+                outputs.append(
+                    {
+                        "printer_id": printer_id,
+                        "printer_name": state.printer_name if is_state_match else None,
+                        "camera_id": state.camera_id if is_state_match else None,
+                        "camera_name": state.camera_name if is_state_match else None,
+                        "session_id": session_id,
+                        "filename": output_path.name,
+                        "relative_path": output_path.relative_to(self._recordings_root).as_posix(),
+                        "created_at": datetime.utcfromtimestamp(stat.st_mtime).isoformat(),
+                        "size_bytes": stat.st_size,
+                        "size_human": _human_size(stat.st_size),
+                        "frame_count": frame_count,
+                        "preview_url": _preview_url(printer_id, session_id, output_path.name),
+                        "download_url": _download_url(printer_id, session_id, output_path.name),
+                    }
+                )
+            except OSError:
+                continue
+
+        outputs.sort(key=lambda item: item["created_at"], reverse=True)
+        return outputs
+
     def is_printer_busy(self, printer_id: str) -> bool:
         with self._lock:
             state = self._states.get(printer_id)
@@ -211,6 +258,27 @@ class TimelapseManager:
             output_path.relative_to(root)
         except ValueError as exc:
             raise ValueError("Invalid timelapse output path") from exc
+        return output_path
+
+    def delete_output(self, printer_id: str, session_id: str, filename: str) -> Path:
+        output_path = self.resolve_output_path(printer_id, session_id, filename)
+        session_root = output_path.parent
+
+        with self._lock:
+            active = self._sessions.get(printer_id)
+            if (
+                active
+                and active.session_id == session_id
+                and active.state
+                and active.state.status in ACTIVE_STATUSES
+            ):
+                raise ValueError("Active timelapse sessions cannot be deleted")
+
+        if not output_path.exists() or not output_path.is_file():
+            raise FileNotFoundError("Timelapse output not found")
+
+        shutil.rmtree(session_root)
+        self._restore_latest_output_for_printer(printer_id)
         return output_path
 
     def shutdown(self) -> None:
@@ -481,6 +549,45 @@ class TimelapseManager:
                 render_status="complete",
             )
 
+    def _restore_latest_output_for_printer(self, printer_id: str) -> None:
+        timelapse_root = self._recordings_root / "timelapses" / printer_id
+        latest: Path | None = None
+        if timelapse_root.exists():
+            for output_path in timelapse_root.glob("*/*.mp4"):
+                if not output_path.is_file():
+                    continue
+                try:
+                    if latest is None or output_path.stat().st_mtime > latest.stat().st_mtime:
+                        latest = output_path
+                except OSError:
+                    continue
+
+        with self._lock:
+            if latest is None:
+                self._states.pop(printer_id, None)
+                return
+
+            session_id = latest.parent.name
+            frames_dir = latest.parent / "frames"
+            frame_count = len(list(frames_dir.glob("frame_*.jpg"))) if frames_dir.exists() else 0
+            try:
+                stopped_at = datetime.utcfromtimestamp(latest.stat().st_mtime)
+            except OSError:
+                stopped_at = None
+            self._states[printer_id] = TimelapseSessionState(
+                printer_id=printer_id,
+                status="complete",
+                frame_count=frame_count,
+                stopped_at=stopped_at,
+                stop_reason="previous_session",
+                session_id=session_id,
+                frames_dir=str(frames_dir),
+                output_file=latest.name,
+                output_path=str(latest),
+                output_url=_download_url(printer_id, session_id, latest.name),
+                render_status="complete",
+            )
+
 
 def _frame_capture_command(record_url: str, frame_path: Path) -> list[str]:
     command = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error"]
@@ -492,7 +599,7 @@ def _frame_capture_command(record_url: str, frame_path: Path) -> list[str]:
         "-frames:v",
         "1",
         "-q:v",
-        "2",
+        "1",
         str(frame_path),
     ])
     return command
@@ -511,6 +618,10 @@ def _render_command(frames_dir: Path, output_path: Path) -> list[str]:
         str(frames_dir / "frame_%06d.jpg"),
         "-c:v",
         "libx264",
+        "-preset",
+        "slow",
+        "-crf",
+        "18",
         "-pix_fmt",
         "yuv420p",
         "-movflags",
@@ -545,6 +656,24 @@ def _download_url(printer_id: str, session_id: str, filename: str) -> str:
         f"{quote(session_id, safe='')}/"
         f"{quote(filename, safe='')}"
     )
+
+
+def _preview_url(printer_id: str, session_id: str, filename: str) -> str:
+    return (
+        f"/api/timelapse/preview/"
+        f"{quote(printer_id, safe='')}/"
+        f"{quote(session_id, safe='')}/"
+        f"{quote(filename, safe='')}"
+    )
+
+
+def _human_size(size_bytes: int) -> str:
+    value = float(size_bytes)
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if value < 1024 or unit == "TB":
+            return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} B"
+        value /= 1024
+    return f"{size_bytes} B"
 
 
 def _last_error_line(stderr: str) -> str:

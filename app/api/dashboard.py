@@ -46,6 +46,17 @@ def clips_page(request: Request) -> HTMLResponse:
     )
 
 
+@router.get("/timelapses", response_class=HTMLResponse)
+def timelapses_page(request: Request) -> HTMLResponse:
+    templates = request.app.state.templates
+    return templates.TemplateResponse(
+        "timelapses.html",
+        {
+            "request": request,
+        },
+    )
+
+
 @router.get("/live", response_class=HTMLResponse)
 def live_wall_page(request: Request) -> HTMLResponse:
     templates = request.app.state.templates
