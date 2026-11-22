@@ -33,3 +33,32 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install pip-audit
       - run: python -m pip_audit -r requirements.txt
+  disposable-deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install and simulate a fast-forward update
+        run: |
+          git switch -c deployment-smoke
+          git init --bare "$RUNNER_TEMP/upgrade.git"
+          git push --set-upstream "$RUNNER_TEMP/upgrade.git" HEAD:deployment-smoke
+          git clone --branch deployment-smoke "$RUNNER_TEMP/upgrade.git" "$RUNNER_TEMP/upstream"
+          git -C "$RUNNER_TEMP/upstream" -c user.email=ci@example.invalid -c user.name=CI commit --allow-empty -m "Simulated upgrade"
+          git -C "$RUNNER_TEMP/upstream" push
+          bash scripts/install.sh
+          curl --fail http://127.0.0.1:8787/ready
+          for path in / /live /printers /cameras /clips /timelapses; do
+            curl --fail --silent --output /dev/null "http://127.0.0.1:8787$path"
+          done
+          printf 'preserve this media fixture\n' > recordings/preservation.txt
+          sha256sum .env config/cameras.json config/app.json recordings/preservation.txt > "$RUNNER_TEMP/before"
+          bash scripts/update.sh --with-go2rtc
+          sha256sum --check "$RUNNER_TEMP/before"
+          expected=$(git -C "$RUNNER_TEMP/upstream" rev-parse HEAD)
+          test "$(git rev-parse HEAD)" = "$expected"
+          curl --fail http://127.0.0.1:8787/ready
+      - if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.go2rtc.yml --profile go2rtc down
