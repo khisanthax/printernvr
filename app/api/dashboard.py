@@ -13,9 +13,9 @@ def dashboard(request: Request) -> HTMLResponse:
     templates = request.app.state.templates
     cameras = request.app.state.cameras
     return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
+        request=request,
+        name="index.html",
+        context={
             "cameras": [camera.model_dump() for camera in cameras],
         },
     )
@@ -25,9 +25,9 @@ def dashboard(request: Request) -> HTMLResponse:
 def camera_management_page(request: Request) -> HTMLResponse:
     templates = request.app.state.templates
     return templates.TemplateResponse(
-        "cameras.html",
-        {
-            "request": request,
+        request=request,
+        name="cameras.html",
+        context={
         },
     )
 
@@ -37,9 +37,9 @@ def clips_page(request: Request) -> HTMLResponse:
     templates = request.app.state.templates
     cameras = request.app.state.cameras
     return templates.TemplateResponse(
-        "clips.html",
-        {
-            "request": request,
+        request=request,
+        name="clips.html",
+        context={
             "cameras": [camera.model_dump() for camera in cameras],
             "initial_camera_id": request.query_params.get("camera_id", ""),
         },
@@ -50,9 +50,9 @@ def clips_page(request: Request) -> HTMLResponse:
 def timelapses_page(request: Request) -> HTMLResponse:
     templates = request.app.state.templates
     return templates.TemplateResponse(
-        "timelapses.html",
-        {
-            "request": request,
+        request=request,
+        name="timelapses.html",
+        context={
         },
     )
 
@@ -67,9 +67,9 @@ def live_wall_page(request: Request) -> HTMLResponse:
         request.app.state.runtime_state.active_output_paths(),
     )
     return templates.TemplateResponse(
-        "live.html",
-        {
-            "request": request,
+        request=request,
+        name="live.html",
+        context={
             "printers": [card.model_dump(mode="json") for card in printer_cards],
         },
     )
@@ -85,9 +85,9 @@ def printers_page(request: Request) -> HTMLResponse:
         request.app.state.runtime_state.active_output_paths(),
     )
     return templates.TemplateResponse(
-        "printers.html",
-        {
-            "request": request,
+        request=request,
+        name="printers.html",
+        context={
             "printers": [card.model_dump(mode="json") for card in printer_cards],
         },
     )

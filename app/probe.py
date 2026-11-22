@@ -5,6 +5,7 @@ import logging
 import subprocess
 from subprocess import list2cmdline
 
+from app.media import redact_diagnostic
 from app.models import CameraProbeResult
 
 LOGGER = logging.getLogger(__name__)
@@ -26,7 +27,8 @@ def probe_record_stream(record_url: str) -> CameraProbeResult:
         ]
     )
 
-    command_text = list2cmdline(command)
+    command_text = redact_diagnostic(list2cmdline(command), record_url)
+    safe_url = redact_diagnostic(record_url)
 
     try:
         result = subprocess.run(
@@ -39,21 +41,21 @@ def probe_record_stream(record_url: str) -> CameraProbeResult:
             check=False,
         )
     except OSError as exc:
-        LOGGER.warning("ffprobe execution failed for %s: %s", record_url, exc)
+        LOGGER.warning("ffprobe execution failed: %s", redact_diagnostic(str(exc), record_url))
         return CameraProbeResult(
             reachable=False,
-            record_url=record_url,
+            record_url=safe_url,
             diagnostic_status="input_open_failure",
             message="Unable to run ffprobe",
-            error=f"Unable to run ffprobe: {exc}",
-            details=str(exc),
+            error="Unable to run ffprobe",
+            details=redact_diagnostic(str(exc), record_url),
             command=command_text,
         )
     except subprocess.TimeoutExpired:
-        LOGGER.warning("ffprobe timed out for %s", record_url)
+        LOGGER.warning("ffprobe timed out")
         return CameraProbeResult(
             reachable=False,
-            record_url=record_url,
+            record_url=safe_url,
             diagnostic_status="input_open_failure",
             message="ffprobe timed out while probing the stream",
             error="ffprobe timed out while probing the stream",
@@ -62,16 +64,18 @@ def probe_record_stream(record_url: str) -> CameraProbeResult:
         )
 
     if result.returncode != 0:
-        error_message = result.stderr.strip() or result.stdout.strip() or "ffprobe failed"
+        error_message = redact_diagnostic(
+            result.stderr.strip() or result.stdout.strip() or "ffprobe failed", record_url,
+        )
         LOGGER.warning(
             "ffprobe input failure for %s\ncommand: %s\nstderr:\n%s",
-            record_url,
+            safe_url,
             command_text,
             error_message,
         )
         return CameraProbeResult(
             reachable=False,
-            record_url=record_url,
+            record_url=safe_url,
             diagnostic_status="input_open_failure",
             message="ffprobe could not open the input stream",
             error=error_message,
@@ -84,17 +88,17 @@ def probe_record_stream(record_url: str) -> CameraProbeResult:
     except json.JSONDecodeError as exc:
         LOGGER.warning(
             "ffprobe returned invalid JSON for %s\ncommand: %s\nstdout:\n%s",
-            record_url,
+            safe_url,
             command_text,
-            result.stdout,
+            redact_diagnostic(result.stdout, record_url),
         )
         return CameraProbeResult(
             reachable=False,
-            record_url=record_url,
+            record_url=safe_url,
             diagnostic_status="input_open_failure",
             message="ffprobe returned unreadable output",
             error=f"ffprobe output parse failed: {exc}",
-            details=result.stdout.strip() or None,
+            details=redact_diagnostic(result.stdout.strip(), record_url) or None,
             command=command_text,
         )
     streams = payload.get("streams", [])
@@ -108,10 +112,10 @@ def probe_record_stream(record_url: str) -> CameraProbeResult:
         primary_stream = streams[0]
 
     if primary_stream is None or primary_stream.get("codec_type") != "video":
-        LOGGER.info("ffprobe found no video stream for %s", record_url)
+        LOGGER.info("ffprobe found no video stream")
         return CameraProbeResult(
             reachable=True,
-            record_url=record_url,
+            record_url=safe_url,
             diagnostic_status="no_video_stream",
             message="Stream opened, but no video stream was found",
             error="No video stream found in ffprobe output",
@@ -122,14 +126,14 @@ def probe_record_stream(record_url: str) -> CameraProbeResult:
 
     LOGGER.info(
         "ffprobe found video stream for %s (codec=%s, %sx%s)",
-        record_url,
+        safe_url,
         primary_stream.get("codec_name"),
         primary_stream.get("width"),
         primary_stream.get("height"),
     )
     return CameraProbeResult(
         reachable=True,
-        record_url=record_url,
+        record_url=safe_url,
         diagnostic_status="ok",
         message="ffprobe opened the stream and found a video stream",
         codec=primary_stream.get("codec_name") if primary_stream else None,

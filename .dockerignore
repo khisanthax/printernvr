@@ -1,0 +1,11 @@
+*
+!app/
+!app/**
+!templates/
+!templates/**
+!static/
+!static/**
+!config/
+!config/*.example.json
+!requirements.txt
+**/__pycache__/
