@@ -145,13 +145,13 @@ Deprecated compatibility:
 ### Hardening and storage milestone status (November 2026)
 
 - [x] Phase 5 recording integrity: private staging, per-camera ownership, graceful FFmpeg quit, FFprobe validation, and no-overwrite publication. Synthetic Windows capture passed.
-- [-] Phase 5 deployment hardening: loopback binding, password protection for LAN binds, diagnostic redaction, and build exclusions. Resolved dependency audit and Docker runtime tests remain open.
+- [x] Phase 5 deployment hardening: loopback binding, password protection for LAN binds, diagnostic redaction, and build exclusions. The resolved dependency audit and disposable Docker runtime checks passed.
 - [-] Reopened Phase 6: low-space recording guards, cleanup preview, protected favorites and staging, and opt-in timelapse source frame expiration. Exhaustive race tests remain open.
 - [x] Storage inventory and optimization pilot: read-only bitrate projections and separate H.264 copies with at least 20% savings. Real footage quality and production savings remain unmeasured.
 - [-] Phase 12: verified renders, manifests, manual render retry, and server-side auto-start shipped in the hardening branch. Live verification and shutdown edge tests remain open.
 - [-] Phase 12.1: added optional reported-layer capture with interval fallback. Capture eligibility is unit-tested. End-to-end simulated layer sequences and live printer verification remain open.
 - [-] Phase 9.1: implemented favorites download, rejected filter, printer/date filters, dashboard rename, and selected keeper export. Browser acceptance is pending.
-- [-] Phase 11: installer, updater, readiness, and optional go2rtc Compose config added. Disposable install and upgrade tests remain open.
+- [x] Phase 11: installer, updater, readiness, and optional go2rtc Compose config. A disposable fresh install, fast-forward upgrade with the companion, and checksums of preserved configuration and media passed.
 - [-] Phase 10 follow-ups: isolated wall selection, fullscreen, and persisted order added. Mobile and multi-camera refinements remain open.
 
 Status key:
