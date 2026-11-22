@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from app.inventory import build_inventory
+from app.operations import camera_transaction
 
 router = APIRouter(prefix="/api/storage", tags=["storage"])
 
@@ -34,7 +35,7 @@ def preview_storage_cleanup(request: Request) -> dict:
     return state.retention_manager.preview(active_paths)
 
 
-@router.post("/cleanup")
+@router.post("/cleanup", dependencies=[Depends(camera_transaction)])
 def run_storage_cleanup(request: Request, confirm: bool = False) -> dict:
     if not confirm:
         raise HTTPException(status_code=400, detail="Review the cleanup preview and confirm deletion")

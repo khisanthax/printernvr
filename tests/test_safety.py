@@ -15,9 +15,21 @@ from app.media import redact_diagnostic
 from app.models import CameraConfigInput, RetentionConfig, TimelapseAutoSettings
 from app.retention import RetentionManager
 from app.timelapse_auto import TimelapseAutomation
+from app.timelapse import TimelapseManager
 
 
 class SafetyTests(unittest.TestCase):
+    def test_layer_capture_debounces_pause_and_old_layers(self):
+        session = SimpleNamespace(printer_printing=True, layer_captured=4)
+        due = TimelapseManager._layer_capture_due
+        self.assertTrue(due(session, True, 5))
+        self.assertFalse(due(session, True, 4))
+        self.assertFalse(due(session, True, 3))
+        self.assertTrue(due(session, True, None))
+        session.printer_printing = False
+        self.assertFalse(due(session, True, 5))
+        self.assertTrue(due(session, False, None))
+
     def test_access_credentials_and_lan_default(self):
         header = "Basic " + base64.b64encode(b"admin:test-password").decode()
         self.assertTrue(credentials_match(header, "test-password"))

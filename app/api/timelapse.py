@@ -146,7 +146,7 @@ def preview_timelapse(
     return FileResponse(path=output_path, media_type=_guess_media_type(output_path))
 
 
-@router.delete("/{printer_id}/{session_id}/{filename}")
+@router.delete("/{printer_id}/{session_id}/{filename}", dependencies=[Depends(camera_transaction)])
 def delete_timelapse(
     printer_id: str,
     session_id: str,

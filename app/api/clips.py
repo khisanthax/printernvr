@@ -4,10 +4,11 @@ import mimetypes
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 
 from app.models import ClipItem, ClipMetadataUpdate, ClipRenameRequest
+from app.operations import camera_transaction
 
 router = APIRouter(prefix="/api/clips", tags=["clips"])
 
@@ -62,7 +63,7 @@ def get_optimization(request: Request) -> dict:
     return request.app.state.optimizer.status()
 
 
-@router.post("/optimize/{camera_id}/{filename}", status_code=202)
+@router.post("/optimize/{camera_id}/{filename}", status_code=202, dependencies=[Depends(camera_transaction)])
 def optimize_clip(camera_id: str, filename: str, request: Request, crf: int = 22) -> dict:
     state = request.app.state
     clip = _resolve_clip_path(camera_id, filename, request)
@@ -109,7 +110,7 @@ def _resolve_clip_path(camera_id: str, filename: str, request: Request) -> Path:
     return clip_path
 
 
-@router.patch("/{camera_id}/{filename}/metadata")
+@router.patch("/{camera_id}/{filename}/metadata", dependencies=[Depends(camera_transaction)])
 def update_clip_metadata(
     camera_id: str,
     filename: str,
@@ -143,7 +144,7 @@ def update_clip_metadata(
     }
 
 
-@router.post("/{camera_id}/{filename}/rename")
+@router.post("/{camera_id}/{filename}/rename", dependencies=[Depends(camera_transaction)])
 def rename_clip(
     camera_id: str,
     filename: str,
@@ -176,7 +177,7 @@ def rename_clip(
     }
 
 
-@router.delete("/{camera_id}/{filename}")
+@router.delete("/{camera_id}/{filename}", dependencies=[Depends(camera_transaction)])
 def delete_clip(camera_id: str, filename: str, request: Request) -> dict:
     clip_store = request.app.state.clip_store
     cameras = request.app.state.cameras

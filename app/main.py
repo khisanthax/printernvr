@@ -26,6 +26,7 @@ from app.clips import ClipStore
 from app.config import load_app_config
 from app.recorder import RecordingManager
 from app.optimizer import Optimizer
+from app.operations import camera_lock
 from app.retention import RetentionManager
 from app.services.gopro_recording_manager import GoProRecordingManager
 from app.services.gopro_service import GoProService
@@ -83,11 +84,12 @@ async def lifespan(app: FastAPI):
         return runtime_state.active_output_paths() | timelapse_manager.active_paths() | optimizer.active_paths()
 
     def enforce_retention_after_recording() -> None:
-        retention_manager.enforce_retention(
-            active_output_paths(),
-            triggered_by="recording_finished",
-            manual=False,
-        )
+        with camera_lock:
+            retention_manager.enforce_retention(
+                active_output_paths(),
+                triggered_by="recording_finished",
+                manual=False,
+            )
 
     timelapse_manager = TimelapseManager(
         settings["recordings_dir"],

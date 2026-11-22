@@ -397,11 +397,10 @@ class TimelapseManager:
                 layer_mode = managed.state and managed.state.capture_mode == "layer"
                 layer = managed.current_layer if layer_mode else None
                 capture_ok = True
-                if not layer_mode or managed.printer_printing:
-                    if layer is None or layer > managed.layer_captured:
-                        capture_ok = self._capture_frame(managed)
-                        if capture_ok and layer is not None:
-                            managed.layer_captured = layer
+                if self._layer_capture_due(managed, layer_mode, layer):
+                    capture_ok = self._capture_frame(managed)
+                    if capture_ok and layer is not None:
+                        managed.layer_captured = layer
                 next_capture_at = time.monotonic() + (1 if layer is not None else managed.interval_seconds)
                 if not capture_ok and managed.consecutive_capture_errors >= 3:
                     stop_reason = "capture_error"
@@ -412,6 +411,10 @@ class TimelapseManager:
 
         state_stop_reason = managed.state.stop_reason if managed.state else None
         self._render_after_stop(managed, state_stop_reason or stop_reason)
+
+    @staticmethod
+    def _layer_capture_due(managed: ManagedTimelapse, layer_mode: bool, layer: int | None) -> bool:
+        return not layer_mode or (managed.printer_printing and (layer is None or layer > managed.layer_captured))
 
     def _check_moonraker_auto_stop(self, managed: ManagedTimelapse) -> str | None:
         if not managed.moonraker_url:
