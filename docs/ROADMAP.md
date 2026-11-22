@@ -142,6 +142,18 @@ Deprecated compatibility:
 
 ## Updated Phased Roadmap
 
+### Hardening and storage milestone status (November 2026)
+
+- [x] Phase 5 recording integrity: private staging, per-camera ownership, graceful FFmpeg quit, FFprobe validation, and no-overwrite publication. Synthetic Windows capture passed.
+- [-] Phase 5 deployment hardening: loopback binding, password protection for LAN binds, diagnostic redaction, and build exclusions. Resolved dependency audit and Docker runtime tests remain open.
+- [-] Reopened Phase 6: low-space recording guards, cleanup preview, protected favorites and staging, and opt-in timelapse source frame expiration. Exhaustive race tests remain open.
+- [x] Storage inventory and optimization pilot: read-only bitrate projections and separate H.264 copies with at least 20% savings. Real footage quality and production savings remain unmeasured.
+- [-] Phase 12: verified renders, manifests, manual render retry, and server-side auto-start shipped in the hardening branch. Live verification and shutdown edge tests remain open.
+- [-] Phase 12.1: added optional reported-layer capture with interval fallback. Simulated layer sequences and live printer verification remain open.
+- [-] Phase 9.1: implemented favorites download, rejected filter, printer/date filters, dashboard rename, and selected keeper export. Browser acceptance is pending.
+- [-] Phase 11: installer, updater, readiness, and optional go2rtc Compose config added. Disposable install and upgrade tests remain open.
+- [-] Phase 10 follow-ups: isolated wall selection, fullscreen, and persisted order added. Mobile and multi-camera refinements remain open.
+
 Status key:
 - `[ ]` Not started
 - `[-]` In progress
@@ -278,7 +290,7 @@ Deliverables:
 - Download endpoint
 - Manual clip deletion with active-file protection
 
-### Phase 4B - Clip Preview and Bulk Direct Download [x]
+### Phase 4B / 7 - Clip Preview and Bulk Direct Download [x]
 
 Goals:
 - Preview clips inline in the browser before downloading
@@ -297,7 +309,7 @@ Deliverables:
 - One-click bulk direct download as separate files
 - Existing single download and delete actions preserved
 
-### Phase 4C - Optional Folder-Targeted Clip Downloads [x]
+### Phase 4C / 7.1 - Optional Folder-Targeted Clip Downloads [x]
 
 Goals:
 - Allow users on supported browsers to choose a download folder for clips
@@ -353,7 +365,7 @@ Deliverables:
 - Printer visibility checkboxes with client-side persistence
 - Optional printer status/progress/temperature details when Moonraker is configured
 
-### Phase 8A - Multi-View Per Printer [x]
+### Phase 8A / 8.1 - Multi-View Per Printer [x]
 
 Goals:
 - Add a per-printer camera/view selector
@@ -369,7 +381,7 @@ Deliverables:
 - Browser-side view persistence per printer in `localStorage`
 - Default live view remains the backend fallback when no stored selection is valid
 
-### Phase 8B - Printer Dashboard Monitoring Polish [x]
+### Phase 8B / 8.2 - Printer Dashboard Monitoring Polish [x]
 
 Goals:
 - Improve day-to-day monitoring usability on `/printers`
@@ -389,7 +401,7 @@ Deliverables:
 - Per-card freshness text such as `Updated just now` or `Stale`
 - Page-level and per-card refresh controls
 
-### Phase 8C - Recording Controls on Printer Cards [x]
+### Phase 8C / 8.3 - Recording Controls on Printer Cards [x]
 
 Goals:
 - Make `/printers` the main watch-and-capture dashboard
@@ -494,7 +506,7 @@ Validation:
 - `node --check static\\clips.js`
 - `git diff --check`
 
-### Phase 9.1 - Clip Review Quality-of-Life [ ]
+### Phase 9.1 - Clip Review Quality-of-Life [-]
 
 Possible follow-up items:
 - Download Favorites
@@ -694,7 +706,7 @@ Implementation notes:
 - `/printers` still shows printer state separately from recording state.
 - URL terminology is UI-only; backend field names and clip/recording storage are unchanged.
 
-### Phase 11 - Installer and Optional go2rtc Bundle [ ]
+### Phase 11 - Installer and Optional go2rtc Bundle [-]
 
 Purpose:
 - Make Printer NVR easier to install, update, and deploy by adding install/update scripts, clearer environment/config setup, and an optional go2rtc companion service for users who want a single Docker-based recording stack.
@@ -840,10 +852,10 @@ Implemented limitations:
 - Active timelapse sessions are in-memory; app restart stops active sessions without restart recovery.
 - The latest completed MP4 per printer is restored from local files on startup.
 - Layer-triggered capture is deferred to Phase 12.1.
-- Auto-start is browser-local and requires the `/printers` page to be open; a server-side auto-start daemon remains a possible later phase if needed.
+- Auto-start runs on the recorder when enabled for a camera. Moonraker history is required to obtain a stable print job ID.
 - Completed timelapse MP4s are linked from `/printers` and listed on `/timelapses`; they are intentionally not folded into the normal `/clips` review workflow.
 
-### Phase 12.1 - Layer-Based Timelapse Triggers [ ]
+### Phase 12.1 - Layer-Based Timelapse Triggers [-]
 
 Purpose:
 - Add optional Klipper/Moonraker-compatible layer-triggered frame capture.
@@ -876,7 +888,7 @@ Implemented so far:
 - Full ffmpeg stderr is preserved in runtime state and logs
 - Probe diagnostics distinguish input/open failure from missing video stream
 
-### Phase 6 - Retention and Storage Protection [x]
+### Phase 6 - Retention and Storage Protection [-]
 
 Goals:
 - Prevent recorded clips from filling the recorder host storage

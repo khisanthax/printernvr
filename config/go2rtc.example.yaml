@@ -1,0 +1,4 @@
+# Define streams locally before enabling the optional companion.
+streams: {}
+webrtc:
+  listen: ""

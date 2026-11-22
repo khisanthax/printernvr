@@ -232,6 +232,8 @@ Page roles:
 
 ## Recording Flow
 
+FFmpeg writes to a private `.mp4.part` file. The recorder holds the camera claim while stopping, verifying and publishing. Stop sends FFmpeg `q` and applies bounded escalation. FFprobe checks video and duration before no-overwrite publication on the same filesystem. Diagnostics use a bounded, redacted tail. `retention.capture_reserve_mib` and `retention.maximum_recording_seconds` default to 64 MiB and 600 seconds.
+
 1. Client calls `POST /api/record/start/{camera_id}` from either the camera dashboard or the selected view on a printer card.
 2. Backend validates camera existence, enabled state, and current recording state.
 3. `RecordingManager` creates `/app/recordings/<output_subdir>/<camera_id>_YYYYMMDD_HHMMSS.mp4`, where `output_subdir` defaults to the camera id.
@@ -268,6 +270,8 @@ This recording profile is intentionally conservative for printer cameras:
 - video-only MP4 output avoids mux failures caused by audio or non-video side streams
 
 ## Timelapse Flow
+
+Session manifests support retrying interrupted renders from retained frames. The recorder publishes a render after FFprobe validation. Auto-start stores an explicit camera preference and a claimed Moonraker history job ID in `recordings/.timelapse-auto.json`. Layer mode polls Klipper's reported current layer and uses the capture interval when layer data is missing.
 
 Phase 12 implements timelapse sessions as a separate backend path from normal short-clip recording.
 
@@ -423,6 +427,8 @@ Clip browser safety rules:
 - chosen-folder saves are a browser-only enhancement and require File System Access API support in a secure context
 
 ## Retention Flow
+
+Cleanup preview reports candidate files and bytes. Automatic deletion requires `delete_oldest` and manual deletion requires confirmation. Ordinary cleanup excludes favorites, staging, active jobs and timelapse session files. `retention.timelapse_frame_age_days` optionally expires frames after a verified render and preserves the MP4. On-demand inventory reports observed bitrate and projections. Optimization publishes a separate validated H.264 copy only when it saves at least 20%.
 
 1. `RetentionManager` scans the local recordings directory only.
 2. It computes:

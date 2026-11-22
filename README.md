@@ -85,6 +85,12 @@ Clip browsing is available at `http://localhost:8787/clips`.
 
 ## Docker Run Instructions
 
+Run `bash scripts/install.sh` for guided startup or `bash scripts/update.sh` to back up configuration and pull a fast-forward update. Both accept `--with-go2rtc` for the optional companion. For the companion, configure a browser-reachable preview URL and use `rtsp://go2rtc:8554/<stream>` for recording inside Compose.
+
+The default address is `127.0.0.1`. To bind to a LAN address, set `APP_BIND_ADDRESS` and `APP_ACCESS_PASSWORD` in `.env`. The username is `admin`. Use TLS for remote access. `/health` reports liveness and `/ready` checks FFmpeg and writable recording storage.
+
+Run `python -m unittest discover -s tests -v` after installing Python dependencies and FFmpeg.
+
 Current deployment is still Docker-based and manual. A future Phase 11 installer/update workflow is planned but not implemented yet.
 
 1. Ensure `config/cameras.json` exists.
