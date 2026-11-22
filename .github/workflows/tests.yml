@@ -40,6 +40,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Install and simulate a fast-forward update
         run: |
           git switch -c deployment-smoke
