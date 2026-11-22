@@ -4,7 +4,6 @@ const PRINTER_RECORDING_POLL_INTERVAL_MS = 4000;
 const PRINTER_TIMELAPSE_POLL_INTERVAL_MS = 5000;
 const PRINTER_VISIBILITY_KEY = "printernvr-visible-printers";
 const PRINTER_VIEW_SELECTION_KEY = "printernvr-printer-view-selections";
-const PRINTER_TIMELAPSE_AUTO_KEY = "printernvr-auto-timelapse-printers";
 
 let refreshInFlight = false;
 const recordingStates = new Map();
@@ -12,12 +11,8 @@ const localRecordingErrors = new Map();
 const timelapseStates = new Map();
 const localTimelapseErrors = new Map();
 const latestClipStates = new Map();
-const latestPrinterPayloads = new Map();
-const lastPrinterMonitorStates = new Map();
-const autoTimelapseStartLocks = new Set();
 const CUSTOM_DURATION_MIN_SECONDS = 1;
 const CUSTOM_DURATION_MAX_SECONDS = 600;
-let timelapseStateLoaded = false;
 
 function query(selector) {
   return document.querySelector(selector);
@@ -616,6 +611,8 @@ function latestClipUrl(cameraId) {
 }
 
 function updateLatestClipSection(printerId, latestClip) {
+  const rename = query(`[data-printer-latest-rename="${printerId}"]`);
+  if (rename) rename.disabled = !latestClip?.has_latest_clip;
   const nameNode = query(`[data-printer-latest-clip-name="${printerId}"]`);
   const metaNode = query(`[data-printer-latest-clip-meta="${printerId}"]`);
   const previewButton = query(`[data-printer-latest-preview="${printerId}"]`);
@@ -801,33 +798,8 @@ function getTimelapseInterval(printerId) {
   return Number.isInteger(interval) && interval >= 1 && interval <= 300 ? interval : 10;
 }
 
-function readAutoTimelapseSettings() {
-  return readStorageObject(PRINTER_TIMELAPSE_AUTO_KEY);
-}
-
-function setAutoTimelapseEnabled(printerId, enabled) {
-  const settings = readAutoTimelapseSettings();
-  settings[printerId] = Boolean(enabled);
-  writeStorageObject(PRINTER_TIMELAPSE_AUTO_KEY, settings);
-}
-
-function isAutoTimelapseEnabled(printerId) {
-  return readAutoTimelapseSettings()[printerId] === true;
-}
-
-function restoreAutoTimelapseControls() {
-  const settings = readAutoTimelapseSettings();
-  queryAll("[data-printer-timelapse-auto]").forEach((input) => {
-    if (input instanceof HTMLInputElement) {
-      input.checked = settings[input.dataset.printerTimelapseAuto] === true;
-    }
-  });
-}
-
-function isTimelapseBusyForPrinter(printerId) {
-  const state = timelapseStates.get(printerId);
-  const tone = getTimelapseStatusTone(state && state.status);
-  return ["starting", "running", "stopping", "rendering"].includes(tone);
+function getTimelapseMode(printerId) {
+  return query(`[data-printer-timelapse-layer="${printerId}"]`)?.checked ? "layer" : "interval";
 }
 
 function setTimelapseError(printerId, message) {
@@ -967,57 +939,6 @@ function updateAllPrinterTimelapseStates() {
   });
 }
 
-async function maybeAutoStartTimelapse(printer, options = {}) {
-  if (!printer || !printer.printer_id || !timelapseStateLoaded) {
-    return;
-  }
-
-  const printerId = printer.printer_id;
-  const monitorState = statusToneForPrinter(printer);
-  const previousState = lastPrinterMonitorStates.get(printerId);
-  lastPrinterMonitorStates.set(printerId, monitorState);
-
-  if (!isAutoTimelapseEnabled(printerId) || monitorState !== "printing") {
-    return;
-  }
-
-  const shouldTrigger = options.force === true || previousState !== "printing";
-  if (!shouldTrigger || autoTimelapseStartLocks.has(printerId) || isTimelapseBusyForPrinter(printerId)) {
-    return;
-  }
-
-  const view = getCurrentView(printerId);
-  const cameraId = view && view.camera_id ? view.camera_id : null;
-  if (!cameraId) {
-    localTimelapseErrors.set(printerId, "Auto timelapse could not start: no selected camera view.");
-    updatePrinterTimelapseState(printerId);
-    return;
-  }
-  if (view.enabled === false) {
-    localTimelapseErrors.set(
-      printerId,
-      `Auto timelapse could not start: ${view.camera_name || cameraId} is disabled.`,
-    );
-    updatePrinterTimelapseState(printerId);
-    return;
-  }
-
-  autoTimelapseStartLocks.add(printerId);
-  localTimelapseErrors.delete(printerId);
-  updateText(`[data-printer-timelapse-message="${printerId}"]`, "Auto-starting timelapse...");
-
-  try {
-    await startTimelapse(printerId, cameraId, getTimelapseInterval(printerId));
-    await refreshTimelapseStates();
-  } catch (error) {
-    console.error(error);
-    localTimelapseErrors.set(printerId, `Auto timelapse failed: ${error.message}`);
-    updatePrinterTimelapseState(printerId);
-  } finally {
-    autoTimelapseStartLocks.delete(printerId);
-  }
-}
-
 function updateAllPrinterRecordingStates() {
   queryAll("[data-printer-card]").forEach((card) => {
     const printerId = card.dataset.printerCard;
@@ -1044,7 +965,6 @@ function mergeRecordingState(state) {
 }
 
 function updateCard(printer) {
-  latestPrinterPayloads.set(printer.printer_id, printer);
   setConnectionBadge(printer.printer_id, printer.connection_state);
   setStatusBadge(printer);
   setMetadataAttrs(printer);
@@ -1134,7 +1054,6 @@ async function refreshPrinterCards() {
 
     printers.forEach((printer) => {
       updateCard(printer);
-      maybeAutoStartTimelapse(printer).catch((error) => console.error(error));
     });
     updateFreshnessLabels();
   } finally {
@@ -1160,7 +1079,6 @@ async function refreshTimelapseStates() {
   const payload = await fetchJson("/api/timelapse/status");
   const states = payload.printers || {};
   Object.entries(states).forEach(([printerId, state]) => mergeTimelapseState(printerId, state));
-  timelapseStateLoaded = true;
   updateAllPrinterTimelapseStates();
 }
 
@@ -1193,6 +1111,7 @@ async function startTimelapse(printerId, cameraId, intervalSeconds) {
     body: JSON.stringify({
       camera_id: cameraId,
       interval_seconds: intervalSeconds,
+      capture_mode: getTimelapseMode(printerId),
     }),
   });
   if (payload.timelapse) {
@@ -1494,32 +1413,56 @@ function bindTimelapseControls() {
 
 function bindAutoTimelapseControls() {
   queryAll("[data-printer-timelapse-auto]").forEach((input) => {
-    if (!(input instanceof HTMLInputElement)) {
-      return;
-    }
-
-    input.addEventListener("change", () => {
-      const printerId = input.dataset.printerTimelapseAuto;
-      if (!printerId) {
-        return;
-      }
-
-      setAutoTimelapseEnabled(printerId, input.checked);
-      if (!input.checked) {
-        return;
-      }
-
-      const printer = latestPrinterPayloads.get(printerId);
-      if (printer) {
-        maybeAutoStartTimelapse(printer, { force: true }).catch((error) => console.error(error));
-      } else {
-        refreshPrinterCards().catch((error) => console.error(error));
+    const printerId = input.dataset.printerTimelapseAuto;
+    const url = `/api/timelapse/auto/${encodeURIComponent(printerId)}`;
+    const note = query(`[data-printer-timelapse-auto-status="${printerId}"]`);
+    const show = (settings) => {
+      input.checked = settings.enabled;
+      note.textContent = settings.enabled
+        ? `Auto-start camera: ${settings.camera_id}. ${settings.message}`
+        : "Auto-start off.";
+    };
+    fetchJson(url).then(show).catch((error) => { note.textContent = error.message; });
+    input.addEventListener("change", async () => {
+      input.disabled = true;
+      try {
+        show(await fetchJson(url, {
+          method: "PUT",
+          body: JSON.stringify({
+            enabled: input.checked,
+            camera_id: getCurrentView(printerId)?.camera_id,
+            interval_seconds: getTimelapseInterval(printerId),
+            capture_mode: getTimelapseMode(printerId),
+          }),
+        }));
+      } catch (error) {
+        input.checked = !input.checked;
+        note.textContent = error.message;
+      } finally {
+        input.disabled = false;
       }
     });
   });
 }
 
 function bindLatestClipControls() {
+  queryAll("[data-printer-latest-rename]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const printerId = button.dataset.printerLatestRename;
+      const cameraId = getSelectedCameraId(printerId);
+      const clip = latestClipStates.get(cameraId);
+      if (!clip?.filename) return;
+      const filename = window.prompt("New filename", clip.filename);
+      if (!filename || filename === clip.filename) return;
+      try {
+        const path = `/api/clips/${encodeURIComponent(cameraId)}/${encodeURIComponent(clip.filename)}/rename`;
+        await fetchJson(path, {method: "POST", body: JSON.stringify({filename})});
+        await refreshLatestClipForPrinter(printerId);
+      } catch (error) {
+        setRecordingError(printerId, error.message);
+      }
+    });
+  });
   queryAll("[data-printer-latest-preview]").forEach((button) => {
     button.addEventListener("click", () => {
       const printerId = button.dataset.printerLatestPreview;
@@ -1593,7 +1536,6 @@ bindAutoTimelapseControls();
 bindLatestClipControls();
 applySavedVisibility();
 restoreStoredViews();
-restoreAutoTimelapseControls();
 updateFreshnessLabels();
 refreshPrinterCards().catch((error) => console.error(error));
 refreshRecordingStates().catch((error) => console.error(error));

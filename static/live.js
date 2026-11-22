@@ -1,7 +1,7 @@
 const LIVE_POLL_INTERVAL_MS = 15000;
 const LIVE_FRESHNESS_INTERVAL_MS = 5000;
 const LIVE_VISIBILITY_KEY = "printernvr-live-visible-printers";
-const LIVE_VIEW_SELECTION_KEY = "printernvr-printer-view-selections";
+const LIVE_VIEW_SELECTION_KEY = "printernvr-live-view-selections";
 const LIVE_SECONDARY_SELECTION_KEY = "printernvr-live-secondary-views";
 const LIVE_LAYOUT_KEY = "printernvr-live-layout";
 const LIVE_LAYOUT_AUTO = "auto";
@@ -262,12 +262,43 @@ function liveCardOrder(card) {
 }
 
 function sortLiveCards() {
+  const ordering = readStorageObject("printernvr-live-card-order").printers || [];
   queryAll("[data-live-printer-card]").forEach((card) => {
-    card.style.order = String(liveCardOrder(card));
+    const index = ordering.indexOf(card.dataset.livePrinterCard);
+    const priority = card.dataset.liveMonitorState === "printing" ? 0 : 1;
+    card.style.order = String(index < 0
+      ? liveCardOrder(card) + (ordering.length ? 5000 : 0)
+      : priority * 10000 + index * 10 + Number(card.dataset.liveCardOffset || 0));
   });
 }
 
 function bindLayoutControls() {
+  const orderSelect = query("#live-order-printer");
+  for (const [id, shift] of [["#live-move-up", -1], ["#live-move-down", 1]]) {
+    query(id)?.addEventListener("click", () => {
+      const known = Array.from(orderSelect.options, (option) => option.value);
+      const saved = readStorageObject("printernvr-live-card-order").printers || [];
+      const order = [...new Set([...saved, ...known])].filter((value) => known.includes(value));
+      const index = order.indexOf(orderSelect.value);
+      const next = index + shift;
+      if (index < 0 || next < 0 || next >= order.length) return;
+      [order[index], order[next]] = [order[next], order[index]];
+      writeStorageObject("printernvr-live-card-order", {printers: order});
+      sortLiveCards();
+    });
+  }
+  const fullscreen = query("#live-fullscreen");
+  if (fullscreen) {
+    fullscreen.hidden = !document.fullscreenEnabled;
+    fullscreen.addEventListener("click", async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await document.documentElement.requestFullscreen();
+      } catch (_error) {
+        setStreamRefreshStatus("Fullscreen unavailable.");
+      }
+    });
+  }
   const controls = getLayoutControls();
   const applyFromControls = () => {
     const settings = readLayoutFromControls();

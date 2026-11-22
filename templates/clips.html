@@ -39,13 +39,26 @@
           <select id="clip-review-filter">
             <option value="all">All clips</option>
             <option value="favorites">Favorites</option>
-            <option value="kept">Kept</option>
+            <option value="kept" selected>Hide rejected</option>
             <option value="rejected">Rejected</option>
           </select>
         </label>
         <label for="clip-search-filter">
           Search
           <input id="clip-search-filter" type="search" placeholder="Filename, camera, or path">
+        </label>
+        <label for="clip-printer-filter">
+          Printer
+          <select id="clip-printer-filter">
+            <option value="">All printers</option>
+            {% for printer in cameras|groupby('printer_id') %}
+            <option value="{{ printer.grouper }}">{{ printer.list[0].printer_name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label for="clip-date-filter">
+          Recorded on or after
+          <input id="clip-date-filter" type="date">
         </label>
         <div class="table-actions">
           <button type="button" id="clear-clip-filters-button" class="control-button control-button--secondary">Clear Filters</button>
@@ -58,6 +71,8 @@
           <button type="button" id="select-all-clips-button" class="control-button control-button--secondary">Select All</button>
           <button type="button" id="clear-selection-button" class="control-button control-button--secondary">Clear Selection</button>
           <button type="button" id="download-selected-button" class="control-button" disabled>Download Selected</button>
+          <button type="button" id="download-favorites-button" class="control-button control-button--secondary">Download Favorites</button>
+          <button type="button" id="export-reviewed-button" class="control-button control-button--secondary">Export Selected Keepers</button>
           <button type="button" id="delete-selected-button" class="control-button control-button--danger" disabled>Delete Selected</button>
         </div>
         <div class="clips-bulk-actions__meta">

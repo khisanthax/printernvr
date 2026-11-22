@@ -241,6 +241,28 @@ function renderTimelapses(items) {
 async function loadTimelapses() {
   const payload = await fetchJson("/api/timelapse/outputs");
   currentTimelapses = payload.timelapses || [];
+  const recovery = bySelector("#timelapse-recovery");
+  if (recovery) {
+    recovery.replaceChildren();
+    for (const item of payload.recoverable || []) {
+      const button = document.createElement("button");
+      button.className = "control-button";
+      button.textContent = `Retry render: ${item.printer_id} · ${item.session_id}`;
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          const path = `/api/timelapse/retry/${encodeURIComponent(item.printer_id)}/${encodeURIComponent(item.session_id)}`;
+          await fetchJson(path, { method: "POST" });
+          await loadTimelapses();
+          updateFeedback("Render queued. Refresh after it finishes.");
+        } catch (error) {
+          button.disabled = false;
+          updateFeedback(error.message, true);
+        }
+      });
+      recovery.appendChild(button);
+    }
+  }
   populatePrinterFilter(currentTimelapses);
   renderTimelapses(filteredTimelapses());
   updateFeedback("");

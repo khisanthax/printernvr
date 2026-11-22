@@ -166,14 +166,6 @@ function createDownloadLink(cameraId, filename) {
   link.remove();
 }
 
-async function fetchClipBlob(cameraId, filename) {
-  const response = await fetch(downloadUrl(cameraId, filename));
-  if (!response.ok) {
-    throw new Error(`Download failed for ${filename}`);
-  }
-  return response.blob();
-}
-
 function splitFilename(filename) {
   const lastDot = filename.lastIndexOf(".");
   if (lastDot <= 0) {
@@ -430,7 +422,43 @@ function renderClips(clips) {
     remove.textContent = "Delete";
     remove.disabled = clip.active;
 
-    actions.append(previewButton, download, favoriteButton, rejectButton, renameButton, remove);
+    const optimizeButton = document.createElement("button");
+    optimizeButton.type = "button";
+    optimizeButton.className = "control-button control-button--secondary";
+    optimizeButton.textContent = "Optimize copy";
+    optimizeButton.disabled = clip.active;
+    optimizeButton.addEventListener("click", async () => {
+      optimizeButton.disabled = true;
+      try {
+        const path = `/api/clips/optimize/${encodeURIComponent(clip.camera_id)}/${encodeURIComponent(clip.filename)}`;
+        await fetchJson(path, { method: "POST" });
+        updateFeedback("Optimizing a separate copy. The original stays available.");
+        const poll = async () => {
+          try {
+            const job = await fetchJson("/api/clips/optimization");
+            if (job.status === "running") {
+              setTimeout(poll, 1500);
+              return;
+            }
+            optimizeButton.disabled = false;
+            if (job.status === "complete") {
+              await loadClips();
+              updateFeedback(`Optimized copy: ${job.savings_percent}% smaller in ${job.elapsed_seconds}s. Original kept.`);
+            } else {
+              updateFeedback(job.message || "No optimized copy was published.", job.status === "error");
+            }
+          } catch (error) {
+            optimizeButton.disabled = false;
+            updateFeedback(error.message, true);
+          }
+        };
+        setTimeout(poll, 1500);
+      } catch (error) {
+        optimizeButton.disabled = false;
+        updateFeedback(error.message, true);
+      }
+    });
+    actions.append(previewButton, download, favoriteButton, rejectButton, renameButton, optimizeButton, remove);
     actionsCell.appendChild(actions);
     row.appendChild(actionsCell);
 
@@ -456,18 +484,22 @@ async function loadClips() {
   const reviewSelect = bySelector("#clip-review-filter");
   const searchInput = bySelector("#clip-search-filter");
   const cameraId = cameraSelect ? cameraSelect.value : "";
-  const reviewStatus = reviewSelect ? reviewSelect.value : "all";
+  const reviewStatus = reviewSelect ? reviewSelect.value : "kept";
   const search = searchInput ? searchInput.value.trim() : "";
   const params = new URLSearchParams();
   if (cameraId) {
     params.set("camera_id", cameraId);
   }
-  if (reviewStatus && reviewStatus !== "all") {
+  if (reviewStatus) {
     params.set("review_status", reviewStatus);
   }
   if (search) {
     params.set("q", search);
   }
+  const printerId = bySelector("#clip-printer-filter")?.value;
+  const fromDate = bySelector("#clip-date-filter")?.value;
+  if (printerId) params.set("printer_id", printerId);
+  if (fromDate) params.set("from_date", fromDate);
 
   const query = params.toString() ? `?${params.toString()}` : "";
   const payload = await fetchJson(`/api/clips${query}`);
@@ -693,12 +725,17 @@ async function saveClipToSelectedFolder(cameraId, filename) {
     throw new Error("Folder access denied; using browser downloads.");
   }
 
-  const blob = await fetchClipBlob(cameraId, filename);
+  const response = await fetch(downloadUrl(cameraId, filename));
+  if (!response.ok) throw new Error("Unable to fetch recording");
   const safeFilename = await resolveUniqueFilename(handle, filename);
   const fileHandle = await handle.getFileHandle(safeFilename, { create: true });
   const writable = await fileHandle.createWritable();
-  await writable.write(blob);
-  await writable.close();
+  if (response.body && typeof response.body.pipeTo === "function") {
+    await response.body.pipeTo(writable);
+  } else {
+    await writable.write(await response.blob());
+    await writable.close();
+  }
   return safeFilename;
 }
 
@@ -822,7 +859,26 @@ function bindFilters() {
   const clearFiltersButton = bySelector("#clear-clip-filters-button");
   const initialParams = new URLSearchParams(window.location.search);
   const initial = document.body.dataset.initialCameraFilter || initialParams.get("camera_id") || "";
-  const initialReview = initialParams.get("review_status") || "all";
+  const initialReview = initialParams.get("review_status") || "kept";
+  for (const [id, key] of [["clip-printer-filter", "printer_id"], ["clip-date-filter", "from_date"]]) {
+    const control = document.getElementById(id);
+    if (control) {
+      control.value = initialParams.get(key) || "";
+      control.addEventListener("change", () => loadClips().catch((error) => updateFeedback(error.message, true)));
+      clearFiltersButton?.addEventListener("click", () => { control.value = ""; }, { capture: true });
+    }
+  }
+  bySelector("#download-favorites-button")?.addEventListener("click", async () => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.set("review_status", "favorites");
+      const result = await fetchJson(`/api/clips?${params}`);
+      if (!result.clips.length) return updateFeedback("No matching favorites.");
+      await handleBulkDownload(result.clips);
+    } catch (error) {
+      updateFeedback(error.message, true);
+    }
+  });
   const initialSearch = initialParams.get("q") || "";
 
   if (select) {
@@ -902,6 +958,15 @@ function bindFilters() {
 }
 
 function bindSelection() {
+  bySelector("#export-reviewed-button")?.addEventListener("click", async () => {
+    const clips = currentClips.filter((clip) => clip.favorite && !clip.rejected
+      && selectedClipKeys.has(clipKey(clip.camera_id, clip.filename)) && !clip.active);
+    if (!clips.length) {
+      updateFeedback("Select completed favorites to export.");
+      return;
+    }
+    await handleBulkDownload(clips);
+  });
   const tbody = bySelector("#clips-table-body");
   const selectAllButton = bySelector("#select-all-clips-button");
   const clearButton = bySelector("#clear-selection-button");
