@@ -44,7 +44,8 @@ jobs:
         run: |
           git switch -c deployment-smoke
           git init --bare "$RUNNER_TEMP/upgrade.git"
-          git push --set-upstream "$RUNNER_TEMP/upgrade.git" HEAD:deployment-smoke
+          git remote add smoke-upstream "$RUNNER_TEMP/upgrade.git"
+          git push --set-upstream smoke-upstream HEAD:deployment-smoke
           git clone --branch deployment-smoke "$RUNNER_TEMP/upgrade.git" "$RUNNER_TEMP/upstream"
           git -C "$RUNNER_TEMP/upstream" -c user.email=ci@example.invalid -c user.name=CI commit --allow-empty -m "Simulated upgrade"
           git -C "$RUNNER_TEMP/upstream" push
