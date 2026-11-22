@@ -211,7 +211,7 @@ class RetentionManager:
         for path in self._recordings_root.rglob("*"):
             if not path.is_file():
                 continue
-            if path.name in CLIP_METADATA_FILENAMES:
+            if path.name in CLIP_METADATA_FILENAMES or path.name.lower().endswith(".part"):
                 continue
             try:
                 stat_result = path.stat()

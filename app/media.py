@@ -1,0 +1,36 @@
+from __future__ import annotations
+
+import json
+import math
+import re
+import subprocess
+from pathlib import Path
+
+URL_PATTERN = re.compile(r"[a-zA-Z][a-zA-Z0-9+.-]*://[^\s\"'<>]+")
+
+
+def redact_diagnostic(message: str, source: str = "") -> str:
+    if source:
+        message = message.replace(source, "<input>")
+    return URL_PATTERN.sub("<url>", message)
+
+
+def validate_mp4(path: Path) -> dict:
+    if not path.is_file() or not path.stat().st_size:
+        raise ValueError("FFmpeg produced no media")
+    try:
+        probe = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+             "stream=codec_name,width,height:format=format_name,duration", "-of", "json", str(path)],
+            capture_output=True, timeout=10, check=True,
+        )
+        metadata = json.loads(probe.stdout)
+        stream = metadata["streams"][0]
+        duration = float(metadata["format"]["duration"])
+        if ("mp4" not in metadata["format"]["format_name"].split(",")
+                or not math.isfinite(duration) or duration <= 0
+                or stream["width"] <= 0 or stream["height"] <= 0):
+            raise ValueError("Invalid video properties")
+    except (subprocess.SubprocessError, OSError, KeyError, ValueError, TypeError, IndexError) as exc:
+        raise ValueError("FFprobe could not verify a playable MP4 with a video stream and positive duration") from exc
+    return metadata

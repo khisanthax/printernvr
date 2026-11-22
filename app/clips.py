@@ -189,7 +189,7 @@ class ClipStore:
             raise ValueError("Invalid camera directory")
 
         clip_name = Path(filename)
-        if clip_name.name != filename or filename in {".", ".."}:
+        if clip_name.name != filename or filename in {".", ".."} or filename.lower().endswith(".part"):
             raise ValueError("Invalid filename")
 
         root = self._recordings_root.resolve(strict=False)

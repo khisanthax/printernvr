@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 import subprocess
-from subprocess import list2cmdline
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+import time
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from threading import Lock, Thread
+from subprocess import list2cmdline
+from threading import Event, Lock, Thread
 from typing import Callable
+from uuid import uuid4
 
+from app.media import redact_diagnostic, validate_mp4
 from app.models import CameraRuntimeState, ResolvedCamera
 from app.state import RuntimeStateManager
 
@@ -17,16 +22,12 @@ LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class ManagedRecording:
-    camera_id: str
-    process: subprocess.Popen[str]
-    command: list[str]
-    output_file: str
-    output_path: str
-    started_at: datetime
-    expected_end_at: datetime | None
-    stop_requested: bool = False
-    stderr_output: str = ""
-    monitor_thread: Thread | None = None
+    camera: ResolvedCamera
+    staged: Path
+    final: Path
+    duration: int | None
+    stop: Event = field(default_factory=Event)
+    worker: Thread | None = None
 
 
 class RecordingManager:
@@ -35,220 +36,223 @@ class RecordingManager:
         recordings_root: str,
         runtime_state: RuntimeStateManager,
         on_recording_finished: Callable[[], None] | None = None,
+        *,
+        quit_timeout: float = 8,
+        minimum_free_bytes: int = 64 * 1024**2,
+        max_duration: int = 600,
     ) -> None:
-        self._recordings_root = Path(recordings_root)
+        self._recordings_root = Path(recordings_root).resolve()
         self._runtime_state = runtime_state
         self._on_recording_finished = on_recording_finished
+        self._quit_timeout = quit_timeout
+        self._minimum_free_bytes = minimum_free_bytes
+        self._max_duration = max_duration
         self._lock = Lock()
         self._processes: dict[str, ManagedRecording] = {}
+        self._closing = False
 
     def start_recording(
-        self,
-        camera: ResolvedCamera,
-        duration: int | None = None,
+        self, camera: ResolvedCamera, duration: int | None = None,
     ) -> CameraRuntimeState:
-        if camera.backend_type != "ffmpeg":
-            raise ValueError(f"Camera '{camera.id}' does not use ffmpeg recording")
-        if not camera.enabled:
-            raise ValueError(f"Camera '{camera.id}' is disabled")
-        if not camera.record_url:
-            raise ValueError(f"Camera '{camera.id}' does not have a record_url")
+        if not camera.enabled or camera.backend_type != "ffmpeg" or not camera.record_url:
+            raise ValueError(f"Camera '{camera.id}' has no enabled FFmpeg input")
+        if duration is not None and not 1 <= duration <= self._max_duration:
+            raise ValueError(f"Duration must be between 1 and {self._max_duration} seconds")
+        output_dir = (self._recordings_root / camera.output_subdir).resolve()
+        if output_dir.parent != self._recordings_root or output_dir.name == "timelapses":
+            raise ValueError("Invalid camera output directory")
 
         with self._lock:
-            current = self._processes.get(camera.id)
-            if current and current.process.poll() is None:
-                raise ValueError(f"Camera '{camera.id}' is already recording")
+            if self._closing:
+                raise ValueError("Recorder is shutting down")
+            if camera.id in self._processes:
+                raise ValueError(f"Camera '{camera.id}' already has a recording in progress")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            if shutil.disk_usage(output_dir).free < self._minimum_free_bytes:
+                raise ValueError("Insufficient free space to start recording")
 
-        output_dir = self._recordings_root / camera.output_subdir
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        started_at = datetime.utcnow()
-        expected_end_at = (
-            started_at + timedelta(seconds=duration) if duration is not None else None
-        )
-        output_file = f"{camera.id}_{started_at.strftime('%Y%m%d_%H%M%S')}.mp4"
-        output_path = str(output_dir / output_file)
-        command = self._build_ffmpeg_command(camera.record_url, output_path, duration)
-
-        LOGGER.info("Starting recording for %s -> %s", camera.id, output_path)
-        LOGGER.info(
-            "ffmpeg command for %s: %s",
-            camera.id,
-            list2cmdline(command),
-        )
-
-        try:
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.DEVNULL,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
+            started = datetime.now(timezone.utc)
+            final = output_dir / f"{camera.id}_{started:%Y%m%d_%H%M%S}_{uuid4().hex}.mp4"
+            staged = final.with_suffix(".mp4.part")
+            staged.touch(exist_ok=False)
+            job = ManagedRecording(camera, staged, final, duration)
+            self._processes[camera.id] = job
+            snapshot = self._runtime_state.update_state(
+                camera.id, status="starting", in_progress_action="starting",
+                recording=False, started_at=started,
+                expected_end_at=started + timedelta(seconds=duration) if duration else None,
+                output_file=final.name, output_path=str(final),
+                requested_duration_seconds=duration, last_error=None,
+                last_error_details=None, last_ffmpeg_command=None, last_ffmpeg_exit_code=None,
+                last_action_message="Starting FFmpeg",
             )
-        except OSError as exc:
-            self._runtime_state.mark_error(
-                camera.id,
-                f"ffmpeg start failed: {exc}",
-                details=str(exc),
-                ffmpeg_command=list2cmdline(command),
-            )
-            raise RuntimeError(f"Unable to start ffmpeg for {camera.id}: {exc}") from exc
-
-        managed = ManagedRecording(
-            camera_id=camera.id,
-            process=process,
-            command=command,
-            output_file=output_file,
-            output_path=output_path,
-            started_at=started_at,
-            expected_end_at=expected_end_at,
-        )
-
-        self._runtime_state.mark_recording_started(
-            camera.id,
-            started_at=started_at,
-            expected_end_at=expected_end_at,
-            output_file=output_file,
-            output_path=output_path,
-            requested_duration_seconds=duration,
-            message="ffmpeg recording active",
-        )
-
-        monitor_thread = Thread(
-            target=self._monitor_recording,
-            args=(managed,),
-            daemon=True,
-            name=f"recording-monitor-{camera.id}",
-        )
-        managed.monitor_thread = monitor_thread
-
-        with self._lock:
-            self._processes[camera.id] = managed
-
-        monitor_thread.start()
-        return self._runtime_state.get_state(camera.id)  # type: ignore[return-value]
+            job.worker = Thread(target=self._record, args=(job,), daemon=True, name=f"record-{camera.id}")
+            try:
+                job.worker.start()
+            except RuntimeError:
+                self._processes.pop(camera.id)
+                staged.unlink(missing_ok=True)
+                self._runtime_state.mark_error(camera.id, "Unable to start recording worker")
+                raise
+            return snapshot
 
     def stop_recording(self, camera_id: str) -> CameraRuntimeState:
         with self._lock:
-            managed = self._processes.get(camera_id)
-            if not managed or managed.process.poll() is not None:
-                raise ValueError(f"Camera '{camera_id}' is not currently recording")
-            managed.stop_requested = True
-
-        self._runtime_state.mark_stopping(camera_id)
-        LOGGER.info("Stopping recording for %s", camera_id)
-
-        try:
-            managed.process.terminate()
-        except OSError as exc:
-            LOGGER.warning("Terminate failed for %s: %s", camera_id, exc)
-            try:
-                managed.process.kill()
-            except OSError:
-                pass
-
-        return self._runtime_state.get_state(camera_id)  # type: ignore[return-value]
+            job = self._processes.get(camera_id)
+            if job:
+                job.stop.set()
+                state = self._runtime_state.get_state(camera_id)
+                if state is not None and state.status in {"starting", "recording"}:
+                    self._runtime_state.mark_stopping(camera_id, "Requesting graceful FFmpeg stop")
+            state = self._runtime_state.get_state(camera_id)
+            if state is None:
+                raise ValueError(f"Unknown camera '{camera_id}'")
+            return state
 
     def is_recording(self, camera_id: str) -> bool:
         with self._lock:
-            managed = self._processes.get(camera_id)
-            return bool(managed and managed.process.poll() is None)
+            return camera_id in self._processes
 
     def shutdown(self) -> None:
         with self._lock:
-            active = list(self._processes.values())
+            self._closing = True
+            jobs = list(self._processes.values())
+            for job in jobs:
+                job.stop.set()
+        deadline = time.monotonic() + self._quit_timeout + 18
+        for job in jobs:
+            if job.worker is not None:
+                job.worker.join(max(0, deadline - time.monotonic()))
 
-        for managed in active:
-            if managed.process.poll() is None:
-                managed.stop_requested = True
-                try:
-                    managed.process.terminate()
-                except OSError:
-                    try:
-                        managed.process.kill()
-                    except OSError:
-                        pass
-
-    def _build_ffmpeg_command(
-        self,
-        record_url: str,
-        output_path: str,
-        duration: int | None,
-    ) -> list[str]:
-        command = [
-            "ffmpeg",
-            "-y",
-        ]
+    def _build_ffmpeg_command(self, record_url: str, output_path: str, duration: int | None) -> list[str]:
+        command = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning", "-y"]
         if record_url.lower().startswith("rtsp://"):
-            command.extend(["-rtsp_transport", "tcp"])
-        command.extend(
-            [
-                "-i",
-                record_url,
-                "-map",
-                "0:v:0",
-                "-an",
-                "-c:v",
-                "copy",
-            ]
-        )
+            command.extend(["-rtsp_transport", "tcp", "-timeout", "15000000"])
+        command.extend(["-i", record_url, "-map", "0:v:0", "-an", "-c:v", "copy"])
         if duration is not None:
             command.extend(["-t", str(duration)])
-        command.append(output_path)
-        return command
+        return [*command, "-f", "mp4", output_path]
 
-    def _monitor_recording(self, managed: ManagedRecording) -> None:
-        _stdout, stderr_output = managed.process.communicate()
-        exit_code = managed.process.returncode or 0
-        managed.stderr_output = (stderr_output or "").strip()
+    def _record(self, job: ManagedRecording) -> None:
+        camera_id = job.camera.id
+        url = job.camera.record_url or ""
+        command = self._build_ffmpeg_command(url, str(job.staged), job.duration)
+        tail = bytearray()
+        drain: Thread | None = None
+        process: subprocess.Popen[bytes] | None = None
+        published = False
 
-        with self._lock:
-            current = self._processes.get(managed.camera_id)
-            if current is managed:
-                self._processes.pop(managed.camera_id, None)
+        def read_stderr() -> None:
+            stream = process.stderr
+            try:
+                while chunk := stream.read1(4096):
+                    tail.extend(chunk)
+                    del tail[:-16384]
+            except OSError:
+                pass
 
-        if managed.stop_requested or exit_code == 0:
+        try:
+            if job.stop.is_set():
+                raise RuntimeError("Recording cancelled before FFmpeg started")
+            process = subprocess.Popen(
+                command, stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL,
+            )
+            drain = Thread(target=read_stderr, daemon=True)
+            drain.start()
+            with self._lock:
+                if not job.stop.is_set():
+                    self._runtime_state.update_state(
+                        camera_id, status="recording", in_progress_action="recording",
+                        recording=True, last_action_message="FFmpeg recording active",
+                    )
+            deadline = time.monotonic() + job.duration + 45 if job.duration else None
+            requested_stop = False
+            next_disk_check = time.monotonic()
+            while process.poll() is None:
+                now = time.monotonic()
+                low_disk = False
+                if now >= next_disk_check:
+                    low_disk = shutil.disk_usage(job.staged.parent).free < self._minimum_free_bytes
+                    next_disk_check = now + 2
+                if job.stop.is_set() or low_disk:
+                    requested_stop = True
+                    self._runtime_state.mark_stopping(
+                        camera_id, "Stopping because recording storage is low" if low_disk else "Flushing recording",
+                    )
+                    if not self._quit(process):
+                        raise RuntimeError("FFmpeg did not stop gracefully before the deadline")
+                    break
+                if deadline is not None and now >= deadline:
+                    raise RuntimeError("Timed recording exceeded its wall-clock deadline")
+                job.stop.wait(0.1)
+
+            self._runtime_state.mark_stopping(camera_id, "Validating recording")
+            if process.returncode != 0:
+                raise RuntimeError(f"FFmpeg exited with code {process.returncode}")
+            if not requested_stop and not job.stop.is_set() and job.duration is None:
+                raise RuntimeError("Recording input ended unexpectedly")
+            validate_mp4(job.staged)
+            if os.name == "nt":
+                # Windows rename fails when the destination already exists.
+                job.staged.rename(job.final)
+            else:
+                os.link(job.staged, job.final)
+            published = True
             self._runtime_state.mark_recording_stopped(
-                managed.camera_id,
-                last_completed_output=managed.output_file,
-                message="Recording complete",
+                camera_id, last_completed_output=job.final.name, message="Recording complete",
             )
-            LOGGER.info(
-                "Recording finished for %s -> %s",
-                managed.camera_id,
-                managed.output_path,
-            )
-        else:
-            error_message = self._extract_error_message(exit_code, managed.stderr_output)
+        except (OSError, RuntimeError, ValueError) as exc:
+            if process is not None:
+                self._terminate(process)
+            if drain is not None:
+                drain.join(timeout=1)
+            details = redact_diagnostic(tail.decode("utf-8", errors="replace").strip(), url)
             self._runtime_state.mark_error(
-                managed.camera_id,
-                error_message,
-                details=managed.stderr_output or None,
-                ffmpeg_command=list2cmdline(managed.command),
-                exit_code=exit_code,
+                camera_id, redact_diagnostic(str(exc), url), details=details or None,
+                ffmpeg_command=redact_diagnostic(list2cmdline(command), url),
+                exit_code=process.returncode if process else None,
             )
-            LOGGER.error(
-                "Recording failed for %s (exit %s)\ncommand: %s\nstderr:\n%s",
-                managed.camera_id,
-                exit_code,
-                list2cmdline(managed.command),
-                managed.stderr_output or "<no stderr>",
-            )
+            LOGGER.warning("Recording failed for %s: %s", camera_id, redact_diagnostic(str(exc), url))
+        finally:
+            if process is not None:
+                if drain is not None:
+                    drain.join(timeout=1)
+                for stream in (process.stdin, process.stderr):
+                    if stream is not None:
+                        stream.close()
+            try:
+                job.staged.unlink(missing_ok=True)
+            except OSError:
+                LOGGER.warning("Unable to remove recording staging file for %s", camera_id)
+            finally:
+                with self._lock:
+                    self._processes.pop(camera_id, None)
 
-        if managed.stderr_output:
-            LOGGER.debug("ffmpeg stderr for %s: %s", managed.camera_id, managed.stderr_output)
-
-        if self._on_recording_finished:
+        if published and self._on_recording_finished:
             try:
                 self._on_recording_finished()
-            except Exception as exc:  # pragma: no cover - defensive
-                LOGGER.warning("Post-recording callback failed: %s", exc)
+            except Exception:
+                LOGGER.exception("Post-recording callback failed")
 
-    def _extract_error_message(self, exit_code: int, stderr_output: str) -> str:
-        if stderr_output:
-            lines = [line.strip() for line in stderr_output.splitlines() if line.strip()]
-            if lines:
-                return f"ffmpeg failed (exit {exit_code}): {lines[-1]}"
-        return f"ffmpeg exited with code {exit_code}"
+    def _quit(self, process: subprocess.Popen[bytes]) -> bool:
+        try:
+            if process.stdin is not None:
+                process.stdin.write(b"q\n")
+                process.stdin.flush()
+            process.wait(timeout=self._quit_timeout)
+            return True
+        except (OSError, subprocess.TimeoutExpired):
+            self._terminate(process)
+            return False
+
+    @staticmethod
+    def _terminate(process: subprocess.Popen[bytes]) -> None:
+        if process.poll() is not None:
+            return
+        for signal in (process.terminate, process.kill):
+            try:
+                signal()
+                process.wait(timeout=2)
+                return
+            except (OSError, subprocess.TimeoutExpired):
+                continue
