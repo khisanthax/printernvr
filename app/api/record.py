@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from app.operations import camera_transaction
 
 from app.models import RecordStartRequest
 
@@ -13,7 +14,7 @@ def get_record_status(request: Request) -> dict:
     return {"cameras": runtime_state.as_payload()}
 
 
-@router.post("/start/{camera_id}")
+@router.post("/start/{camera_id}", dependencies=[Depends(camera_transaction)])
 def start_recording(
     camera_id: str,
     request: Request,
@@ -29,6 +30,9 @@ def start_recording(
 
     try:
         duration = payload.duration if payload else None
+        maximum = request.app.state.app_config.retention.maximum_recording_seconds
+        if duration is not None and duration > maximum:
+            raise HTTPException(status_code=422, detail=f"Maximum recording duration is {maximum} seconds")
         if camera.backend_type == "gopro":
             if duration is not None:
                 state = gopro_recorder.record_for(camera, duration)

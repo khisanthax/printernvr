@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import shutil
@@ -13,6 +14,7 @@ from threading import Event, Lock, Thread
 from typing import Callable
 from urllib.parse import quote
 
+from app.media import publish_media, redact_diagnostic, validate_mp4
 from app.models import ResolvedCamera, TimelapseSessionState
 from app.services.moonraker_service import MoonrakerService
 
@@ -41,6 +43,9 @@ class ManagedTimelapse:
     state: TimelapseSessionState | None = None
     thread: Thread | None = None
     consecutive_capture_errors: int = 0
+    current_layer: int | None = None
+    layer_captured: int = 0
+    printer_printing: bool = True
 
 
 class TimelapseManager:
@@ -49,10 +54,13 @@ class TimelapseManager:
         recordings_root: str,
         moonraker_service: MoonrakerService,
         on_timelapse_finished: Callable[[], None] | None = None,
+        *,
+        minimum_free_bytes: int = 64 * 1024**2,
     ) -> None:
         self._recordings_root = Path(recordings_root)
         self._moonraker_service = moonraker_service
         self._on_timelapse_finished = on_timelapse_finished
+        self._minimum_free_bytes = minimum_free_bytes
         self._lock = Lock()
         self._sessions: dict[str, ManagedTimelapse] = {}
         self._states: dict[str, TimelapseSessionState] = {}
@@ -65,6 +73,9 @@ class TimelapseManager:
         camera: ResolvedCamera,
         interval_seconds: int,
         moonraker_url: str | None = None,
+        *,
+        capture_mode: str = "interval",
+        print_job_id: str | None = None,
     ) -> TimelapseSessionState:
         if interval_seconds < 1 or interval_seconds > 300:
             raise ValueError("interval_seconds must be between 1 and 300")
@@ -79,6 +90,8 @@ class TimelapseManager:
         session_root = self._recordings_root / "timelapses" / safe_printer_id / session_id
         frames_dir = session_root / "frames"
         output_path = session_root / f"{session_id}.mp4"
+        if session_root.resolve() != self._recordings_root.resolve() / "timelapses" / safe_printer_id / session_id:
+            raise ValueError("Invalid timelapse session directory")
 
         with self._lock:
             existing = self._sessions.get(printer_id)
@@ -86,6 +99,8 @@ class TimelapseManager:
                 raise ValueError(f"Printer '{printer_id}' already has an active timelapse")
             if output_path.exists():
                 raise ValueError(f"Timelapse output already exists for session '{session_id}'")
+            if shutil.disk_usage(self._recordings_root).free < self._minimum_free_bytes:
+                raise ValueError("Insufficient free space to start timelapse")
 
             frames_dir.mkdir(parents=True, exist_ok=False)
 
@@ -96,6 +111,8 @@ class TimelapseManager:
                 camera_name=camera.name,
                 status="starting",
                 interval_seconds=interval_seconds,
+                capture_mode=capture_mode,
+                print_job_id=print_job_id,
                 frame_count=0,
                 started_at=started_at,
                 session_id=session_id,
@@ -130,6 +147,7 @@ class TimelapseManager:
             managed.thread = thread
             self._sessions[printer_id] = managed
             self._states[printer_id] = state
+            self._save_manifest(managed)
 
         LOGGER.info(
             "Starting timelapse for printer=%s camera=%s interval=%ss session=%s",
@@ -150,6 +168,8 @@ class TimelapseManager:
                     status="idle",
                     stop_reason="no_active_session",
                 )
+            if managed.state.status == "rendering":
+                return managed.state.model_copy(deep=True)
             managed.state.status = "stopping"
             managed.state.stop_reason = reason
             managed.stop_event.set()
@@ -172,6 +192,68 @@ class TimelapseManager:
                 for printer_id, state in sorted(self._states.items())
             }
 
+    def recoverable_sessions(self) -> list[dict]:
+        result = []
+        root = self._recordings_root.resolve()
+        for manifest in root.glob("timelapses/*/*/session.json"):
+            state = self._read_manifest(manifest.parent)
+            if state and not (manifest.parent / f"{manifest.parent.name}.mp4").exists():
+                if any((manifest.parent / "frames").glob("frame_*.jpg")):
+                    result.append({
+                        "printer_id": manifest.parent.parent.name,
+                        "session_id": manifest.parent.name,
+                        "camera_id": state.camera_id,
+                        "started_at": state.model_dump(mode="json")["started_at"],
+                    })
+        with self._lock:
+            busy = {(key, job.session_id) for key, job in self._sessions.items()}
+        return [item for item in result if (item["printer_id"], item["session_id"]) not in busy]
+
+    def retry_render(self, printer_id: str, session_id: str) -> TimelapseSessionState:
+        output = self.resolve_output_path(printer_id, session_id, f"{session_id}.mp4")
+        frames = output.parent / "frames"
+        state = self._read_manifest(output.parent)
+        if not state or state.printer_id != printer_id or state.session_id != session_id:
+            raise ValueError("Recoverable session not found")
+        if frames.resolve() != frames:
+            raise ValueError("Invalid source frame directory")
+        frame_count = sum(path.is_file() and path.resolve() == path for path in frames.glob("frame_*.jpg"))
+        with self._lock:
+            if printer_id in self._sessions or output.exists() or not frame_count:
+                raise ValueError("Session cannot be rendered again")
+            state = state.model_copy(update={"status": "rendering", "frame_count": frame_count})
+            job = ManagedTimelapse(
+                printer_id, state.printer_name or printer_id, state.camera_id or "",
+                state.camera_name or "", "", None, state.interval_seconds or 10,
+                session_id, output.parent, frames, output, state=state,
+            )
+            job.thread = Thread(target=self._render_after_stop, args=(job, "recovered"), daemon=True)
+            self._sessions[printer_id] = job
+            self._states[printer_id] = state
+            job.thread.start()
+            return state
+
+    @staticmethod
+    def _read_manifest(session_root: Path) -> TimelapseSessionState | None:
+        manifest = session_root / "session.json"
+        try:
+            if manifest.resolve() == manifest.absolute():
+                return TimelapseSessionState.model_validate_json(manifest.read_bytes())
+        except (OSError, ValueError):
+            pass
+        return None
+
+    @staticmethod
+    def _save_manifest(job: ManagedTimelapse) -> None:
+        if job.state is None:
+            return
+        pending = job.session_root / "session.json.part"
+        try:
+            pending.write_text(json.dumps(job.state.model_dump(mode="json")), encoding="utf-8")
+            pending.replace(job.session_root / "session.json")
+        except OSError:
+            LOGGER.warning("Unable to save timelapse manifest for %s", job.session_id)
+
     def list_outputs(self) -> list[dict]:
         timelapse_root = self._recordings_root / "timelapses"
         if not timelapse_root.exists():
@@ -185,7 +267,7 @@ class TimelapseManager:
 
         outputs: list[dict] = []
         for output_path in timelapse_root.glob("*/*/*.mp4"):
-            if not output_path.is_file():
+            if not output_path.is_file() or output_path.resolve() != output_path.absolute():
                 continue
             try:
                 printer_id = output_path.parent.parent.name
@@ -193,7 +275,7 @@ class TimelapseManager:
                 stat = output_path.stat()
                 frames_dir = output_path.parent / "frames"
                 frame_count = len(list(frames_dir.glob("frame_*.jpg"))) if frames_dir.exists() else 0
-                state = states.get(printer_id)
+                state = self._read_manifest(output_path.parent) or states.get(printer_id)
                 is_state_match = bool(state and state.session_id == session_id)
                 outputs.append(
                     {
@@ -250,14 +332,11 @@ class TimelapseManager:
         safe_printer_id = _safe_path_part(printer_id, "printer id")
         safe_session_id = _safe_path_part(session_id, "session id")
         safe_filename = _safe_filename(filename)
-        root = (self._recordings_root / "timelapses").resolve(strict=False)
-        output_path = (
-            root / safe_printer_id / safe_session_id / safe_filename
-        ).resolve(strict=False)
-        try:
-            output_path.relative_to(root)
-        except ValueError as exc:
-            raise ValueError("Invalid timelapse output path") from exc
+        root = self._recordings_root.resolve() / "timelapses"
+        session_root = root / safe_printer_id / safe_session_id
+        output_path = session_root / safe_filename
+        if output_path.resolve() != output_path:
+            raise ValueError("Invalid timelapse output path")
         return output_path
 
     def delete_output(self, printer_id: str, session_id: str, filename: str) -> Path:
@@ -304,15 +383,26 @@ class TimelapseManager:
             now = time.monotonic()
             if now >= next_moonraker_check_at:
                 auto_stop_reason = self._check_moonraker_auto_stop(managed)
-                next_moonraker_check_at = time.monotonic() + max(5, min(30, managed.interval_seconds))
+                layer_mode = managed.state and managed.state.capture_mode == "layer"
+                next_moonraker_check_at = time.monotonic() + (1 if layer_mode else max(5, min(30, managed.interval_seconds)))
                 if auto_stop_reason:
                     stop_reason = auto_stop_reason
                     managed.stop_event.set()
                     break
 
             if now >= next_capture_at:
-                capture_ok = self._capture_frame(managed)
-                next_capture_at = time.monotonic() + managed.interval_seconds
+                if shutil.disk_usage(managed.session_root).free < self._minimum_free_bytes:
+                    stop_reason = "low_disk"
+                    break
+                layer_mode = managed.state and managed.state.capture_mode == "layer"
+                layer = managed.current_layer if layer_mode else None
+                capture_ok = True
+                if not layer_mode or managed.printer_printing:
+                    if layer is None or layer > managed.layer_captured:
+                        capture_ok = self._capture_frame(managed)
+                        if capture_ok and layer is not None:
+                            managed.layer_captured = layer
+                next_capture_at = time.monotonic() + (1 if layer is not None else managed.interval_seconds)
                 if not capture_ok and managed.consecutive_capture_errors >= 3:
                     stop_reason = "capture_error"
                     managed.stop_event.set()
@@ -329,6 +419,9 @@ class TimelapseManager:
 
         status = self._moonraker_service.fetch_status(managed.moonraker_url)
         monitor_state = str(status.monitor_state or "").lower()
+        managed.printer_printing = monitor_state == "printing"
+        if managed.printer_printing:
+            managed.current_layer = status.current_layer
         status_text = status.printer_status_text or "Status unavailable"
 
         updates = {
@@ -358,7 +451,7 @@ class TimelapseManager:
             "Capturing timelapse frame printer=%s camera=%s command=%s",
             managed.printer_id,
             managed.camera_id,
-            list2cmdline(command),
+            redact_diagnostic(list2cmdline(command), managed.record_url),
         )
 
         try:
@@ -374,13 +467,14 @@ class TimelapseManager:
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             managed.consecutive_capture_errors += 1
-            self._update_state(managed, last_error=f"Frame capture failed: {exc}")
-            LOGGER.warning("Timelapse frame capture failed for %s: %s", managed.printer_id, exc)
+            error = redact_diagnostic(str(exc), managed.record_url)
+            self._update_state(managed, last_error=f"Frame capture failed: {error}")
+            LOGGER.warning("Timelapse frame capture failed for %s: %s", managed.printer_id, error)
             return False
 
         if result.returncode != 0 or not frame_path.exists():
             managed.consecutive_capture_errors += 1
-            stderr = (result.stderr or "").strip()
+            stderr = redact_diagnostic((result.stderr or "").strip(), managed.record_url)
             message = _last_error_line(stderr) or f"ffmpeg exited with {result.returncode}"
             self._update_state(managed, last_error=f"Frame capture failed: {message}")
             LOGGER.warning(
@@ -420,7 +514,8 @@ class TimelapseManager:
             self._finish_session(managed)
             return
 
-        command = _render_command(managed.frames_dir, managed.output_path)
+        staged = managed.output_path.with_suffix(".mp4.part")
+        command = _render_command(managed.frames_dir, staged)
         LOGGER.info(
             "Rendering timelapse printer=%s session=%s command=%s",
             managed.printer_id,
@@ -429,6 +524,8 @@ class TimelapseManager:
         )
 
         try:
+            if shutil.disk_usage(managed.session_root).free < self._minimum_free_bytes:
+                raise ValueError("Insufficient free space to render; source frames were retained")
             result = subprocess.run(
                 command,
                 stdout=subprocess.DEVNULL,
@@ -436,10 +533,13 @@ class TimelapseManager:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=max(120, frame_count * 5),
-                check=False,
+                timeout=min(3600, max(120, frame_count * 5)),
+                check=True,
             )
-        except (OSError, subprocess.TimeoutExpired) as exc:
+            validate_mp4(staged)
+            publish_media(staged, managed.output_path)
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            staged.unlink(missing_ok=True)
             self._update_state(
                 managed,
                 status="error",
@@ -447,24 +547,6 @@ class TimelapseManager:
                 render_error=f"Render failed: {exc}",
             )
             LOGGER.error("Timelapse render failed for %s: %s", managed.printer_id, exc)
-            self._finish_session(managed)
-            return
-
-        if result.returncode != 0 or not managed.output_path.exists():
-            stderr = (result.stderr or "").strip()
-            message = _last_error_line(stderr) or f"ffmpeg exited with {result.returncode}"
-            self._update_state(
-                managed,
-                status="error",
-                render_status="error",
-                render_error=f"Render failed: {message}",
-            )
-            LOGGER.error(
-                "Timelapse render failed for %s (exit %s): %s",
-                managed.printer_id,
-                result.returncode,
-                stderr or "<no stderr>",
-            )
             self._finish_session(managed)
             return
 
@@ -507,6 +589,8 @@ class TimelapseManager:
                 return
             managed.state = managed.state.model_copy(update=updates)
             self._states[managed.printer_id] = managed.state
+            if "status" in updates:
+                self._save_manifest(managed)
 
     def _load_existing_outputs(self) -> None:
         timelapse_root = self._recordings_root / "timelapses"
@@ -563,6 +647,8 @@ class TimelapseManager:
                     continue
 
         with self._lock:
+            if printer_id in self._sessions:
+                return
             if latest is None:
                 self._states.pop(printer_id, None)
                 return
@@ -626,6 +712,8 @@ def _render_command(frames_dir: Path, output_path: Path) -> list[str]:
         "yuv420p",
         "-movflags",
         "+faststart",
+        "-f",
+        "mp4",
         str(output_path),
     ]
 

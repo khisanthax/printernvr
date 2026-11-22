@@ -4,17 +4,29 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
+from threading import RLock
+from functools import wraps
 from urllib.parse import quote
 
+from app.media import MEDIA_SUFFIXES
 from app.models import ClipItem, LatestClipInfo, OUTPUT_SUBDIR_RE, ResolvedCamera
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _locked_review(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self._review_lock:
+            return method(self, *args, **kwargs)
+    return wrapped
 
 
 class ClipStore:
     def __init__(self, recordings_root: str) -> None:
         self._recordings_root = Path(recordings_root)
         self._metadata_filename = ".clip_metadata.json"
+        self._review_lock = RLock()
 
     def list_clips(
         self,
@@ -35,8 +47,13 @@ class ClipStore:
         metadata = self._load_metadata()
 
         clips: list[ClipItem] = []
-        for path in root.rglob("*"):
-            if not path.is_file():
+        scope = root
+        glob_pattern = "*/*"
+        if camera_id:
+            scope = root / self._storage_dir_for_camera(camera_id, cameras)
+            glob_pattern = "*"
+        for path in scope.glob(glob_pattern):
+            if not path.is_file() or path.suffix.lower() not in MEDIA_SUFFIXES or path.resolve() != path:
                 continue
             if path.name.endswith(".part"):
                 continue
@@ -70,7 +87,7 @@ class ClipStore:
                     camera_id=clip_camera_id,
                     filename=path.name,
                     relative_path=relative.as_posix(),
-                    created_at=datetime.fromtimestamp(stat.st_ctime),
+                    created_at=datetime.fromtimestamp(stat.st_mtime),
                     size_bytes=stat.st_size,
                     size_human=_human_size(stat.st_size),
                     active=str(path.resolve(strict=False)) in active_paths,
@@ -117,6 +134,7 @@ class ClipStore:
         storage_dir = self._storage_dir_for_camera(camera_id, cameras)
         return self._resolve_storage_path(storage_dir, filename)
 
+    @_locked_review
     def delete_clip(
         self,
         camera_id: str,
@@ -129,9 +147,13 @@ class ClipStore:
 
         clip_path.unlink()
         LOGGER.info("Deleted clip %s", clip_path)
-        self._delete_metadata(camera_id, filename)
+        try:
+            self._delete_metadata(camera_id, filename)
+        except OSError:
+            LOGGER.warning("Clip deleted but review metadata could not be updated for %s", filename)
         return clip_path
 
+    @_locked_review
     def update_clip_metadata(
         self,
         camera_id: str,
@@ -139,7 +161,7 @@ class ClipStore:
         favorite: bool | None = None,
         rejected: bool | None = None,
     ) -> dict:
-        metadata = self._load_metadata()
+        metadata = self._load_metadata(strict=True)
         key = _metadata_key(camera_id, filename)
         entry = dict(metadata.get(key, {}))
 
@@ -153,6 +175,7 @@ class ClipStore:
         self._write_metadata(metadata)
         return entry
 
+    @_locked_review
     def rename_clip(
         self,
         camera_id: str,
@@ -169,8 +192,16 @@ class ClipStore:
         if target.exists():
             raise FileExistsError(str(target))
 
+        self._load_metadata(strict=True)
         source.rename(target)
-        self._rename_metadata(camera_id, filename, target.name)
+        try:
+            self._rename_metadata(camera_id, filename, target.name)
+        except OSError:
+            try:
+                target.rename(source)
+            except OSError:
+                LOGGER.exception("Renamed clip could not be restored after a metadata write failure")
+            raise
         LOGGER.info("Renamed clip %s to %s", source, target)
         return target
 
@@ -185,16 +216,18 @@ class ClipStore:
         return camera_id
 
     def _resolve_storage_path(self, storage_dir: str, filename: str) -> Path:
-        if not OUTPUT_SUBDIR_RE.match(storage_dir) or storage_dir in {".", ".."}:
+        if not OUTPUT_SUBDIR_RE.fullmatch(storage_dir) or storage_dir.lower() in {".", "..", "timelapses"}:
             raise ValueError("Invalid camera directory")
 
         clip_name = Path(filename)
-        if clip_name.name != filename or filename in {".", ".."} or filename.lower().endswith(".part"):
+        if clip_name.name != filename or clip_name.suffix.lower() not in MEDIA_SUFFIXES:
             raise ValueError("Invalid filename")
 
         root = self._recordings_root.resolve(strict=False)
-        storage_root = (root / storage_dir).resolve(strict=False)
-        clip_path = (storage_root / filename).resolve(strict=False)
+        storage_root = root / storage_dir
+        clip_path = storage_root / filename
+        if clip_path.resolve() != clip_path:
+            raise ValueError("Invalid clip path")
 
         try:
             storage_root.relative_to(root)
@@ -207,7 +240,7 @@ class ClipStore:
     def _metadata_path(self) -> Path:
         return self._recordings_root.resolve(strict=False) / self._metadata_filename
 
-    def _load_metadata(self) -> dict:
+    def _load_metadata(self, *, strict: bool = False) -> dict:
         path = self._metadata_path()
         if not path.exists():
             return {}
@@ -216,10 +249,16 @@ class ClipStore:
             with path.open("r", encoding="utf-8") as handle:
                 data = json.load(handle)
         except (OSError, json.JSONDecodeError) as exc:
+            if strict:
+                raise OSError("Clip review metadata could not be read safely") from exc
             LOGGER.warning("Unable to read clip metadata %s: %s", path, exc)
             return {}
 
-        return data if isinstance(data, dict) else {}
+        if not isinstance(data, dict):
+            if strict:
+                raise OSError("Invalid clip review metadata")
+            return {}
+        return data
 
     def _write_metadata(self, metadata: dict) -> None:
         path = self._metadata_path()
@@ -231,7 +270,7 @@ class ClipStore:
         temp_path.replace(path)
 
     def _delete_metadata(self, camera_id: str, filename: str) -> None:
-        metadata = self._load_metadata()
+        metadata = self._load_metadata(strict=True)
         key = _metadata_key(camera_id, filename)
         if key not in metadata:
             return
@@ -239,7 +278,7 @@ class ClipStore:
         self._write_metadata(metadata)
 
     def _rename_metadata(self, camera_id: str, old_filename: str, new_filename: str) -> None:
-        metadata = self._load_metadata()
+        metadata = self._load_metadata(strict=True)
         old_key = _metadata_key(camera_id, old_filename)
         if old_key not in metadata:
             return

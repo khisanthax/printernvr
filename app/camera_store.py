@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from threading import Lock
+from hashlib import sha256
+from pathlib import Path
 
 from app.config import (
     build_camera_input,
@@ -26,6 +28,12 @@ class CameraConfigStore:
     def __init__(self, config_path: str) -> None:
         self._config_path = config_path
         self._lock = Lock()
+
+    def revision(self) -> str:
+        try:
+            return sha256(Path(self._config_path).read_bytes()).hexdigest()
+        except FileNotFoundError:
+            return sha256(b"").hexdigest()
 
     def list_cameras(self) -> tuple[list[CameraConfigInput], list[ResolvedCamera], list[CameraManagementItem]]:
         with self._lock:

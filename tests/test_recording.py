@@ -11,6 +11,10 @@ from app.media import validate_mp4
 from app.models import CameraConfigInput
 from app.recorder import RecordingManager
 from app.state import RuntimeStateManager
+from app.timelapse import TimelapseManager
+from app.models import TimelapseSessionState
+from app.inventory import build_inventory
+from app.optimizer import Optimizer
 
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "Requires FFmpeg and FFprobe")
@@ -25,8 +29,8 @@ class RecordingTest(unittest.TestCase):
              "-t", "8", "-c:v", "mpeg4", "-g", "5", str(self.source)], check=True, timeout=15,
         )
         self.camera = resolve_camera(CameraConfigInput(
-            id="front", name="Front", mode="manual_urls", record_url=str(self.source),
-        ))
+            id="front", name="Front", mode="manual_urls", record_url="rtsp://localhost/front",
+        )).model_copy(update={"record_url": str(self.source)})
         self.state = RuntimeStateManager()
         self.state.initialize([self.camera])
         self.manager = RecordingManager(str(self.root / "recordings"), self.state, minimum_free_bytes=0)
@@ -87,6 +91,55 @@ class RecordingTest(unittest.TestCase):
         self.assertEqual(result.status, "error")
         self.assertIsNone(result.last_completed_output)
         self.assertFalse(Path(started.output_path).exists())
+
+    def test_inventory_and_optimize_preserve_original(self):
+        root = self.root / "recordings"
+        target = root / self.camera.output_subdir
+        target.mkdir(parents=True)
+        original = target / "original.mp4"
+        shutil.copyfile(self.source, original)
+        before = original.read_bytes()
+        store = ClipStore(str(root))
+        store.update_clip_metadata(self.camera.id, original.name, favorite=True)
+        inventory = build_inventory(root, store, [self.camera], set())
+        self.assertEqual(inventory["totals"]["favorite"], 1)
+        self.assertGreater(inventory["cameras"][0]["projection_bytes"]["8"], len(before))
+        optimizer = Optimizer()
+        optimizer.start(original, 0, 23, store, self.camera.id)
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline and optimizer.status()["status"] == "running":
+            time.sleep(0.1)
+        result = optimizer.status()
+        self.assertIn(result["status"], {"complete", "skipped"}, result)
+        self.assertEqual(original.read_bytes(), before)
+        if result["status"] == "complete":
+            self.assertGreaterEqual(result["savings_percent"], 20)
+            self.assertTrue(validate_mp4(target / result["output_file"])["streams"])
+
+    def test_interrupted_timelapse_can_render_after_restart(self):
+        recordings = self.root / "timelapse-recordings"
+        directory = recordings / "timelapses" / "demo" / "test-session"
+        frames = directory / "frames"
+        frames.mkdir(parents=True)
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-i", str(self.source), "-frames:v", "3",
+             "-threads", "1", str(frames / "frame_%06d.jpg")], check=True, timeout=10,
+        )
+        state = TimelapseSessionState(printer_id="demo", camera_id="front", session_id="test-session",
+                                     status="rendering")
+        (directory / "session.json").write_text(state.model_dump_json(), encoding="utf-8")
+        manager = TimelapseManager(str(recordings), None, minimum_free_bytes=0)
+        self.assertEqual(len(manager.recoverable_sessions()), 1)
+        self.assertEqual(manager.list_outputs(), [])
+        manager.retry_render("demo", "test-session")
+        deadline = time.monotonic() + 10
+        while manager.is_printer_busy("demo") and time.monotonic() < deadline:
+            time.sleep(0.05)
+        state = manager.get_state("demo")
+        self.assertEqual(state.status, "complete", state)
+        self.assertTrue(validate_mp4(directory / "test-session.mp4")["streams"])
+        self.assertEqual(manager.list_outputs()[0]["camera_id"], "front")
+        self.assertEqual(manager.recoverable_sessions(), [])
 
 
 if __name__ == "__main__":

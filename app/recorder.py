@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import shutil
 import subprocess
 import time
@@ -13,7 +12,7 @@ from threading import Event, Lock, Thread
 from typing import Callable
 from uuid import uuid4
 
-from app.media import redact_diagnostic, validate_mp4
+from app.media import publish_media, redact_diagnostic, validate_mp4
 from app.models import CameraRuntimeState, ResolvedCamera
 from app.state import RuntimeStateManager
 
@@ -192,11 +191,7 @@ class RecordingManager:
             if not requested_stop and not job.stop.is_set() and job.duration is None:
                 raise RuntimeError("Recording input ended unexpectedly")
             validate_mp4(job.staged)
-            if os.name == "nt":
-                # Windows rename fails when the destination already exists.
-                job.staged.rename(job.final)
-            else:
-                os.link(job.staged, job.final)
+            publish_media(job.staged, job.final)
             published = True
             self._runtime_state.mark_recording_stopped(
                 camera_id, last_completed_output=job.final.name, message="Recording complete",

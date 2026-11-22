@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import os
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from app.operations import camera_transaction
 
 from app.config import build_camera_input, resolve_camera
 from app.models import CameraConfigFile, CameraUpsertRequest
@@ -19,16 +20,19 @@ def get_cameras(request: Request) -> dict:
     return {"cameras": [item.model_dump() for item in items]}
 
 
-@router.get("/cameras/config")
+@router.get("/cameras/config", dependencies=[Depends(camera_transaction)])
 def get_camera_config(request: Request) -> dict:
     camera_store = request.app.state.camera_store
     printers, _raw_cameras, _resolved_cameras = camera_store.list_printers()
-    return {"printers": [printer.model_dump(exclude_none=True) for printer in printers]}
+    return {"printers": [printer.model_dump(exclude_none=True) for printer in printers],
+            "revision": camera_store.revision()}
 
 
-@router.put("/cameras/config")
+@router.put("/cameras/config", dependencies=[Depends(camera_transaction)])
 def save_camera_config(payload: CameraConfigFile, request: Request) -> dict:
     camera_store = request.app.state.camera_store
+    if payload.revision != camera_store.revision():
+        raise HTTPException(status_code=409, detail="Configuration changed. Reload before saving.")
     recorder = request.app.state.recording_manager
     gopro_recorder = request.app.state.gopro_recording_manager
     timelapse_manager = request.app.state.timelapse_manager
@@ -55,10 +59,11 @@ def save_camera_config(payload: CameraConfigFile, request: Request) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     _refresh_runtime_camera_state(request, resolved_cameras)
-    return {"printers": [printer.model_dump(exclude_none=True) for printer in printers]}
+    return {"printers": [printer.model_dump(exclude_none=True) for printer in printers],
+            "revision": camera_store.revision()}
 
 
-@router.post("/cameras")
+@router.post("/cameras", dependencies=[Depends(camera_transaction)])
 def create_camera(payload: CameraUpsertRequest, request: Request) -> dict:
     camera_store = request.app.state.camera_store
 
@@ -71,7 +76,7 @@ def create_camera(payload: CameraUpsertRequest, request: Request) -> dict:
     return {"cameras": [item.model_dump() for item in items]}
 
 
-@router.put("/cameras/{camera_id}")
+@router.put("/cameras/{camera_id}", dependencies=[Depends(camera_transaction)])
 def update_camera(camera_id: str, payload: CameraUpsertRequest, request: Request) -> dict:
     recorder = request.app.state.recording_manager
     gopro_recorder = request.app.state.gopro_recording_manager
@@ -98,7 +103,7 @@ def update_camera(camera_id: str, payload: CameraUpsertRequest, request: Request
     return {"cameras": [item.model_dump() for item in items]}
 
 
-@router.delete("/cameras/{camera_id}")
+@router.delete("/cameras/{camera_id}", dependencies=[Depends(camera_transaction)])
 def delete_camera(camera_id: str, request: Request) -> dict:
     recorder = request.app.state.recording_manager
     gopro_recorder = request.app.state.gopro_recording_manager

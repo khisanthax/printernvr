@@ -47,11 +47,27 @@ def generate_go2rtc_urls(
     return preview_url, record_url
 
 
+def _check_url(value: str | None, schemes: set[str], label: str, *, allow_bare_host: bool = False) -> None:
+    if not value:
+        return
+    try:
+        parsed = urlparse(f"http://{value}" if allow_bare_host and "://" not in value else value)
+        if parsed.scheme in schemes and parsed.hostname and not any(char.isspace() for char in value):
+            return
+    except ValueError:
+        pass
+    raise ValueError(f"Invalid {label}; allowed schemes: {', '.join(sorted(schemes))}")
+
+
 def resolve_camera(camera: CameraConfigInput) -> ResolvedCamera:
     mode = infer_input_mode(camera)
     printer_id = (camera.printer_id or "").strip() or camera.id
     printer_name = (camera.printer_name or "").strip() or camera.name
     moonraker_url = (camera.moonraker_url or "").strip() or None
+    _check_url(moonraker_url, {"http", "https"}, "Moonraker URL", allow_bare_host=True)
+    _check_url(camera.preview_url, {"http", "https"}, "preview URL")
+    _check_url(camera.record_url, {"rtsp", "rtsps", "http", "https", "rtmp", "rtmps"}, "record URL")
+    _check_url(camera.go2rtc_base_url, {"http", "https"}, "go2rtc URL", allow_bare_host=True)
 
     if mode == "gopro":
         preview_mode = _effective_preview_mode(camera.preview_mode)

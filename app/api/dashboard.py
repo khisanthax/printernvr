@@ -63,8 +63,6 @@ def live_wall_page(request: Request) -> HTMLResponse:
     printer_cards = build_printer_cards(
         request.app.state.cameras,
         request.app.state.moonraker_service,
-        request.app.state.clip_store,
-        request.app.state.runtime_state.active_output_paths(),
     )
     return templates.TemplateResponse(
         request=request,

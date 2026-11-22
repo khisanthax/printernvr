@@ -29,7 +29,7 @@ class AccessBoundary:
             raise RuntimeError("APP_ACCESS_PASSWORD is required with a non-loopback bind address")
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or scope["path"] == "/health":
+        if scope["type"] != "http" or scope["path"] in {"/health", "/ready"}:
             await self.app(scope, receive, send)
             return
         headers = Headers(scope=scope)
