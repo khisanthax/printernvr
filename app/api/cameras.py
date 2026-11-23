@@ -151,6 +151,7 @@ def probe_camera(payload: CameraUpsertRequest) -> dict:
 
 
 def _refresh_runtime_camera_state(request: Request, resolved_cameras: list) -> None:
+    request.app.state.printers = request.app.state.camera_store.list_printers()[0]
     request.app.state.cameras = resolved_cameras
     request.app.state.camera_index = {camera.id: camera for camera in resolved_cameras}
     request.app.state.runtime_state.sync_cameras(resolved_cameras)

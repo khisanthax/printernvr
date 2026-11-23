@@ -139,11 +139,14 @@ async def lifespan(app: FastAPI):
     app.state.optimizer = optimizer
     app.state.app_config = loaded_config
     app.state.camera_store = CameraConfigStore(settings["camera_config_path"])
+    app.state.printers = app.state.camera_store.list_printers()[0]
     automation = TimelapseAutomation(settings["recordings_dir"], timelapse_manager, moonraker_service,
                                      lambda: app.state.cameras)
     app.state.timelapse_automation = automation
     app.state.timeline = Timeline(settings["recordings_dir"])
-    timeline_monitor = TimelineMonitor(app.state.timeline, moonraker_service, lambda: app.state.cameras)
+    timeline_monitor = TimelineMonitor(
+        app.state.timeline, moonraker_service, lambda: app.state.cameras, lambda: app.state.printers,
+    )
     timeline_monitor.worker.start()
     automation.thread.start()
 

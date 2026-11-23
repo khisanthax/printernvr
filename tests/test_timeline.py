@@ -9,11 +9,41 @@ import unittest
 from pydantic import ValidationError
 
 from app.media import validate_mp4
-from app.models import PrinterStatusSnapshot
+from app.api.timeline import _printer
+from app.camera_store import CameraConfigStore
+from app.models import PrinterConfigInput, PrinterStatusSnapshot
+from app.printers import build_printer_cards
 from app.timeline import EventInput, Timeline, TimelineMonitor, extract_segment, video_offset
 
 
 class TimelineTest(unittest.TestCase):
+    def test_printer_first_monitoring_without_view(self):
+        with TemporaryDirectory(dir=".") as temp:
+            store = CameraConfigStore(str(Path(temp) / "cameras.json"))
+            store.save_printers([
+                PrinterConfigInput(id="demo", name="Demo", moonraker_url="http://printer.example"),
+                PrinterConfigInput(id="disabled", name="Disabled", enabled=False,
+                                   moonraker_url="http://disabled.example"),
+            ])
+            printers, _, cameras = store.list_printers()
+            observed = []
+
+            def fetch(url):
+                observed.append(url)
+                return PrinterStatusSnapshot(printer_status_text="Idle", monitor_state="idle")
+
+            service = SimpleNamespace(fetch_status=fetch)
+            cards = {card.printer_id: card for card in build_printer_cards(cameras, service, printers=printers)}
+            self.assertEqual(cards["demo"].printer_status_text, "Idle")
+            self.assertFalse(cards["demo"].camera_enabled)
+            self.assertEqual(cards["demo"].available_views, [])
+            self.assertNotIn("http://disabled.example", observed)
+            self.assertEqual(_printer(SimpleNamespace(cameras=cameras, printers=printers), "demo"), [])
+            timeline = Timeline(temp)
+            TimelineMonitor(timeline, service, lambda: cameras, lambda: printers).poll()
+            self.assertEqual(timeline.events("demo")[0]["message"], "Idle")
+            self.assertEqual(timeline.events("disabled"), [])
+
     def test_dual_timestamps_persist_and_are_distinct(self):
         with TemporaryDirectory(dir=".") as temp:
             event = EventInput(kind="print.start", message="Fixture", source_at="2026-11-23T10:00:00-05:00",

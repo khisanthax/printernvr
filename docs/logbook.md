@@ -49,3 +49,8 @@ For every procedure, log the date, purpose, steps or commands, environment, comm
 - Made capture, render, and probe subprocesses cancellable on app shutdown. New starts and retries are rejected after shutdown begins.
 - Added a regression using a real child process to verify that closing the manager stops an in-flight render, discards staged output, preserves completed frames, and leaves the session eligible for retry.
 - `python -B -m unittest discover -s tests -v`: 16 tests passed, including verified FFmpeg output and the new shutdown test. No live printers or production systems were used.
+
+## 2026-11-23: Monitoring without a configured camera
+
+- Kept printer-first entries with zero cameras visible in `/live`, `/printers`, the cards API, and `/timeline`, with no capture target.
+- Verified camera-free Moonraker observations and that disabled printer endpoints are not polled. All 17 automated tests passed; `node --check` passed for timeline, live, printers, clips, and cameras scripts.

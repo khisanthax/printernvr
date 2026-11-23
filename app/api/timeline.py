@@ -23,7 +23,7 @@ class ClipRange(BaseModel):
 
 def _printer(state, printer_id):
     cameras = [camera for camera in state.cameras if camera.printer_id == printer_id]
-    if not cameras:
+    if not cameras and not any(printer.id == printer_id for printer in state.printers):
         raise HTTPException(status_code=404, detail="Unknown printer")
     return cameras
 
@@ -31,6 +31,7 @@ def _printer(state, printer_id):
 @router.get("/timeline")
 def timeline_page(request: Request):
     printers = {camera.printer_id: camera.printer_name for camera in request.app.state.cameras}
+    printers.update({printer.id: printer.name for printer in request.app.state.printers})
     return request.app.state.templates.TemplateResponse(
         request=request, name="timeline.html", context={"printers": sorted(printers.items())},
     )

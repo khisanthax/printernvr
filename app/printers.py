@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from app.models import LatestClipInfo, PrinterCard, PrinterViewOption, ResolvedCamera
+from app.models import LatestClipInfo, PrinterCard, PrinterConfigInput, PrinterViewOption, ResolvedCamera
 from app.clips import ClipStore
 from app.services.moonraker_service import MoonrakerService
 
@@ -12,6 +12,8 @@ def build_printer_cards(
     moonraker_service: MoonrakerService,
     clip_store: ClipStore | None = None,
     active_output_paths: set[str] | None = None,
+    *,
+    printers: list[PrinterConfigInput] | None = None,
 ) -> list[PrinterCard]:
     grouped: dict[str, list[ResolvedCamera]] = defaultdict(list)
     for camera in cameras:
@@ -75,6 +77,18 @@ def build_printer_cards(
                 error_message=status.error_message,
             )
         )
+
+    for printer in printers or []:
+        if printer.id not in grouped:
+            status = moonraker_service.fetch_status(printer.moonraker_url if printer.enabled else None)
+            cards.append(PrinterCard(
+                printer_id=printer.id,
+                printer_name=printer.name,
+                camera_enabled=False,
+                display_order=printer.display_order,
+                moonraker_url=printer.moonraker_url,
+                **status.model_dump(exclude={"current_layer", "klipper_eventtime"}),
+            ))
 
     cards.sort(key=_card_sort_key)
     return cards

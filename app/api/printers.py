@@ -12,5 +12,6 @@ def get_printer_cards(request: Request) -> dict:
     cards = build_printer_cards(
         request.app.state.cameras,
         request.app.state.moonraker_service,
+        printers=request.app.state.printers,
     )
     return {"printers": [card.model_dump(mode="json") for card in cards]}

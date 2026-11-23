@@ -84,10 +84,11 @@ class Timeline:
 
 
 class TimelineMonitor:
-    def __init__(self, timeline, moonraker, cameras):
+    def __init__(self, timeline, moonraker, cameras, printer_configs=tuple):
         self.timeline = timeline
         self.moonraker = moonraker
         self.cameras = cameras
+        self.printer_configs = printer_configs
         self.previous = {}
         self.stop = Event()
         self.worker = Thread(target=self._run, name="klipper-timeline", daemon=True)
@@ -98,7 +99,8 @@ class TimelineMonitor:
             self.stop.wait(2)
 
     def poll(self):
-        printers = {}
+        printers = {printer.id: printer.moonraker_url for printer in self.printer_configs()
+                    if printer.enabled and printer.moonraker_url}
         for camera in self.cameras():
             if camera.enabled and camera.moonraker_url:
                 printers.setdefault(camera.printer_id, camera.moonraker_url)

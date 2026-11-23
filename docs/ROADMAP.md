@@ -1057,3 +1057,5 @@ Planned Phase 11 deployment work:
 - Keep external go2rtc as the default-compatible path
 - Add optional bundled go2rtc Compose support for users who want one local stack
 - Ensure setup/update helpers back up or preserve existing config, recordings, and metadata
+
+Printer-first hardening: configured printers without cameras now remain visible in monitoring and the timeline.
