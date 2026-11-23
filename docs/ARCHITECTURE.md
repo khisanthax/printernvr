@@ -519,3 +519,5 @@ Unclaimed output folders keep their folder-name identity in the clip browser. Wh
 The event store compacts to a recent window when a printer log reaches approximately 8 MiB. The recorder publishes verified media even if its optional timing sidecar cannot be written.
 
 When Moonraker is offline or returns incomplete print state, monitoring retains prior successful readings and their timestamp without claiming fresh metadata. Timeline observations use only the current response's Klipper clock.
+
+The [isolated verification run](https://github.com/khisanthax/printernvr/actions/runs/45199452133) exercised revision-checked config, event ingestion, MP4 extraction and original-media preservation. It did not measure clock alignment on physical cameras or printers.

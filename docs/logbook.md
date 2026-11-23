@@ -86,3 +86,8 @@ For every procedure, log the date, purpose, steps or commands, environment, comm
 - GitHub Actions run 45198366588 passed Ubuntu, Windows, dependencies, and disposable Docker. The next run, 45198676896, passed both platforms and dependency audit but the new HTTP smoke fixture failed: it assumed the installer seeded the example printer, while fresh installs intentionally have an empty config.
 - Corrected the disposable test to provision its own inert printer and camera through the revision-checked API. The workflow then submits/reads a dual-timestamp event, generates a synthetic MP4 inside Docker, extracts a one-second clip over HTTP, and checks the original checksum. No live devices are contacted.
 - Verified workflow YAML locally and reconciled roadmap/architecture. Local Python compilation, 23 tests, JS syntax, and source diff whitespace checks passed. GitHub verification of the corrected workflow is a separate run.
+
+## 2026-11-23: Phase 13 verification result
+
+- [GitHub Actions run 45199452133](https://github.com/khisanthax/printernvr/actions/runs/45199452133) on `edb0a43` passed all four jobs: Ubuntu tests, Windows tests, dependency audit and disposable Docker deployment/update. The latter successfully created a test printer/camera, round-tripped an event with both timestamps, and extracted and probed a one-second MP4 while checking the original file was unchanged.
+- Local Jinja rendering with the CI printer fixture and Git whitespace checks for 19 source diffs passed. PR #1 was verified draft and mergeable on the implementation head. Neither `main` nor production was changed; real-device timing and visual browser interaction remain unverified.

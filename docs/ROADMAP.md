@@ -1064,4 +1064,5 @@ Phase 11 deployment workflow on the hardening branch:
 - Printer-first definitions survive the removal of their last view and remain visible in monitoring and the timeline. Compatibility camera edits preserve existing output folders unless explicitly changed.
 - Archived clip paths remain addressable if a camera ID collides with an old directory name. Temporary timeline exports are not browsable clips.
 - Moonraker outages retain the last good readings and timestamp without marking metadata fresh.
+- The [Phase 13 verification run](https://github.com/khisanthax/printernvr/actions/runs/45199452133) passed Ubuntu, Windows, dependency auditing, and disposable Docker checks.
 - Hardware and real footage acceptance, exhaustive concurrency testing, and additional mobile polish remain follow-ups. No production changes were made.
