@@ -527,3 +527,5 @@ When Moonraker is offline or returns incomplete print state, monitoring retains 
 The [isolated verification run](https://github.com/khisanthax/printernvr/actions/runs/45199452133) exercised revision-checked config, event ingestion, MP4 extraction and original-media preservation. It did not measure clock alignment on physical cameras or printers.
 
 The export request can carry the current, unsaved viewer alignment without modifying the saved clip calibration. Catalog quotas are per camera (250 completed clips at most), so a busy view does not hide clips on quieter cameras. Recording output path validation occurs within the recording manager's claim lock to avoid Windows directory-creation races.
+
+[Expanded acceptance CI](https://github.com/khisanthax/printernvr/actions/runs/45210307754) verifies both clean and burned-in extracts over HTTP in disposable Docker and drives desktop/mobile-emulated Chromium against synthetic recordings.

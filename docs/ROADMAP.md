@@ -881,7 +881,7 @@ Scope:
 - Filter by kind, origin, text or overlap with the selected clip. The viewer shows aligned video UTC and the recent event's source and receipt timestamps.
 - Switch between cameras for the same printer at an aligned UTC playhead position when a completed recording overlaps. The viewer does not guess when it cannot align the destination.
 - Download a clean segment or burn in the currently displayed alignment, video UTC, and both event clocks. Timestamped filenames use the UTC segment start; source MP4s remain unchanged.
-- Acceptance coverage includes desktop Chromium, a 375px touch/mobile viewport, concurrent annotation and duplicate log import, simultaneous capture requests, export versus rename, and repeat export contention. Real printer/camera clock accuracy and physical-device browser checks remain hardware acceptance.
+- [Expanded Phase 13 acceptance CI](https://github.com/khisanthax/printernvr/actions/runs/45210307754) passed all five hosted jobs. Coverage includes desktop Chromium, a 375px touch/mobile viewport, concurrent annotation and duplicate log import, simultaneous capture requests, export versus rename, and repeat export contention. Real printer/camera clock accuracy and physical-device browser checks remain hardware acceptance.
 
 ### Phase 5 - Operational Hardening [x]
 
