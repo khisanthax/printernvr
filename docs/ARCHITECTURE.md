@@ -509,3 +509,5 @@ Configured printers without a camera still have cards and can supply Moonraker t
 Timeline alignment edits are stored alongside, not in place of, the original recorder timing estimate in the clip review sidecar. They follow a clip rename and can be reset in the viewer.
 
 Camera compatibility endpoints mutate nested configuration directly for printer-first files; deleting or moving a camera does not delete its former printer record.
+
+Unclaimed output folders keep their folder-name identity in the clip browser. When that name collides with a configured camera ID, the browser uses an explicit `archive:` alias. Internal hidden directories are excluded. Clip modification timestamps are returned in UTC.

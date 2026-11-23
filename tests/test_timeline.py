@@ -12,12 +12,35 @@ from app.media import validate_mp4
 from app.api.timeline import CalibrationUpdate, _printer, update_calibration
 from app.camera_store import CameraConfigStore
 from app.clips import ClipStore
-from app.models import CameraUpsertRequest, PrinterConfigInput, PrinterStatusSnapshot
+from app.config import resolve_camera
+from app.models import CameraConfigInput, CameraUpsertRequest, PrinterConfigInput, PrinterStatusSnapshot
 from app.printers import build_printer_cards
 from app.timeline import EventInput, Timeline, TimelineMonitor, extract_segment, video_offset
 
 
 class TimelineTest(unittest.TestCase):
+    def test_archive_folder_collision_resolves_indexed_media(self):
+        with TemporaryDirectory(dir=".") as temp:
+            root = Path(temp).resolve()
+            camera = resolve_camera(CameraConfigInput(
+                id="cam", name="Cam", mode="manual_urls", record_url="rtsp://camera/stream",
+                output_subdir="new-folder",
+            ))
+            for folder in ("cam", "new-folder", ".timeline-export-temp"):
+                path = root / folder / "clip.mp4"
+                path.parent.mkdir()
+                path.write_text(folder, encoding="utf-8")
+            store = ClipStore(temp)
+            clips = store.list_clips([camera], set())
+            self.assertEqual({clip.camera_id for clip in clips}, {"archive:cam", "cam"})
+            for clip in clips:
+                self.assertEqual(store.resolve_clip_path(clip.camera_id, clip.filename, [camera]),
+                                 root / clip.relative_path)
+                self.assertEqual(clip.created_at.utcoffset(), timedelta(0))
+            self.assertEqual(store.list_clips([camera], set(), "archive:../cam"), [])
+            with self.assertRaises(ValueError):
+                store.resolve_clip_path(".timeline-export-temp", "clip.mp4", [camera])
+
     def test_compatibility_camera_crud_keeps_empty_printer_and_settings(self):
         with TemporaryDirectory(dir=".") as temp:
             store = CameraConfigStore(str(Path(temp) / "cameras.json"))

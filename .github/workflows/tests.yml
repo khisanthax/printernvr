@@ -52,7 +52,7 @@ jobs:
           git -C "$RUNNER_TEMP/upstream" push
           bash scripts/install.sh
           curl --fail http://127.0.0.1:8787/ready
-          for path in / /live /printers /cameras /clips /timelapses; do
+          for path in / /live /printers /cameras /clips /timelapses /timeline; do
             curl --fail --silent --output /dev/null "http://127.0.0.1:8787$path"
           done
           printf 'preserve this media fixture\n' > recordings/preservation.txt

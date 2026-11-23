@@ -64,3 +64,8 @@ For every procedure, log the date, purpose, steps or commands, environment, comm
 
 - Patched legacy camera CRUD to preserve nested printer definitions, printer-level settings, default selection and existing output folder mappings.
 - The new test creates then updates and removes the last camera of a printer and verifies the empty definition and Moonraker URL are retained. All 19 automated tests passed.
+
+## 2026-11-23: Archived clip resolution
+
+- Reproduced and fixed a clip list/resolver mismatch when a camera ID matched an unclaimed old output folder. Both files now resolve independently, even with identical filenames. Internal export staging paths cannot be indexed or resolved as clips.
+- Added `/timeline` to disposable deployment route smoke coverage. All 20 local automated tests and Node syntax checks for timeline and clips passed.

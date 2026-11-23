@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
 from functools import wraps
@@ -12,6 +12,11 @@ from app.media import MEDIA_SUFFIXES
 from app.models import ClipItem, LatestClipInfo, OUTPUT_SUBDIR_RE, ResolvedCamera
 
 LOGGER = logging.getLogger(__name__)
+ARCHIVE_PREFIX = "archive:"
+
+
+def _valid_storage_dir(name: str) -> bool:
+    return bool(OUTPUT_SUBDIR_RE.fullmatch(name)) and not name.startswith(".") and name.lower() != "timelapses"
 
 
 def _locked_review(method):
@@ -39,6 +44,7 @@ class ClipStore:
             return []
 
         known_output_dirs = {camera.output_subdir: camera.id for camera in cameras}
+        configured_ids = {camera.id for camera in cameras}
         active_paths = {
             str(Path(path).resolve(strict=False))
             for path in active_output_paths
@@ -50,7 +56,13 @@ class ClipStore:
         scope = root
         glob_pattern = "*/*"
         if camera_id:
-            scope = root / self._storage_dir_for_camera(camera_id, cameras)
+            try:
+                folder = self._storage_dir_for_camera(camera_id, cameras)
+            except ValueError:
+                return []
+            if not _valid_storage_dir(folder):
+                return []
+            scope = root / folder
             glob_pattern = "*"
         for path in scope.glob(glob_pattern):
             if not path.is_file() or path.suffix.lower() not in MEDIA_SUFFIXES or path.resolve() != path:
@@ -67,11 +79,12 @@ class ClipStore:
 
             if len(relative.parts) < 2:
                 continue
-            if relative.parts[0] == "timelapses":
-                continue
-
             storage_dir = relative.parts[0]
-            clip_camera_id = known_output_dirs.get(storage_dir) or storage_dir
+            if not _valid_storage_dir(storage_dir):
+                continue
+            clip_camera_id = known_output_dirs.get(storage_dir) or (
+                f"{ARCHIVE_PREFIX}{storage_dir}" if storage_dir in configured_ids else storage_dir
+            )
             if camera_id and clip_camera_id != camera_id:
                 continue
             clip_metadata = metadata.get(_metadata_key(clip_camera_id, path.name), {})
@@ -87,7 +100,7 @@ class ClipStore:
                     camera_id=clip_camera_id,
                     filename=path.name,
                     relative_path=relative.as_posix(),
-                    created_at=datetime.fromtimestamp(stat.st_mtime),
+                    created_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
                     size_bytes=stat.st_size,
                     size_human=_human_size(stat.st_size),
                     active=str(path.resolve(strict=False)) in active_paths,
@@ -234,13 +247,20 @@ class ClipStore:
         camera_id: str,
         cameras: list[ResolvedCamera],
     ) -> str:
+        if camera_id.startswith(ARCHIVE_PREFIX):
+            storage_dir = camera_id[len(ARCHIVE_PREFIX):]
+            if (not _valid_storage_dir(storage_dir)
+                    or any(camera.output_subdir == storage_dir for camera in cameras)
+                    or not any(camera.id == storage_dir for camera in cameras)):
+                raise ValueError("Invalid archive directory")
+            return storage_dir
         for camera in cameras:
             if camera.id == camera_id:
                 return camera.output_subdir
         return camera_id
 
     def _resolve_storage_path(self, storage_dir: str, filename: str) -> Path:
-        if not OUTPUT_SUBDIR_RE.fullmatch(storage_dir) or storage_dir.lower() in {".", "..", "timelapses"}:
+        if not _valid_storage_dir(storage_dir):
             raise ValueError("Invalid camera directory")
 
         clip_name = Path(filename)

@@ -1063,3 +1063,5 @@ Printer-first hardening: configured printers without cameras now remain visible 
 Phase 13 follow-through: completed clips support saved alignment and reset to the original timing estimate.
 
 The compatibility camera API preserves printer definitions when removing their last view and preserves an existing output folder when omitted during updates.
+
+Archived clip paths remain addressable when a configured camera ID collides with its former output folder. Timeline-generated temporary output is excluded from the clip browser.
