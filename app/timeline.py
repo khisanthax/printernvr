@@ -19,6 +19,7 @@ from app.media import validate_mp4
 
 LOGGER = logging.getLogger(__name__)
 MAX_EVENTS = 10000
+MAX_LOG_BYTES = 8 * 1024**2
 
 
 class EventInput(BaseModel):
@@ -52,16 +53,24 @@ class Timeline:
         with self.lock:
             path = self._path(printer_id)
             path.parent.mkdir(parents=True, exist_ok=True)
-            if path.exists() and path.stat().st_size > 8 * 1024**2:
+            if path.exists() and path.stat().st_size >= MAX_LOG_BYTES:
                 rows = self._read(path)
+                retained = deque()
+                retained_bytes = 0
+                for item in reversed(rows):
+                    line = (json.dumps(item, ensure_ascii=False) + "\n").encode("utf-8")
+                    if retained_bytes + len(line) > MAX_LOG_BYTES // 2:
+                        break
+                    retained.appendleft(line)
+                    retained_bytes += len(line)
                 pending = path.with_suffix(f".{uuid4().hex}.part")
                 try:
-                    pending.write_text("\n".join(json.dumps(item) for item in rows) + "\n", encoding="utf-8")
+                    pending.write_bytes(b"".join(retained))
                     pending.replace(path)
                 finally:
                     pending.unlink(missing_ok=True)
             with path.open("ab") as handle:
-                handle.write((json.dumps(row) + "\n").encode("utf-8"))
+                handle.write((json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8"))
         return row
 
     @staticmethod

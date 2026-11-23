@@ -69,3 +69,9 @@ For every procedure, log the date, purpose, steps or commands, environment, comm
 
 - Reproduced and fixed a clip list/resolver mismatch when a camera ID matched an unclaimed old output folder. Both files now resolve independently, even with identical filenames. Internal export staging paths cannot be indexed or resolved as clips.
 - Added `/timeline` to disposable deployment route smoke coverage. All 20 local automated tests and Node syntax checks for timeline and clips passed.
+
+## 2026-11-23: Timeline storage and recording failure isolation
+
+- Bounded per-printer JSONL compaction and preserved the most recent entries, including non-ASCII messages.
+- Confirmed a timing sidecar write/validation error cannot change a verified recording into a failed recording.
+- Added an HTTP event submission/read round-trip to disposable deployment CI; the final CI run is separate from local verification. All 22 local automated tests passed, as did syntax checks for timeline, live, printers, clips, and cameras JavaScript.

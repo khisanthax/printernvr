@@ -511,3 +511,5 @@ Timeline alignment edits are stored alongside, not in place of, the original rec
 Camera compatibility endpoints mutate nested configuration directly for printer-first files; deleting or moving a camera does not delete its former printer record.
 
 Unclaimed output folders keep their folder-name identity in the clip browser. When that name collides with a configured camera ID, the browser uses an explicit `archive:` alias. Internal hidden directories are excluded. Clip modification timestamps are returned in UTC.
+
+The event store compacts to a recent window when a printer log reaches approximately 8 MiB. The recorder publishes verified media even if its optional timing sidecar cannot be written.

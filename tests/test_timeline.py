@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import shutil
 import subprocess
 import unittest
+from unittest.mock import patch
 
 from pydantic import ValidationError
 
@@ -19,6 +20,17 @@ from app.timeline import EventInput, Timeline, TimelineMonitor, extract_segment,
 
 
 class TimelineTest(unittest.TestCase):
+    def test_event_log_compacts_to_recent_rows(self):
+        with TemporaryDirectory(dir=".") as temp, patch("app.timeline.MAX_LOG_BYTES", 2048):
+            timeline = Timeline(temp)
+            for n in range(20):
+                timeline.append("demo", EventInput(kind="note", message=f"{n}: " + chr(0x1F600) * 100), "test")
+            rows = timeline.events("demo")
+            self.assertGreater(len(rows), 1)
+            self.assertLess(len(rows), 20)
+            self.assertTrue(rows[-1]["message"].startswith("19: "))
+            self.assertLess((Path(temp) / ".timeline" / "demo.jsonl").stat().st_size, 2680)
+
     def test_archive_folder_collision_resolves_indexed_media(self):
         with TemporaryDirectory(dir=".") as temp:
             root = Path(temp).resolve()

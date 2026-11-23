@@ -55,6 +55,11 @@ jobs:
           for path in / /live /printers /cameras /clips /timelapses /timeline; do
             curl --fail --silent --output /dev/null "http://127.0.0.1:8787$path"
           done
+          curl --fail --silent -H 'Content-Type: application/json' \
+            --data '{"kind":"ci.smoke","message":"Timeline round-trip","source_at":"2026-11-23T00:00:00Z"}' \
+            http://127.0.0.1:8787/api/timeline/sv08/events
+          curl --fail --silent http://127.0.0.1:8787/api/timeline/sv08 \
+            | python -c 'import json, sys; assert any(e["kind"] == "ci.smoke" and e["source_at"] and e["received_at"] for e in json.load(sys.stdin)["events"])'
           printf 'preserve this media fixture\n' > recordings/preservation.txt
           sha256sum .env config/cameras.json config/app.json recordings/preservation.txt > "$RUNNER_TEMP/before"
           bash scripts/update.sh --with-go2rtc

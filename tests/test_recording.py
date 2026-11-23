@@ -86,6 +86,17 @@ class RecordingTest(unittest.TestCase):
         for recording in (first, second):
             self.assertTrue(validate_mp4(Path(recording.output_path))["streams"])
 
+    def test_anchor_metadata_failure_does_not_invalidate_recording(self):
+        def fail(*_):
+            raise ValueError("Invalid sidecar")
+
+        self.manager._save_recording_anchor = fail
+        started = self.manager.start_recording(self.camera, duration=1)
+        state = self.wait_for_finish()
+        self.assertEqual(state.status, "idle")
+        self.assertEqual(state.last_completed_output, Path(started.output_path).name)
+        self.assertTrue(validate_mp4(Path(started.output_path))["streams"])
+
     def test_invalid_input_does_not_publish(self):
         self.source.write_bytes(b"not media")
         started = self.manager.start_recording(self.camera)

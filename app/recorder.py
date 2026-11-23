@@ -220,7 +220,7 @@ class RecordingManager:
                         "frame_zero_at": job.frame_zero_at.isoformat(),
                         "method": "ffmpeg-progress-estimate",
                     })
-                except OSError:
+                except (OSError, ValueError):
                     LOGGER.warning("Unable to save video time anchor for %s", camera_id)
             self._runtime_state.mark_recording_stopped(
                 camera_id, last_completed_output=job.final.name, message="Recording complete",
