@@ -80,3 +80,9 @@ For every procedure, log the date, purpose, steps or commands, environment, comm
 
 - Kept the last known readings and success timestamp through failed/incomplete responses, while preserving the current offline/unavailable badge and withholding stale event clocks.
 - Tested a good response followed by an outage. Python compilation, all 23 local automated tests, and five JavaScript syntax checks passed. The preceding archive milestone's disposable Docker run and Windows/dependency jobs passed; this commit starts a new CI run.
+
+## 2026-11-23: Disposable timeline verification
+
+- GitHub Actions run 45198366588 passed Ubuntu, Windows, dependencies, and disposable Docker. The next run, 45198676896, passed both platforms and dependency audit but the new HTTP smoke fixture failed: it assumed the installer seeded the example printer, while fresh installs intentionally have an empty config.
+- Corrected the disposable test to provision its own inert printer and camera through the revision-checked API. The workflow then submits/reads a dual-timestamp event, generates a synthetic MP4 inside Docker, extracts a one-second clip over HTTP, and checks the original checksum. No live devices are contacted.
+- Verified workflow YAML locally and reconciled roadmap/architecture. Local Python compilation, 23 tests, JS syntax, and source diff whitespace checks passed. GitHub verification of the corrected workflow is a separate run.

@@ -876,9 +876,10 @@ Scope:
 - The timeline observes printer state and reported layer changes through Moonraker. Integrators can submit annotated Klipper events through the authenticated event API.
 - Event records preserve recorder receipt UTC, optional source wall time with timezone, and the raw Klipper monotonic sample clock separately.
 - Select a printer and completed MP4, align events to frame zero using the recorded estimate or a known manual timestamp, then seek or extract a bounded segment.
-- Automated fixtures verify timestamp preservation, deduplication, clock offsets, and FFmpeg extraction. Real printer and camera clock accuracy remain hardware acceptance checks.
+- Alignment is saved per clip and can be reset to the original FFmpeg estimate. Event logs compact to a bounded recent history.
+- Automated fixtures verify timestamp preservation, deduplication, clock offsets, and FFmpeg extraction. The disposable Docker workflow exercises event ingestion and extraction over HTTP. Real printer and camera clock accuracy remain hardware acceptance checks.
 
-### Phase 5 - Operational Hardening [-]
+### Phase 5 - Operational Hardening [x]
 
 Goals:
 - Reliability
@@ -894,7 +895,7 @@ Tasks:
 Implemented so far:
 - RTSP recording inputs use TCP transport by default
 - Recording uses the primary video stream only for MP4 clips
-- Full ffmpeg stderr is preserved in runtime state and logs
+- FFmpeg diagnostics use a bounded, redacted stderr tail. Outputs are verified before publication.
 - Probe diagnostics distinguish input/open failure from missing video stream
 
 ### Phase 6 - Retention and Storage Protection [-]
@@ -1052,20 +1053,15 @@ Docker bind mounts:
 - `recordings` -> `/app/recordings`
 - `logs` -> `/app/logs`
 
-Planned Phase 11 deployment work:
-- Add installer and updater scripts for common Docker deployments
+Phase 11 deployment workflow on the hardening branch:
+- Installer and updater scripts support common Docker deployments
 - Keep external go2rtc as the default-compatible path
-- Add optional bundled go2rtc Compose support for users who want one local stack
+- Bundled go2rtc Compose support remains optional
 - Ensure setup/update helpers back up or preserve existing config, recordings, and metadata
 
-Printer-first hardening: configured printers without cameras now remain visible in monitoring and the timeline.
+## Hardening Follow-up
 
-Phase 13 follow-through: completed clips support saved alignment and reset to the original timing estimate.
-
-The compatibility camera API preserves printer definitions when removing their last view and preserves an existing output folder when omitted during updates.
-
-Archived clip paths remain addressable when a configured camera ID collides with its former output folder. Timeline-generated temporary output is excluded from the clip browser.
-
-Phase 13 verification includes log compaction and metadata failure isolation regressions, plus an HTTP event round-trip in disposable deployment CI.
-
-Monitoring hardening distinguishes unavailable or offline Moonraker responses from usable snapshots and retains the last successful readings and timestamp for freshness display.
+- Printer-first definitions survive the removal of their last view and remain visible in monitoring and the timeline. Compatibility camera edits preserve existing output folders unless explicitly changed.
+- Archived clip paths remain addressable if a camera ID collides with an old directory name. Temporary timeline exports are not browsable clips.
+- Moonraker outages retain the last good readings and timestamp without marking metadata fresh.
+- Hardware and real footage acceptance, exhaustive concurrency testing, and additional mobile polish remain follow-ups. No production changes were made.

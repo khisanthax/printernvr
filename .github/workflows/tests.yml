@@ -55,11 +55,26 @@ jobs:
           for path in / /live /printers /cameras /clips /timelapses /timeline; do
             curl --fail --silent --output /dev/null "http://127.0.0.1:8787$path"
           done
-          curl --fail --silent -H 'Content-Type: application/json' \
+          config_url=http://127.0.0.1:8787/api/cameras/config
+          curl --fail --silent --show-error "$config_url" \
+            | python -c 'import json, sys; print(json.dumps({"revision": json.load(sys.stdin)["revision"], "printers": [{"id": "ci", "name": "CI printer", "cameras": [{"id": "ci-camera", "name": "CI camera", "mode": "manual_urls", "record_url": "rtsp://fixture.invalid/stream"}]}]}))' \
+            | curl --fail-with-body --silent --show-error -X PUT -H 'Content-Type: application/json' --data-binary @- "$config_url"
+          curl --fail-with-body --silent --show-error -H 'Content-Type: application/json' \
             --data '{"kind":"ci.smoke","message":"Timeline round-trip","source_at":"2026-11-23T00:00:00Z"}' \
-            http://127.0.0.1:8787/api/timeline/sv08/events
-          curl --fail --silent http://127.0.0.1:8787/api/timeline/sv08 \
+            http://127.0.0.1:8787/api/timeline/ci/events
+          curl --fail --silent --show-error http://127.0.0.1:8787/api/timeline/ci \
             | python -c 'import json, sys; assert any(e["kind"] == "ci.smoke" and e["source_at"] and e["received_at"] for e in json.load(sys.stdin)["events"])'
+          docker compose exec -T printernvr ffmpeg -v error -f lavfi -i testsrc2=size=160x120:rate=15 \
+            -t 2 -c:v libx264 -threads 1 /app/recordings/ci-camera/fixture.mp4
+          sha256sum recordings/ci-camera/fixture.mp4 > "$RUNNER_TEMP/timeline-source"
+          video_url=http://127.0.0.1:8787/api/timeline/video/ci-camera/fixture.mp4
+          curl --fail --silent --show-error "$video_url" \
+            | python -c 'import json, sys; assert json.load(sys.stdin)["duration"] >= 2'
+          curl --fail --silent --show-error -H 'Content-Type: application/json' \
+            --data '{"start":0.25,"end":1.25}' "$video_url/extract" -o "$RUNNER_TEMP/segment.mp4"
+          docker compose exec -T printernvr ffprobe -v error -show_entries format=duration -of csv=p=0 -i pipe:0 \
+            < "$RUNNER_TEMP/segment.mp4" | python -c 'import sys; assert abs(float(sys.stdin.read()) - 1) < .08'
+          sha256sum --check "$RUNNER_TEMP/timeline-source"
           printf 'preserve this media fixture\n' > recordings/preservation.txt
           sha256sum .env config/cameras.json config/app.json recordings/preservation.txt > "$RUNNER_TEMP/before"
           bash scripts/update.sh --with-go2rtc

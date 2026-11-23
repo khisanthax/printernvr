@@ -504,11 +504,15 @@ The [procedure logbook](logbook.md) records implementation tests, deployment lim
 
 App shutdown closes admission to the timelapse manager and interrupts its FFmpeg/ffprobe processes. Completed source frames and session manifests remain local for manual render retry; interrupted output is not published. Manual Stop still renders normally.
 
+### Configuration and monitoring
+
 Configured printers without a camera still have cards and can supply Moonraker timeline events. Capture remains disabled until a camera is configured.
 
-Timeline alignment edits are stored alongside, not in place of, the original recorder timing estimate in the clip review sidecar. They follow a clip rename and can be reset in the viewer.
-
 Camera compatibility endpoints mutate nested configuration directly for printer-first files; deleting or moving a camera does not delete its former printer record.
+
+### Clip storage and timeline integrity
+
+Timeline alignment edits are stored alongside, not in place of, the original recorder timing estimate in the clip review sidecar. They follow a clip rename and can be reset in the viewer.
 
 Unclaimed output folders keep their folder-name identity in the clip browser. When that name collides with a configured camera ID, the browser uses an explicit `archive:` alias. Internal hidden directories are excluded. Clip modification timestamps are returned in UTC.
 
