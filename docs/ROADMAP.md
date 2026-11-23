@@ -150,7 +150,7 @@ Draft PR #1 reconciles the independently added logbook from `main`. Procedure re
 - [x] Phase 5 deployment hardening: loopback binding, password protection for LAN binds, diagnostic redaction, and build exclusions. The resolved dependency audit and disposable Docker runtime checks passed.
 - [-] Reopened Phase 6: low-space recording guards, cleanup preview, protected favorites and staging, and opt-in timelapse source frame expiration. Exhaustive race tests remain open.
 - [x] Storage inventory and optimization pilot: read-only bitrate projections and separate H.264 copies with at least 20% savings. Real footage quality and production savings remain unmeasured.
-- [-] Phase 12: verified renders, manifests, manual render retry, and server-side auto-start shipped in the hardening branch. Live verification and shutdown edge tests remain open.
+- [-] Phase 12: verified renders, manifests, manual render retry, and server-side auto-start shipped in the hardening branch. A shutdown regression test now verifies interrupted renders retain frames and do not publish partial output. Live printer verification remains open.
 - [-] Phase 12.1: added optional reported-layer capture with interval fallback. Capture eligibility is unit-tested. End-to-end simulated layer sequences and live printer verification remain open.
 - [-] Phase 9.1: implemented favorites download, rejected filter, printer/date filters, dashboard rename, and selected keeper export. Browser acceptance is pending.
 - [x] Phase 11: installer, updater, readiness, and optional go2rtc Compose config. A disposable fresh install, fast-forward upgrade with the companion, and checksums of preserved configuration and media passed.

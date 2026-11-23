@@ -499,3 +499,7 @@ The [procedure logbook](logbook.md) records implementation tests, deployment lim
 - No database, queue, scheduler, or NAS logic is included.
 - Timelapse sessions remain local-filesystem based and separate from the normal recording manager.
 - GoPro support remains deprecated compatibility code, not an active architectural direction.
+
+### Timelapse shutdown
+
+App shutdown closes admission to the timelapse manager and interrupts its FFmpeg/ffprobe processes. Completed source frames and session manifests remain local for manual render retry; interrupted output is not published. Manual Stop still renders normally.

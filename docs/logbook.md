@@ -43,3 +43,9 @@ For every procedure, log the date, purpose, steps or commands, environment, comm
 - Ran `python -B -m unittest discover -s tests -q` in the disposable Windows checkout. All 15 tests passed, including four new tests for clock validation/alignment, persisted events, polling deduplication and real FFmpeg segment extraction. The 1.5-second fixture segment was within one video frame of the requested range and the original bytes were unchanged.
 - `node --check static/timeline.js` passed. Building the app OpenAPI schema produced 50 paths. GitHub confirmed PR #1 is now mergeable and still draft, based on main commit `099b304`.
 - Camera buffering and poll intervals limit synchronization precision. Live printer, real-camera and interactive browser checks remain unverified at this milestone.
+
+## 2026-11-23: Timelapse shutdown hardening
+
+- Made capture, render, and probe subprocesses cancellable on app shutdown. New starts and retries are rejected after shutdown begins.
+- Added a regression using a real child process to verify that closing the manager stops an in-flight render, discards staged output, preserves completed frames, and leaves the session eligible for retry.
+- `python -B -m unittest discover -s tests -v`: 16 tests passed, including verified FFmpeg output and the new shutdown test. No live printers or production systems were used.

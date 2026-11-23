@@ -62,6 +62,7 @@ class TimelapseManager:
         self._on_timelapse_finished = on_timelapse_finished
         self._minimum_free_bytes = minimum_free_bytes
         self._lock = Lock()
+        self._shutdown = Event()
         self._sessions: dict[str, ManagedTimelapse] = {}
         self._states: dict[str, TimelapseSessionState] = {}
         self._load_existing_outputs()
@@ -94,6 +95,8 @@ class TimelapseManager:
             raise ValueError("Invalid timelapse session directory")
 
         with self._lock:
+            if self._shutdown.is_set():
+                raise ValueError("Timelapse manager is shutting down")
             existing = self._sessions.get(printer_id)
             if existing and existing.state and existing.state.status in ACTIVE_STATUSES:
                 raise ValueError(f"Printer '{printer_id}' already has an active timelapse")
@@ -148,6 +151,7 @@ class TimelapseManager:
             self._sessions[printer_id] = managed
             self._states[printer_id] = state
             self._save_manifest(managed)
+            thread.start()
 
         LOGGER.info(
             "Starting timelapse for printer=%s camera=%s interval=%ss session=%s",
@@ -156,7 +160,6 @@ class TimelapseManager:
             interval_seconds,
             session_id,
         )
-        thread.start()
         return self.get_state(printer_id)
 
     def stop_session(self, printer_id: str, reason: str = "manual") -> TimelapseSessionState:
@@ -219,7 +222,7 @@ class TimelapseManager:
             raise ValueError("Invalid source frame directory")
         frame_count = sum(path.is_file() and path.resolve() == path for path in frames.glob("frame_*.jpg"))
         with self._lock:
-            if printer_id in self._sessions or output.exists() or not frame_count:
+            if self._shutdown.is_set() or printer_id in self._sessions or output.exists() or not frame_count:
                 raise ValueError("Session cannot be rendered again")
             state = state.model_copy(update={"status": "rendering", "frame_count": frame_count})
             job = ManagedTimelapse(
@@ -362,16 +365,41 @@ class TimelapseManager:
 
     def shutdown(self) -> None:
         with self._lock:
+            self._shutdown.set()
             sessions = list(self._sessions.values())
 
         for session in sessions:
-            if session.state and session.state.status in ACTIVE_STATUSES:
-                session.state.stop_reason = "app_shutdown"
-                session.stop_event.set()
+            session.stop_event.set()
 
+        deadline = time.monotonic() + 5
         for session in sessions:
             if session.thread and session.thread.is_alive():
-                session.thread.join(timeout=2.0)
+                session.thread.join(timeout=max(0, deadline - time.monotonic()))
+                if session.thread.is_alive():
+                    LOGGER.warning("Timelapse worker still winding down: %s", session.printer_id)
+
+    def _run_media_command(self, command, *, timeout, check=False, capture_output=False, **options):
+        deadline = time.monotonic() + timeout
+        with subprocess.Popen(
+            command, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE if capture_output else subprocess.DEVNULL,
+            stderr=subprocess.PIPE, **options,
+        ) as process:
+            while True:
+                remaining = deadline - time.monotonic()
+                if self._shutdown.is_set() or remaining <= 0:
+                    process.kill()
+                    process.communicate()
+                    if self._shutdown.is_set():
+                        raise ValueError("App shut down; completed frames were retained")
+                    raise subprocess.TimeoutExpired(command, timeout)
+                try:
+                    stdout, stderr = process.communicate(timeout=min(0.25, remaining))
+                except subprocess.TimeoutExpired:
+                    continue
+                if check and process.returncode:
+                    raise subprocess.CalledProcessError(process.returncode, command, stdout, stderr)
+                return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
 
     def _run_session(self, managed: ManagedTimelapse) -> None:
         self._update_state(managed, status="running")
@@ -458,17 +486,16 @@ class TimelapseManager:
         )
 
         try:
-            result = subprocess.run(
+            result = self._run_media_command(
                 command,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
                 timeout=max(30, min(120, managed.interval_seconds + 30)),
                 check=False,
             )
-        except (OSError, subprocess.TimeoutExpired) as exc:
+        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            frame_path.unlink(missing_ok=True)
             managed.consecutive_capture_errors += 1
             error = redact_diagnostic(str(exc), managed.record_url)
             self._update_state(managed, last_error=f"Frame capture failed: {error}")
@@ -476,6 +503,7 @@ class TimelapseManager:
             return False
 
         if result.returncode != 0 or not frame_path.exists():
+            frame_path.unlink(missing_ok=True)
             managed.consecutive_capture_errors += 1
             stderr = redact_diagnostic((result.stderr or "").strip(), managed.record_url)
             message = _last_error_line(stderr) or f"ffmpeg exited with {result.returncode}"
@@ -507,6 +535,12 @@ class TimelapseManager:
             render_status="running",
         )
 
+        if self._shutdown.is_set():
+            self._update_state(managed, status="error", stop_reason="app_shutdown",
+                               render_status="skipped", last_error="App shut down; completed frames were retained")
+            self._finish_session(managed)
+            return
+
         if frame_count <= 0:
             self._update_state(
                 managed,
@@ -529,23 +563,25 @@ class TimelapseManager:
         try:
             if shutil.disk_usage(managed.session_root).free < self._minimum_free_bytes:
                 raise ValueError("Insufficient free space to render; source frames were retained")
-            result = subprocess.run(
+            self._run_media_command(
                 command,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
                 timeout=min(3600, max(120, frame_count * 5)),
                 check=True,
             )
-            validate_mp4(staged)
-            publish_media(staged, managed.output_path)
+            validate_mp4(staged, run=self._run_media_command)
+            with self._lock:
+                if self._shutdown.is_set():
+                    raise ValueError("App shut down; completed frames were retained")
+                publish_media(staged, managed.output_path)
         except (OSError, ValueError, subprocess.SubprocessError) as exc:
             staged.unlink(missing_ok=True)
             self._update_state(
                 managed,
                 status="error",
+                stop_reason="app_shutdown" if self._shutdown.is_set() else stop_reason,
                 render_status="error",
                 render_error=f"Render failed: {exc}",
             )

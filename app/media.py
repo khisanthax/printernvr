@@ -29,11 +29,11 @@ def redact_diagnostic(message: str, source: str = "") -> str:
     return URL_PATTERN.sub("<url>", message)
 
 
-def validate_mp4(path: Path) -> dict:
+def validate_mp4(path: Path, *, run=subprocess.run) -> dict:
     if not path.is_file() or not path.stat().st_size:
         raise ValueError("FFmpeg produced no media")
     try:
-        probe = subprocess.run(
+        probe = run(
             ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
              "stream=codec_name,width,height,avg_frame_rate:format=format_name,duration", "-of", "json", str(path)],
             capture_output=True, timeout=10, check=True,

@@ -1,9 +1,11 @@
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from app.clips import ClipStore
 from app.config import resolve_camera
@@ -140,6 +142,35 @@ class RecordingTest(unittest.TestCase):
         self.assertTrue(validate_mp4(directory / "test-session.mp4")["streams"])
         self.assertEqual(manager.list_outputs()[0]["camera_id"], "front")
         self.assertEqual(manager.recoverable_sessions(), [])
+
+    def test_shutdown_interrupts_render_and_keeps_source_frames(self):
+        recordings = self.root / "timelapse-recordings"
+        directory = recordings / "timelapses" / "demo" / "test-session"
+        frames = directory / "frames"
+        frames.mkdir(parents=True)
+        frame = frames / "frame_000001.jpg"
+        frame.write_bytes(b"existing frame")
+        state = TimelapseSessionState(printer_id="demo", camera_id="front", session_id="test-session",
+                                     status="rendering")
+        (directory / "session.json").write_text(state.model_dump_json(), encoding="utf-8")
+        manager = TimelapseManager(str(recordings), None, minimum_free_bytes=0)
+        self.addCleanup(manager.shutdown)
+        command = [sys.executable, "-c",
+                   "from pathlib import Path; import sys, time; Path(sys.argv[1]).touch(); time.sleep(60)",
+                   str(directory / "test-session.mp4.part")]
+        with patch("app.timelapse._render_command", return_value=command):
+            manager.retry_render("demo", "test-session")
+            deadline = time.monotonic() + 5
+            while not Path(command[-1]).exists() and time.monotonic() < deadline:
+                time.sleep(0.025)
+            self.assertTrue(Path(command[-1]).exists())
+            manager.shutdown()
+        self.assertFalse(manager.is_printer_busy("demo"))
+        self.assertEqual(manager.get_state("demo").stop_reason, "app_shutdown")
+        self.assertFalse(Path(command[-1]).exists())
+        self.assertEqual(frame.read_bytes(), b"existing frame")
+        self.assertEqual(len(manager.recoverable_sessions()), 1)
+        self.assertEqual(manager.list_outputs(), [])
 
 
 if __name__ == "__main__":
