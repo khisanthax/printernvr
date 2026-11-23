@@ -1067,3 +1067,5 @@ The compatibility camera API preserves printer definitions when removing their l
 Archived clip paths remain addressable when a configured camera ID collides with its former output folder. Timeline-generated temporary output is excluded from the clip browser.
 
 Phase 13 verification includes log compaction and metadata failure isolation regressions, plus an HTTP event round-trip in disposable deployment CI.
+
+Monitoring hardening distinguishes unavailable or offline Moonraker responses from usable snapshots and retains the last successful readings and timestamp for freshness display.

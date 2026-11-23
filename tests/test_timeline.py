@@ -16,10 +16,35 @@ from app.clips import ClipStore
 from app.config import resolve_camera
 from app.models import CameraConfigInput, CameraUpsertRequest, PrinterConfigInput, PrinterStatusSnapshot
 from app.printers import build_printer_cards
+from app.services.moonraker_service import MoonrakerService
 from app.timeline import EventInput, Timeline, TimelineMonitor, extract_segment, video_offset
 
 
 class TimelineTest(unittest.TestCase):
+    def test_moonraker_retains_last_good_readings_but_reports_offline(self):
+        service = MoonrakerService()
+        self.addCleanup(service.shutdown)
+        success = datetime.now(timezone.utc)
+        good = PrinterStatusSnapshot(
+            connection_state="online", monitor_state="printing", metadata_available=True,
+            progress_percent=42, extruder_current_temp=200, klipper_eventtime=53,
+            last_metadata_attempt_at=success, last_metadata_success_at=success,
+        )
+        outage = PrinterStatusSnapshot(
+            connection_state="offline", monitor_state="offline",
+            last_metadata_attempt_at=success + timedelta(seconds=2),
+        )
+        with patch.object(service, "_read_status", side_effect=[good, outage]), \
+                patch("app.services.moonraker_service.time.monotonic", side_effect=[1, 3, 3]):
+            self.assertTrue(service.fetch_status("http://printer").metadata_available)
+            state = service.fetch_status("http://printer")
+        self.assertEqual(state.monitor_state, "offline")
+        self.assertFalse(state.metadata_available)
+        self.assertEqual(state.last_metadata_success_at, success)
+        self.assertEqual(state.extruder_current_temp, 200)
+        self.assertEqual(state.progress_percent, 42)
+        self.assertIsNone(state.klipper_eventtime)
+
     def test_event_log_compacts_to_recent_rows(self):
         with TemporaryDirectory(dir=".") as temp, patch("app.timeline.MAX_LOG_BYTES", 2048):
             timeline = Timeline(temp)

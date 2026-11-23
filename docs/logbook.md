@@ -75,3 +75,8 @@ For every procedure, log the date, purpose, steps or commands, environment, comm
 - Bounded per-printer JSONL compaction and preserved the most recent entries, including non-ASCII messages.
 - Confirmed a timing sidecar write/validation error cannot change a verified recording into a failed recording.
 - Added an HTTP event submission/read round-trip to disposable deployment CI; the final CI run is separate from local verification. All 22 local automated tests passed, as did syntax checks for timeline, live, printers, clips, and cameras JavaScript.
+
+## 2026-11-23: Moonraker monitoring freshness
+
+- Kept the last known readings and success timestamp through failed/incomplete responses, while preserving the current offline/unavailable badge and withholding stale event clocks.
+- Tested a good response followed by an outage. Python compilation, all 23 local automated tests, and five JavaScript syntax checks passed. The preceding archive milestone's disposable Docker run and Windows/dependency jobs passed; this commit starts a new CI run.

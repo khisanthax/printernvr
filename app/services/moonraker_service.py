@@ -13,6 +13,10 @@ from app.models import PrinterStatusSnapshot
 from app.media import redact_diagnostic
 
 LOGGER = logging.getLogger(__name__)
+LAST_READING_FIELDS = {
+    "current_file_name", "progress_percent", "extruder_current_temp", "extruder_target_temp",
+    "bed_current_temp", "bed_target_temp", "last_metadata_success_at",
+}
 
 
 class MoonrakerService:
@@ -45,6 +49,14 @@ class MoonrakerService:
                 return cached[1].model_copy()
         status = self._read_status(moonraker_url)
         with self._status_lock:
+            latest = self._snapshots.get(moonraker_url)
+            if latest:
+                previous = latest[1]
+                if (previous.last_metadata_attempt_at and status.last_metadata_attempt_at
+                        and previous.last_metadata_attempt_at > status.last_metadata_attempt_at):
+                    return previous.model_copy()
+                if not status.metadata_available:
+                    status = status.model_copy(update=previous.model_dump(include=LAST_READING_FIELDS))
             self._snapshots[moonraker_url] = (time.monotonic(), status)
         return status.model_copy()
 
@@ -73,7 +85,9 @@ class MoonrakerService:
         result = _as_dict(_as_dict(payload).get("result"))
         status_payload = _as_dict(result.get("status"))
         eventtime = _as_number(result.get("eventtime"))
-        if not isinstance(status_payload.get("print_stats"), dict):
+        print_stats = _as_dict(status_payload.get("print_stats"))
+        state = str(print_stats.get("state") or "").strip().lower()
+        if _monitor_state(state) == "unavailable":
             return PrinterStatusSnapshot(
                 connection_state="online",
                 printer_status_text="Status unavailable",
@@ -83,7 +97,6 @@ class MoonrakerService:
                 last_metadata_attempt_at=attempted_at,
             )
 
-        print_stats = _as_dict(status_payload.get("print_stats"))
         layer = _as_dict(print_stats.get("info")).get("current_layer")
         extruder = _as_dict(status_payload.get("extruder"))
         heater_bed = _as_dict(status_payload.get("heater_bed"))
@@ -95,7 +108,6 @@ class MoonrakerService:
             progress_ratio = _as_number(virtual_sdcard.get("progress"))
         progress_percent = round(progress_ratio * 100.0, 1) if progress_ratio is not None else None
 
-        state = str(print_stats.get("state") or "").strip().lower()
         printer_status_text = _normalize_state_text(state)
 
         filename = str(print_stats.get("filename") or "").strip() or None
