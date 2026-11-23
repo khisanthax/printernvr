@@ -507,3 +507,5 @@ App shutdown closes admission to the timelapse manager and interrupts its FFmpeg
 Configured printers without a camera still have cards and can supply Moonraker timeline events. Capture remains disabled until a camera is configured.
 
 Timeline alignment edits are stored alongside, not in place of, the original recorder timing estimate in the clip review sidecar. They follow a clip rename and can be reset in the viewer.
+
+Camera compatibility endpoints mutate nested configuration directly for printer-first files; deleting or moving a camera does not delete its former printer record.

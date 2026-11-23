@@ -12,12 +12,36 @@ from app.media import validate_mp4
 from app.api.timeline import CalibrationUpdate, _printer, update_calibration
 from app.camera_store import CameraConfigStore
 from app.clips import ClipStore
-from app.models import PrinterConfigInput, PrinterStatusSnapshot
+from app.models import CameraUpsertRequest, PrinterConfigInput, PrinterStatusSnapshot
 from app.printers import build_printer_cards
 from app.timeline import EventInput, Timeline, TimelineMonitor, extract_segment, video_offset
 
 
 class TimelineTest(unittest.TestCase):
+    def test_compatibility_camera_crud_keeps_empty_printer_and_settings(self):
+        with TemporaryDirectory(dir=".") as temp:
+            store = CameraConfigStore(str(Path(temp) / "cameras.json"))
+            store.save_printers([PrinterConfigInput(
+                id="demo", name="Demo", display_order=14, moonraker_url="http://printer.example",
+            )])
+            payload = CameraUpsertRequest(id="camera", name="Camera", printer_id="demo",
+                                          mode="manual_urls", record_url="rtsp://camera/stream",
+                                          output_subdir="archive-folder")
+            store.create_camera(payload)
+            store.update_camera("camera", payload.model_copy(update={
+                "id": None, "printer_id": None, "output_subdir": None, "name": "Changed",
+            }))
+            printers, _, cameras = store.list_printers()
+            self.assertEqual(cameras[0].output_subdir, "archive-folder")
+            self.assertEqual(printers[0].default_camera_id, "camera")
+            store.delete_camera("camera")
+            printers, _, cameras = store.list_printers()
+            self.assertEqual(cameras, [])
+            self.assertEqual(printers[0].id, "demo")
+            self.assertIsNone(printers[0].default_camera_id)
+            self.assertEqual(printers[0].display_order, 14)
+            self.assertEqual(printers[0].moonraker_url, "http://printer.example")
+
     def test_calibration_round_trip_without_replacing_recording_anchor(self):
         with TemporaryDirectory(dir=".") as temp:
             root = Path(temp)

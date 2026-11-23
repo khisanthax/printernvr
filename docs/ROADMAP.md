@@ -1061,3 +1061,5 @@ Planned Phase 11 deployment work:
 Printer-first hardening: configured printers without cameras now remain visible in monitoring and the timeline.
 
 Phase 13 follow-through: completed clips support saved alignment and reset to the original timing estimate.
+
+The compatibility camera API preserves printer definitions when removing their last view and preserves an existing output folder when omitted during updates.

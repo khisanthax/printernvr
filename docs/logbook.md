@@ -59,3 +59,8 @@ For every procedure, log the date, purpose, steps or commands, environment, comm
 
 - Added Save alignment and Reset alignment for completed MP4 clips. Calibration is validated and kept separately from the recorder's original estimate.
 - Verified calibration round-trip and reset with unchanged recorder estimate. All 18 local automated tests and timeline JavaScript syntax checks passed.
+
+## 2026-11-23: Compatibility camera config mutations
+
+- Patched legacy camera CRUD to preserve nested printer definitions, printer-level settings, default selection and existing output folder mappings.
+- The new test creates then updates and removes the last camera of a printer and verifies the empty definition and Moonraker URL are retained. All 19 automated tests passed.
