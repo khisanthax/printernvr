@@ -6,21 +6,119 @@ import shutil
 import subprocess
 import unittest
 from unittest.mock import patch
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
+
+from fastapi import HTTPException
 
 from pydantic import ValidationError
 
 from app.media import validate_mp4
-from app.api.timeline import CalibrationUpdate, _printer, update_calibration
+from app.api.timeline import CalibrationUpdate, ClipRange, _printer, extract_clip, update_calibration
 from app.camera_store import CameraConfigStore
 from app.clips import ClipStore
 from app.config import resolve_camera
 from app.models import CameraConfigInput, CameraUpsertRequest, PrinterConfigInput, PrinterStatusSnapshot
 from app.printers import build_printer_cards
 from app.services.moonraker_service import MoonrakerService
-from app.timeline import EventInput, Timeline, TimelineMonitor, extract_segment, video_offset
+from app.operations import camera_lock
+from app.timeline import EventInput, Timeline, TimelineMonitor, export_captions, extract_segment, video_offset
 
 
 class TimelineTest(unittest.TestCase):
+    def test_klipper_log_clock_restarts_and_parallel_duplicate_imports(self):
+        log = (
+            "Stats 33.0: no startup yet\n"
+            "Start printer at first (1700000000.0 100.0)\n"
+            "Stats 101.25: discarded raw token=secret\n"
+            "Transition to shutdown state: don't persist this\n"
+            "Restarting printer\nStats 103.0: unknown session\n"
+            "Start printer at second (1700001000.0 500.0)\n"
+            "Stats 503.0: discarded\n"
+        )
+        with TemporaryDirectory(dir=".") as temp, ThreadPoolExecutor(max_workers=6) as pool:
+            timeline = Timeline(temp)
+            jobs = [pool.submit(timeline.import_klipper, "cam", log) for _ in range(6)]
+            jobs += [pool.submit(timeline.append, "cam", EventInput(kind="note", message=str(n)), "test")
+                     for n in range(20)]
+            self.assertEqual(sum(job.result()["imported"] for job in jobs[:6]), 5)
+            for job in jobs[6:]:
+                job.result()
+            rows = timeline.events("cam")
+            self.assertEqual(len(rows), 25)
+            self.assertEqual(len({row["id"] for row in rows}), len(rows))
+            imported = [row for row in rows if row["origin"] == "klipper-log"]
+            self.assertEqual([datetime.fromisoformat(row["source_at"]).timestamp() for row in imported],
+                             [1700000000, 1700000001.25, 1700000001.25, 1700001000, 1700001003])
+            self.assertTrue(all(row["source_at"] != row["received_at"] for row in imported))
+            self.assertNotIn("secret", str(rows))
+            self.assertNotIn("don't persist", str(rows))
+
+    def test_export_pins_source_and_releases_camera_lock_before_encoding(self):
+        with TemporaryDirectory(dir=".") as temp, ThreadPoolExecutor(max_workers=1) as pool:
+            root = Path(temp).resolve()
+            source = root / "camera" / "clip.mp4"
+            source.parent.mkdir()
+            source.write_bytes(b"original")
+            state = SimpleNamespace(
+                cameras=[], clip_store=ClipStore(temp), runtime_state=SimpleNamespace(active_output_paths=set),
+                optimizer=SimpleNamespace(active_paths=set), timelapse_manager=SimpleNamespace(active_paths=set),
+                settings={"recordings_dir": temp},
+                app_config=SimpleNamespace(retention=SimpleNamespace(capture_reserve_mib=0)),
+            )
+            request = SimpleNamespace(app=SimpleNamespace(state=state))
+            entered, resume = Event(), Event()
+
+            def encode(snapshot, output, *_args, **_kwargs):
+                entered.set()
+                self.assertTrue(resume.wait(4))
+                output.write_bytes(snapshot.read_bytes())
+
+            with patch("app.api.timeline.extract_segment", side_effect=encode):
+                future = pool.submit(extract_clip, "camera", source.name, ClipRange(start=0, end=1), request)
+                try:
+                    if not entered.wait(4) and future.done():
+                        future.result()
+                    self.assertTrue(entered.is_set())
+                    with self.assertRaises(HTTPException) as busy:
+                        extract_clip("camera", source.name, ClipRange(start=0, end=1), request)
+                    self.assertEqual(busy.exception.status_code, 409)
+                    self.assertTrue(camera_lock.acquire(timeout=1))
+                    try:
+                        source.rename(source.with_name("renamed.mp4"))
+                        source.write_bytes(b"replacement")
+                    finally:
+                        camera_lock.release()
+                finally:
+                    resume.set()
+                response = future.result(5)
+            self.assertEqual(Path(response.path).read_bytes(), b"original")
+            response.background.func()
+            self.assertFalse(Path(response.path).exists())
+
+    @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "Requires FFmpeg")
+    def test_timestamped_export_burns_text_without_changing_source(self):
+        with TemporaryDirectory(dir=".") as temp:
+            folder = Path(temp).resolve()
+            source, output = folder / "source.mp4", folder / "segment.mp4"
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=black:size=360x240:rate=15",
+                            "-t", "3", "-c:v", "libx264", str(source)], check=True, timeout=15)
+            zero = datetime.fromisoformat("2026-11-23T10:00:00+00:00")
+            track = folder / "timestamps.srt"
+            export_captions(track, [{"source_at": "2026-11-23T10:00:01+00:00",
+                                     "received_at": "2026-11-23T10:00:02+00:00"}], zero, 1, 2, "source")
+            text = track.read_text(encoding="utf-8")
+            self.assertIn("Source: 2026-11-23T10:00:01", text)
+            self.assertIn("Received: 2026-11-23T10:00:02", text)
+            before = source.read_bytes()
+            extract_segment(source, output, 1, 2, 0, burn_timestamps=True)
+            pixels = subprocess.check_output(["ffmpeg", "-v", "error", "-i", str(output),
+                                              "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+                                             timeout=15)
+            self.assertGreater(max(pixels), 100)
+            self.assertAlmostEqual(float(validate_mp4(output)["format"]["duration"]), 1.0, delta=0.07)
+            self.assertEqual(source.read_bytes(), before)
+
     def test_moonraker_retains_last_good_readings_but_reports_offline(self):
         service = MoonrakerService()
         self.addCleanup(service.shutdown)

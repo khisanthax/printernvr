@@ -4,7 +4,9 @@ import sys
 import tempfile
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 from unittest.mock import patch
 
 from app.clips import ClipStore
@@ -85,6 +87,23 @@ class RecordingTest(unittest.TestCase):
         self.assertNotEqual(first.output_path, second.output_path)
         for recording in (first, second):
             self.assertTrue(validate_mp4(Path(recording.output_path))["streams"])
+
+    def test_concurrent_starts_claim_only_one_recording(self):
+        entrants = Barrier(4)
+
+        def start():
+            entrants.wait(timeout=4)
+            try:
+                return self.manager.start_recording(self.camera, duration=1)
+            except ValueError as exc:
+                self.assertIn("already has a recording", str(exc))
+                return None
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            jobs = [pool.submit(start) for _ in range(4)]
+            started = [job.result(6) for job in jobs]
+        self.assertEqual(sum(recording is not None for recording in started), 1)
+        self.assertEqual(self.wait_for_finish().status, "idle")
 
     def test_anchor_metadata_failure_does_not_invalidate_recording(self):
         def fail(*_):

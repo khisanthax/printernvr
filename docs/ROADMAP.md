@@ -877,7 +877,11 @@ Scope:
 - Event records preserve recorder receipt UTC, optional source wall time with timezone, and the raw Klipper monotonic sample clock separately.
 - Select a printer and completed MP4, align events to frame zero using the recorded estimate or a known manual timestamp, then seek or extract a bounded segment.
 - Alignment is saved per clip and can be reset to the original FFmpeg estimate. Event logs compact to a bounded recent history.
-- Automated fixtures verify timestamp preservation, deduplication, clock offsets, and FFmpeg extraction. The disposable Docker workflow exercises event ingestion and extraction over HTTP. Real printer and camera clock accuracy remain hardware acceptance checks.
+- Import a bounded Klipper log excerpt to correlate startup, periodic timing and shutdown markers. Derived timestamps are estimates; unanchored text is not assigned an invented timestamp.
+- Filter by kind, origin, text or overlap with the selected clip. The viewer shows aligned video UTC and the recent event's source and receipt timestamps.
+- Switch between cameras for the same printer at an aligned UTC playhead position when a completed recording overlaps. The viewer does not guess when it cannot align the destination.
+- Download a clean segment or burn in the video UTC and both event clocks. Timestamped filenames use the UTC segment start; source MP4s remain unchanged.
+- Acceptance coverage includes desktop Chromium, a 375px touch/mobile viewport, concurrent annotation and duplicate log import, simultaneous capture requests, export versus rename, and repeat export contention. Real printer/camera clock accuracy and physical-device browser checks remain hardware acceptance.
 
 ### Phase 5 - Operational Hardening [x]
 

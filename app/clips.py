@@ -190,6 +190,13 @@ class ClipStore:
     def timeline_calibration(self, camera_id: str, filename: str) -> dict | None:
         return self._load_metadata().get(_metadata_key(camera_id, filename), {}).get("timeline_calibration")
 
+    def timeline_timings(self) -> dict:
+        return {
+            tuple(key.split("::", 1)): item.get("timeline_calibration") or item.get("timeline_anchor")
+            for key, item in self._load_metadata().items()
+            if "::" in key and isinstance(item, dict)
+        }
+
     @_locked_review
     def update_clip_metadata(
         self,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import math
 import re
@@ -8,7 +9,7 @@ import shutil
 import subprocess
 import time
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Event, Lock, Thread
 from uuid import uuid4
@@ -20,6 +21,59 @@ from app.media import validate_mp4
 LOGGER = logging.getLogger(__name__)
 MAX_EVENTS = 10000
 MAX_LOG_BYTES = 8 * 1024**2
+MAX_IMPORT_BYTES = 2 * 1024**2
+START_LINE = re.compile(r"^Start printer at .* \(([\d.]+) ([\d.]+)\)$")
+STATS_LINE = re.compile(r"^Stats ([\d.]+):")
+
+
+def klipper_log_events(log: str):
+    """Only retain recognized messages, not raw logs or printer configuration."""
+    epoch = mono = sample = None
+    last_sample = -math.inf
+    for line in log.splitlines():
+        line = line.removeprefix("INFO:root:").strip()
+        start = START_LINE.fullmatch(line)
+        stats = STATS_LINE.match(line)
+        if start:
+            try:
+                epoch, mono = map(float, start.groups())
+                datetime.fromtimestamp(epoch, timezone.utc)
+                if not math.isfinite(mono):
+                    raise ValueError
+            except (OverflowError, OSError, ValueError):
+                epoch = mono = sample = None
+                continue
+            sample = mono
+            last_sample = -math.inf
+            kind, message = "klipper.start", "Klipper session started"
+        elif line == "Starting Klippy..." or line == "Restarting printer":
+            epoch = mono = sample = None
+            continue
+        elif stats and epoch is not None:
+            try:
+                sample = float(stats[1])
+            except ValueError:
+                continue
+            if not math.isfinite(sample) or sample < mono:
+                sample = None
+                continue
+            if sample - last_sample < 30:
+                continue
+            last_sample = sample
+            kind, message = "klipper.stats", "Klipper timing sample"
+        elif sample is not None and line.startswith(("Transition to shutdown state:", "MCU '", "Internal error during")):
+            if line.startswith("MCU '") and "shutdown:" not in line.lower():
+                continue
+            kind, message = "klipper.shutdown", "Klipper shutdown (aligned to preceding timing sample)"
+        else:
+            continue
+        try:
+            source = datetime.fromtimestamp(epoch + (sample - mono), timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            continue
+        event = EventInput(kind=kind, message=message, source_at=source, klipper_eventtime=sample)
+        event_id = hashlib.sha256(f"{epoch}:{mono}:{sample}:{kind}".encode()).hexdigest()
+        yield event_id, event
 
 
 class EventInput(BaseModel):
@@ -72,6 +126,40 @@ class Timeline:
             with path.open("ab") as handle:
                 handle.write((json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8"))
         return row
+
+    def import_klipper(self, printer_id: str, log: str) -> dict:
+        with self.lock:
+            path = self._path(printer_id)
+            rows = self._read(path)
+            seen = {row.get("id") for row in rows}
+            imported = duplicates = 0
+            received_at = datetime.now(timezone.utc).isoformat()
+            for event_id, event in klipper_log_events(log):
+                if event_id in seen:
+                    duplicates += 1
+                    continue
+                seen.add(event_id)
+                row = event.model_dump(mode="json")
+                row.update(id=event_id, origin="klipper-log", received_at=received_at)
+                rows.append(row)
+                imported += 1
+            if imported:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                pending = path.with_suffix(f".{uuid4().hex}.part")
+                try:
+                    encoded = deque()
+                    size = 0
+                    for row in reversed(rows):
+                        line = (json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8")
+                        if size + len(line) > MAX_LOG_BYTES:
+                            break
+                        encoded.appendleft(line)
+                        size += len(line)
+                    pending.write_bytes(b"".join(encoded))
+                    pending.replace(path)
+                finally:
+                    pending.unlink(missing_ok=True)
+            return {"imported": imported, "duplicates": duplicates}
 
     @staticmethod
     def _read(path: Path) -> deque:
@@ -144,7 +232,44 @@ class TimelineMonitor:
         self.worker.join(timeout=4)
 
 
-def extract_segment(source: Path, output: Path, start: float, end: float, reserve: int) -> None:
+def export_captions(path: Path, events: list[dict], zero: datetime, start: float, end: float, clock: str):
+    def srt_time(seconds):
+        ms = round(seconds * 1000)
+        return f"{ms // 3600000:02}:{ms // 60000 % 60:02}:{ms // 1000 % 60:02},{ms % 1000:03}"
+
+    def timestamp(value):
+        return datetime.fromisoformat(value).astimezone(timezone.utc).isoformat(timespec="milliseconds") if value else "Unavailable"
+
+    markers = []
+    for event in events:
+        stamp = (event.get("source_at") if clock == "source" else None) or event["received_at"]
+        offset = (datetime.fromisoformat(stamp) - zero).total_seconds() - start
+        if -5 < offset < end - start:
+            markers.append((offset, event))
+    markers.sort(key=lambda pair: pair[0])
+    duration = end - start
+    boundaries = sorted({0.0, duration, *range(1, math.ceil(duration)),
+                         *(offset for offset, _ in markers if offset > 0),
+                         *(offset + 5 for offset, _ in markers if 0 < offset + 5 < duration)})
+    cue = 0
+    index = -1
+    with path.open("w", encoding="utf-8") as out:
+        for left, right in zip(boundaries, boundaries[1:]):
+            if srt_time(left) == srt_time(right):
+                continue
+            cue += 1
+            while index + 1 < len(markers) and markers[index + 1][0] <= left:
+                index += 1
+            event = markers[index][1] if index >= 0 and left < markers[index][0] + 5 else None
+            wall = (zero + timedelta(seconds=start + left)).isoformat(timespec="milliseconds")
+            out.write(f"{cue}\n{srt_time(left)} --> {srt_time(right)}\nVideo UTC: {wall}\n")
+            if event:
+                out.write(f"Source: {timestamp(event.get('source_at'))}\nReceived: {timestamp(event['received_at'])}\n")
+            out.write("\n")
+
+
+def extract_segment(source: Path, output: Path, start: float, end: float, reserve: int,
+                    *, burn_timestamps: bool = False) -> None:
     if not (math.isfinite(start) and math.isfinite(end) and 0 <= start < end and end - start <= 120):
         raise ValueError("Choose a positive range of up to 120 seconds")
     metadata = validate_mp4(source)
@@ -156,9 +281,10 @@ def extract_segment(source: Path, output: Path, start: float, end: float, reserv
         "ffmpeg", "-nostdin", "-v", "error", "-ss", f"{start:.6f}", "-i", str(source),
         "-t", f"{end - start:.6f}", "-map", "0:v:0", "-an", "-c:v", "libx264",
         "-threads", "2", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",
+        *(["-vf", "subtitles=timestamps.srt"] if burn_timestamps else []),
         "-movflags", "+faststart", "-n", str(output),
     ]
-    with subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) as process:
+    with subprocess.Popen(command, cwd=output.parent, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) as process:
         deadline = time.monotonic() + 90
         while process.poll() is None:
             if shutil.disk_usage(output.parent).free < reserve or time.monotonic() > deadline:

@@ -1457,6 +1457,70 @@ body {
   background: #0d131c;
 }
 
+.timeline-document .page-nav {
+  flex-wrap: wrap;
+}
+
+.timeline-page .clips-toolbar > label {
+  min-width: 0;
+}
+
+.timeline-page .clips-toolbar :is(select, input:not([type="checkbox"])) {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.timeline-page .clips-toolbar input[type="checkbox"] {
+  min-width: 0;
+}
+
+.timeline-stage {
+  position: relative;
+  width: min(100%, 720px);
+}
+
+.timeline-stage video {
+  display: block;
+}
+
+.timeline-overlay {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  max-width: calc(100% - 1rem);
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.25rem;
+  background: #101720e8;
+  color: #fff;
+  font: clamp(0.625rem, 2vw, 0.8rem)/1.35 monospace;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.timeline-import {
+  margin-block: 1rem;
+}
+
+.timeline-import input {
+  max-width: 100%;
+}
+
+@media (max-width: 600px) {
+  .timeline-page .clips-toolbar > label {
+    flex: 1 1 100%;
+  }
+
+  .timeline-page .clips-toolbar :is(select, input:not([type="checkbox"])) {
+    width: 100%;
+  }
+
+  .timeline-page .clips-table {
+    min-width: 38rem;
+  }
+}
+
 .clip-preview-error {
   margin: 0;
   color: var(--warning);
