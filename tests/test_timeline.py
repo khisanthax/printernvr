@@ -14,7 +14,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from app.media import validate_mp4
-from app.api.timeline import CalibrationUpdate, ClipRange, _printer, extract_clip, update_calibration
+from app.api.timeline import CalibrationUpdate, ClipRange, _printer, extract_clip, read_timeline, update_calibration
 from app.camera_store import CameraConfigStore
 from app.clips import ClipStore
 from app.config import resolve_camera
@@ -26,6 +26,23 @@ from app.timeline import EventInput, Timeline, TimelineMonitor, export_captions,
 
 
 class TimelineTest(unittest.TestCase):
+    def test_clip_catalog_limit_keeps_quieter_camera_available(self):
+        cameras = [SimpleNamespace(id=cid, name=cid, printer_id="printer") for cid in ("busy", "quiet")]
+        now = datetime.now(timezone.utc)
+
+        def clips(_cameras, _active, cid):
+            count = 251 if cid == "busy" else 1
+            return [SimpleNamespace(camera_id=cid, filename=f"{i}.mp4", active=False,
+                                    created_at=now - timedelta(seconds=i if cid == "busy" else 1000))
+                    for i in range(count)]
+
+        state = SimpleNamespace(cameras=cameras, runtime_state=SimpleNamespace(active_output_paths=set),
+                                timeline=SimpleNamespace(events=lambda _: []),
+                                clip_store=SimpleNamespace(list_clips=clips, timeline_timings=dict))
+        result = read_timeline("printer", SimpleNamespace(app=SimpleNamespace(state=state)))
+        self.assertEqual(len(result["clips"]), 251)
+        self.assertEqual(result["clips"][-1]["camera_id"], "quiet")
+
     def test_klipper_log_clock_restarts_and_parallel_duplicate_imports(self):
         log = (
             "Stats 33.0: no startup yet\n"

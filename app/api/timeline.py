@@ -22,16 +22,17 @@ router = APIRouter()
 export_slot = BoundedSemaphore(1)
 
 
+class Calibration(BaseModel):
+    frame_zero_at: AwareDatetime
+    correction_seconds: float = Field(ge=-86400, le=86400, allow_inf_nan=False)
+
+
 class ClipRange(BaseModel):
     start: float = Field(ge=0, allow_inf_nan=False)
     end: float = Field(gt=0, allow_inf_nan=False)
     timestamped: bool = False
     clock: Literal["source", "received"] = "source"
-
-
-class Calibration(BaseModel):
-    frame_zero_at: AwareDatetime
-    correction_seconds: float = Field(ge=-86400, le=86400, allow_inf_nan=False)
+    alignment: Calibration | None = None
 
 
 class CalibrationUpdate(BaseModel):
@@ -59,8 +60,11 @@ def read_timeline(printer_id: str, request: Request, since: datetime | None = No
     state = request.app.state
     cameras = _printer(state, printer_id)
     active = state.runtime_state.active_output_paths()
-    clips = [clip for camera in cameras for clip in state.clip_store.list_clips(state.cameras, active, camera.id)
-             if not clip.active and Path(clip.filename).suffix.lower() == ".mp4"]
+    clips = []
+    for camera in cameras:
+        completed = [clip for clip in state.clip_store.list_clips(state.cameras, active, camera.id)
+                     if not clip.active and Path(clip.filename).suffix.lower() == ".mp4"]
+        clips.extend(completed[:250])
     events = state.timeline.events(printer_id)
     if since is not None:
         if since.tzinfo is None:
@@ -71,7 +75,7 @@ def read_timeline(printer_id: str, request: Request, since: datetime | None = No
         {"camera_id": clip.camera_id, "filename": clip.filename,
          "timing": timings.get((clip.camera_id, clip.filename)),
          "preview_url": f"/api/clips/preview/{quote(clip.camera_id, safe='')}/{quote(clip.filename, safe='')}"}
-        for clip in sorted(clips, key=lambda clip: clip.created_at, reverse=True)[:250]
+        for clip in sorted(clips, key=lambda clip: clip.created_at, reverse=True)
     ]}
 
 
@@ -159,10 +163,11 @@ def extract_clip(camera_id: str, filename: str, selection: ClipRange, request: R
                 source_handle = source.open("rb")
             if selection.timestamped:
                 camera = next((camera for camera in state.cameras if camera.id == camera_id), None)
-                timing = (state.clip_store.timeline_calibration(camera_id, filename)
+                timing = (selection.alignment.model_dump(mode="json") if selection.alignment is not None else
+                          state.clip_store.timeline_calibration(camera_id, filename)
                           or state.clip_store.recording_anchor(camera_id, filename))
                 if not timing or not camera:
-                    raise ValueError("Save a clip alignment before exporting timestamps")
+                    raise ValueError("Set a valid clip alignment before exporting timestamps")
                 anchor = datetime.fromisoformat(timing["frame_zero_at"]).astimezone(timezone.utc)
                 zero = anchor - timedelta(seconds=timing.get("correction_seconds", 0))
         if source_handle is not None:

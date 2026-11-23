@@ -60,15 +60,16 @@ class RecordingManager:
             raise ValueError(f"Camera '{camera.id}' has no enabled FFmpeg input")
         if duration is not None and not 1 <= duration <= self._max_duration:
             raise ValueError(f"Duration must be between 1 and {self._max_duration} seconds")
-        output_dir = (self._recordings_root / camera.output_subdir).resolve()
-        if output_dir.parent != self._recordings_root or output_dir.name == "timelapses":
-            raise ValueError("Invalid camera output directory")
-
         with self._lock:
             if self._closing:
                 raise ValueError("Recorder is shutting down")
             if camera.id in self._processes:
                 raise ValueError(f"Camera '{camera.id}' already has a recording in progress")
+            configured_dir = self._recordings_root / camera.output_subdir
+            output_dir = configured_dir.resolve()
+            if (output_dir != configured_dir or output_dir.parent != self._recordings_root
+                    or output_dir.name.lower() == "timelapses"):
+                raise ValueError("Invalid camera output directory")
             output_dir.mkdir(parents=True, exist_ok=True)
             if shutil.disk_usage(output_dir).free < self._minimum_free_bytes:
                 raise ValueError("Insufficient free space to start recording")

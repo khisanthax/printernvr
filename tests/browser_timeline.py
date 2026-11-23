@@ -70,11 +70,15 @@ def browser_flow(base, browser, *, mobile):
         page.locator("#timeline-in").fill("0.5")
         page.locator("#timeline-out").fill("1.5")
         page.locator("#timeline-timestamped").check()
+        page.locator("#timeline-correction").fill("-1")
         with page.expect_download(timeout=30_000) as download_info:
             page.locator("#timeline-extract").click()
         download = download_info.value
-        assert download.suggested_filename == "timeline-20260101T000001Z.mp4", download.suggested_filename
+        assert download.suggested_filename == "timeline-20260101T000002Z.mp4", download.suggested_filename
         assert Path(download.path()).stat().st_size > 0
+    page.locator("#timeline-camera").select_option("empty")
+    expect(page.locator("#timeline-stage")).to_be_hidden()
+    expect(page.locator("#timeline-feedback")).to_contain_text("No aligned recording")
     assert not errors, errors
     context.close()
 
@@ -84,7 +88,8 @@ def main():
         root = Path(folder)
         recordings = root / "recordings"
         recordings.mkdir()
-        cameras = []
+        cameras = [{"id": "empty", "name": "No footage", "mode": "manual_urls",
+                    "record_url": "rtsp://fixture.invalid/unused"}]
         originals = {}
         for camera, zero in (("front", "00:00:00"), ("side", "00:00:00.500")):
             cameras.append({"id": camera, "name": camera.title(), "mode": "manual_urls",

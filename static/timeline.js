@@ -297,11 +297,17 @@ el("extract").addEventListener("click", async () => {
   const active = video;
   el("extract").disabled = true;
   try {
+    const timestamped = el("timestamped").checked;
+    if (timestamped && !Number.isFinite(currentZero())) {
+      throw new Error("Set a timezone-aware frame-zero timestamp before exporting timestamps.");
+    }
     el("feedback").textContent = "Extracting the selected segment…";
     const response = await fetch(`${videoPath(active)}/extract`, {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ start: Number(el("in").value), end: Number(el("out").value),
-        timestamped: el("timestamped").checked, clock: el("clock").value }),
+        timestamped, clock: el("clock").value, alignment: timestamped ? {
+          frame_zero_at: el("anchor").value.trim(), correction_seconds: Number(el("correction").value),
+        } : null }),
     });
     if (!response.ok) {
       const error = await response.json();
