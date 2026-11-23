@@ -54,3 +54,8 @@ For every procedure, log the date, purpose, steps or commands, environment, comm
 
 - Kept printer-first entries with zero cameras visible in `/live`, `/printers`, the cards API, and `/timeline`, with no capture target.
 - Verified camera-free Moonraker observations and that disabled printer endpoints are not polled. All 17 automated tests passed; `node --check` passed for timeline, live, printers, clips, and cameras scripts.
+
+## 2026-11-23: Saved Phase 13 alignment
+
+- Added Save alignment and Reset alignment for completed MP4 clips. Calibration is validated and kept separately from the recorder's original estimate.
+- Verified calibration round-trip and reset with unchanged recorder estimate. All 18 local automated tests and timeline JavaScript syntax checks passed.

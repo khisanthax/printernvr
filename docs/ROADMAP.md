@@ -1059,3 +1059,5 @@ Planned Phase 11 deployment work:
 - Ensure setup/update helpers back up or preserve existing config, recordings, and metadata
 
 Printer-first hardening: configured printers without cameras now remain visible in monitoring and the timeline.
+
+Phase 13 follow-through: completed clips support saved alignment and reset to the original timing estimate.

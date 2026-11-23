@@ -3,9 +3,20 @@ const player = el("player");
 let events = [];
 let clips = [];
 let video = null;
+let estimate = null;
 let duration = 0;
 let listVersion = 0;
 let videoVersion = 0;
+
+function setAlignment(calibration) {
+  el("anchor").value = calibration?.frame_zero_at || estimate?.frame_zero_at || "";
+  el("correction").value = calibration?.correction_seconds ?? 0;
+  el("anchor-note").textContent = calibration
+    ? "Using saved alignment for this clip."
+    : estimate
+      ? "Frame zero is estimated from FFmpeg progress. Adjust the correction against a visible event."
+      : "This recording has no time anchor. Enter the known frame-zero time to align events.";
+}
 
 async function getJson(url) {
   const response = await fetch(url);
@@ -51,6 +62,7 @@ async function selectClip() {
   const ticket = ++videoVersion;
   const clip = clips[el("clip").selectedIndex - 1];
   video = null;
+  estimate = null;
   duration = 0;
   player.hidden = true;
   player.removeAttribute("src");
@@ -58,6 +70,8 @@ async function selectClip() {
   el("anchor").value = "";
   el("correction").value = 0;
   el("extract").disabled = true;
+  el("save").disabled = true;
+  el("reset").disabled = true;
   el("anchor-note").textContent = "Choose a completed MP4 to align events.";
   drawEvents();
   if (!clip) return;
@@ -70,14 +84,43 @@ async function selectClip() {
     player.hidden = false;
     el("in").value = 0;
     el("out").value = Math.min(duration, 120).toFixed(3);
-    el("anchor").value = metadata.anchor?.frame_zero_at || "";
-    el("anchor-note").textContent = metadata.anchor
-      ? "Frame zero is estimated from FFmpeg progress. Adjust the correction against a visible event."
-      : "This recording has no time anchor. Enter the known frame-zero time to align events.";
+    estimate = metadata.anchor;
+    setAlignment(metadata.calibration);
     el("extract").disabled = false;
+    el("save").disabled = false;
+    el("reset").disabled = false;
     drawEvents();
   } catch (error) {
     if (ticket === videoVersion) el("feedback").textContent = error.message;
+  }
+}
+
+async function updateAlignment(reset) {
+  if (!video) return;
+  const active = video;
+  el("save").disabled = true;
+  el("reset").disabled = true;
+  try {
+    const response = await fetch(`${videoPath(active)}/calibration`, {
+      method: "PUT", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({calibration: reset ? null : {
+        frame_zero_at: el("anchor").value.trim(),
+        correction_seconds: Number(el("correction").value),
+      }}),
+    });
+    const result = await response.json();
+    if (video !== active) return;
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail
+      : "Enter a timezone-aware frame-zero timestamp and a correction within 24 hours.");
+    setAlignment(result.calibration);
+    drawEvents();
+  } catch (error) {
+    if (video === active) el("feedback").textContent = error.message;
+  } finally {
+    if (video === active) {
+      el("save").disabled = false;
+      el("reset").disabled = false;
+    }
   }
 }
 
@@ -116,6 +159,8 @@ async function loadEvents(clear) {
 el("printer").addEventListener("change", () => loadEvents(true));
 el("refresh").addEventListener("click", () => loadEvents(false));
 el("clip").addEventListener("change", selectClip);
+el("save").addEventListener("click", () => updateAlignment(false));
+el("reset").addEventListener("click", () => updateAlignment(true));
 for (const field of ["anchor", "correction", "clock"]) el(field).addEventListener("change", drawEvents);
 el("mark-in").addEventListener("click", () => { if (video) el("in").value = player.currentTime.toFixed(3); });
 el("mark-out").addEventListener("click", () => { if (video) el("out").value = player.currentTime.toFixed(3); });

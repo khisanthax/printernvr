@@ -9,14 +9,38 @@ import unittest
 from pydantic import ValidationError
 
 from app.media import validate_mp4
-from app.api.timeline import _printer
+from app.api.timeline import CalibrationUpdate, _printer, update_calibration
 from app.camera_store import CameraConfigStore
+from app.clips import ClipStore
 from app.models import PrinterConfigInput, PrinterStatusSnapshot
 from app.printers import build_printer_cards
 from app.timeline import EventInput, Timeline, TimelineMonitor, extract_segment, video_offset
 
 
 class TimelineTest(unittest.TestCase):
+    def test_calibration_round_trip_without_replacing_recording_anchor(self):
+        with TemporaryDirectory(dir=".") as temp:
+            root = Path(temp)
+            source = root / "camera" / "clip.mp4"
+            source.parent.mkdir()
+            source.touch()
+            store = ClipStore(temp)
+            state = SimpleNamespace(
+                cameras=[], clip_store=store, runtime_state=SimpleNamespace(active_output_paths=set),
+                optimizer=SimpleNamespace(active_paths=set),
+            )
+            request = SimpleNamespace(app=SimpleNamespace(state=state))
+            estimate = {"frame_zero_at": "2026-11-23T15:00:00Z"}
+            store.save_recording_anchor("camera", source.name, estimate)
+            correction = CalibrationUpdate(calibration={
+                "frame_zero_at": "2026-11-23T10:00:05-05:00", "correction_seconds": -1.25,
+            })
+            result = update_calibration("camera", source.name, correction, request)
+            self.assertEqual(ClipStore(temp).timeline_calibration("camera", source.name), result["calibration"])
+            update_calibration("camera", source.name, CalibrationUpdate(calibration=None), request)
+            self.assertIsNone(ClipStore(temp).timeline_calibration("camera", source.name))
+            self.assertEqual(ClipStore(temp).recording_anchor("camera", source.name), estimate)
+
     def test_printer_first_monitoring_without_view(self):
         with TemporaryDirectory(dir=".") as temp:
             store = CameraConfigStore(str(Path(temp) / "cameras.json"))

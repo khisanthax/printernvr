@@ -505,3 +505,5 @@ The [procedure logbook](logbook.md) records implementation tests, deployment lim
 App shutdown closes admission to the timelapse manager and interrupts its FFmpeg/ffprobe processes. Completed source frames and session manifests remain local for manual render retry; interrupted output is not published. Manual Stop still renders normally.
 
 Configured printers without a camera still have cards and can supply Moonraker timeline events. Capture remains disabled until a camera is configured.
+
+Timeline alignment edits are stored alongside, not in place of, the original recorder timing estimate in the clip review sidecar. They follow a clip rename and can be reset in the viewer.

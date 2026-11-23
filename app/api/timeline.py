@@ -5,7 +5,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 from starlette.background import BackgroundTask
 
 from app.api.clips import _raise_if_active, _resolve_clip_path
@@ -19,6 +19,15 @@ router = APIRouter()
 class ClipRange(BaseModel):
     start: float = Field(ge=0, allow_inf_nan=False)
     end: float = Field(gt=0, allow_inf_nan=False)
+
+
+class Calibration(BaseModel):
+    frame_zero_at: AwareDatetime
+    correction_seconds: float = Field(ge=-86400, le=86400, allow_inf_nan=False)
+
+
+class CalibrationUpdate(BaseModel):
+    calibration: Calibration | None
 
 
 def _printer(state, printer_id):
@@ -73,7 +82,26 @@ def video_metadata(camera_id: str, filename: str, request: Request):
     except (ValueError, OSError) as exc:
         raise HTTPException(status_code=422, detail="This clip cannot be verified as MP4") from exc
     anchor = state.clip_store.recording_anchor(camera_id, filename)
-    return {"duration": float(metadata["format"]["duration"]), "anchor": anchor}
+    return {
+        "duration": float(metadata["format"]["duration"]),
+        "anchor": anchor,
+        "calibration": state.clip_store.timeline_calibration(camera_id, filename),
+    }
+
+
+@router.put("/api/timeline/video/{camera_id}/{filename}/calibration", dependencies=[Depends(camera_transaction)])
+def update_calibration(camera_id: str, filename: str, payload: CalibrationUpdate, request: Request):
+    source = _resolve_clip_path(camera_id, filename, request)
+    if source.suffix.lower() != ".mp4":
+        raise HTTPException(status_code=422, detail="Timeline calibration is only supported for MP4")
+    state = request.app.state
+    _raise_if_active(source, state.runtime_state.active_output_paths() | state.optimizer.active_paths())
+    value = payload.calibration.model_dump(mode="json") if payload.calibration else None
+    try:
+        state.clip_store.save_timeline_calibration(camera_id, filename, value)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail="Could not update clip alignment metadata") from exc
+    return {"calibration": value}
 
 
 @router.post("/api/timeline/video/{camera_id}/{filename}/extract", dependencies=[Depends(camera_transaction)])

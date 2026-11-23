@@ -163,6 +163,21 @@ class ClipStore:
         return self._load_metadata().get(_metadata_key(camera_id, filename), {}).get("timeline_anchor")
 
     @_locked_review
+    def save_timeline_calibration(self, camera_id: str, filename: str, calibration: dict | None) -> None:
+        metadata = self._load_metadata(strict=True)
+        key = _metadata_key(camera_id, filename)
+        if calibration is not None:
+            metadata.setdefault(key, {})["timeline_calibration"] = calibration
+        elif key in metadata:
+            metadata[key].pop("timeline_calibration", None)
+            if not metadata[key]:
+                del metadata[key]
+        self._write_metadata(metadata)
+
+    def timeline_calibration(self, camera_id: str, filename: str) -> dict | None:
+        return self._load_metadata().get(_metadata_key(camera_id, filename), {}).get("timeline_calibration")
+
+    @_locked_review
     def update_clip_metadata(
         self,
         camera_id: str,
