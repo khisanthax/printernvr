@@ -142,6 +142,8 @@ Deprecated compatibility:
 
 ## Updated Phased Roadmap
 
+Draft PR #1 reconciles the independently added logbook from `main`. Procedure results for the hardening branch are in [the logbook](logbook.md).
+
 ### Hardening and storage milestone status (November 2026)
 
 - [x] Phase 5 recording integrity: private staging, per-camera ownership, graceful FFmpeg quit, FFprobe validation, and no-overwrite publication. Synthetic Windows capture passed.

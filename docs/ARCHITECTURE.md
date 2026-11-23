@@ -484,6 +484,8 @@ go2rtc deployment policy:
 
 ## Operational Notes
 
+The [procedure logbook](logbook.md) records implementation tests, deployment limitations and branch reconciliation for this repository.
+
 - App can start with zero cameras configured.
 - Camera failures should set error state without crashing the app.
 - Retention checks run on startup and after recording completion.

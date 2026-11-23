@@ -24,3 +24,15 @@ For every procedure, log the date, purpose, steps or commands, environment, comm
 - **Procedure.** Listed repositories through the GitHub connector and sampled 13 repositories including Printer NVR. On `main`, checked `LOGBOOK.md`, `logbook.md`, `docs/LOGBOOK.md`, and `docs/logbook.md`.
 - **Results.** Two files were found across 52 path checks. [Klipper Cost Dashboard](https://github.com/khisanthax/klipper-cost-dashboard/blob/main/LOGBOOK.md) and [TDX Chat Relay](https://github.com/khisanthax/tdx-chat-relay/blob/main/docs/LOGBOOK.md) both keep their logbooks on `main`. The other 50 checks returned 404, including the four Printer NVR `main` paths. This sample did not check other file names or feature branches.
 - **Decision.** Recorded the comparison. Printer NVR's logbook remains on the hardening branch pending a decision about moving it to `main`.
+
+## 2026-11-23 | Establish the canonical logbook on main
+
+- **Procedure.** Checked for `docs/logbook.md` on `main` and `printernvr-hardening` using the GitHub connector. The file was absent from `main` and present on the hardening branch.
+- **Result.** Copied the complete logbook to `main` in a documentation-only commit. [Draft PR #1](https://github.com/khisanthax/printernvr/pull/1) remains separate.
+- **Follow-up.** Use this copy on `main` for future procedure results, including results from work on other branches.
+
+## 2026-11-23 | Reconcile draft PR #1 with main
+
+- GitHub comparison showed 12 branch commits ahead and one behind the common ancestor `a68bbb9`. The sole main-side file was `docs/logbook.md`, added independently on both branches. GitHub reported PR #1 unmergeable.
+- Ran `python -B -m unittest discover -s tests -q` in a disposable Windows checkout of the hardening code. All 11 baseline tests passed with existing UTC deprecation warnings. The original checkout was read-only to this session.
+- Merged main ancestry into the hardening branch using the main logbook, which already contained all branch entries, plus this result. The merge changes only documentation and leaves PR #1 in draft. This branch tracks new procedure entries for the current assignment.
