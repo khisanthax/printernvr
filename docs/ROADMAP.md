@@ -871,6 +871,13 @@ Scope:
 - Keep interval mode as fallback.
 - Auto-stop remains Moonraker print-state based.
 
+### Phase 13 - Klipper Event Timeline and Video Viewer [x]
+
+- The timeline observes printer state and reported layer changes through Moonraker. Integrators can submit annotated Klipper events through the authenticated event API.
+- Event records preserve recorder receipt UTC, optional source wall time with timezone, and the raw Klipper monotonic sample clock separately.
+- Select a printer and completed MP4, align events to frame zero using the recorded estimate or a known manual timestamp, then seek or extract a bounded segment.
+- Automated fixtures verify timestamp preservation, deduplication, clock offsets, and FFmpeg extraction. Real printer and camera clock accuracy remain hardware acceptance checks.
+
 ### Phase 5 - Operational Hardening [-]
 
 Goals:

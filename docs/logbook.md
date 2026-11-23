@@ -36,3 +36,10 @@ For every procedure, log the date, purpose, steps or commands, environment, comm
 - GitHub comparison showed 12 branch commits ahead and one behind the common ancestor `a68bbb9`. The sole main-side file was `docs/logbook.md`, added independently on both branches. GitHub reported PR #1 unmergeable.
 - Ran `python -B -m unittest discover -s tests -q` in a disposable Windows checkout of the hardening code. All 11 baseline tests passed with existing UTC deprecation warnings. The original checkout was read-only to this session.
 - Merged main ancestry into the hardening branch using the main logbook, which already contained all branch entries, plus this result. The merge changes only documentation and leaves PR #1 in draft. This branch tracks new procedure entries for the current assignment.
+
+## 2026-11-23 | Phase 13 timeline and video viewer
+
+- Added Moonraker state/layer observation and a validated event ingestion API, with separate receipt, source and Klipper clocks. Added a completed-video viewer, automatic estimated frame-zero anchors, manual clock correction, event-to-video seeking and up-to-120-second extraction.
+- Ran `python -B -m unittest discover -s tests -q` in the disposable Windows checkout. All 15 tests passed, including four new tests for clock validation/alignment, persisted events, polling deduplication and real FFmpeg segment extraction. The 1.5-second fixture segment was within one video frame of the requested range and the original bytes were unchanged.
+- `node --check static/timeline.js` passed. Building the app OpenAPI schema produced 50 paths. GitHub confirmed PR #1 is now mergeable and still draft, based on main commit `099b304`.
+- Camera buffering and poll intervals limit synchronization precision. Live printer, real-camera and interactive browser checks remain unverified at this milestone.

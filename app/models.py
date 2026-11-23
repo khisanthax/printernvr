@@ -462,6 +462,7 @@ class ClipRenameRequest(BaseModel):
 
 
 class PrinterStatusSnapshot(BaseModel):
+    klipper_eventtime: float | None = None
     current_layer: int | None = None
     connection_state: PrinterConnectionState = "unknown"
     printer_status_text: str = "Status unavailable"

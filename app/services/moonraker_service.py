@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
@@ -69,16 +70,17 @@ class MoonrakerService:
                 last_metadata_attempt_at=attempted_at,
             )
 
-        status_payload = _as_dict(_as_dict(_as_dict(payload).get("result")).get("status"))
+        result = _as_dict(_as_dict(payload).get("result"))
+        status_payload = _as_dict(result.get("status"))
+        eventtime = _as_number(result.get("eventtime"))
         if not isinstance(status_payload.get("print_stats"), dict):
             return PrinterStatusSnapshot(
                 connection_state="online",
                 printer_status_text="Status unavailable",
                 monitor_state="unavailable",
                 has_metadata_source=True,
-                metadata_available=True,
+                metadata_available=False,
                 last_metadata_attempt_at=attempted_at,
-                last_metadata_success_at=attempted_at,
             )
 
         print_stats = _as_dict(status_payload.get("print_stats"))
@@ -110,6 +112,7 @@ class MoonrakerService:
             eta_text = _format_eta(remaining_seconds)
 
         return PrinterStatusSnapshot(
+            klipper_eventtime=eventtime if eventtime is not None and eventtime >= 0 else None,
             current_layer=layer if type(layer) is int and layer > 0 else None,
             connection_state="online",
             printer_status_text=printer_status_text,
@@ -155,7 +158,8 @@ def _as_number(value: object) -> float | None:
     if value is None:
         return None
     try:
-        return float(value)
+        number = float(value)
+        return number if math.isfinite(number) else None
     except (TypeError, ValueError):
         return None
 

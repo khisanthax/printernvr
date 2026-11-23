@@ -25,6 +25,7 @@ class ManagedRecording:
     staged: Path
     final: Path
     duration: int | None
+    frame_zero_at: datetime | None = None
     stop: Event = field(default_factory=Event)
     worker: Thread | None = None
 
@@ -39,6 +40,7 @@ class RecordingManager:
         quit_timeout: float = 8,
         minimum_free_bytes: int = 64 * 1024**2,
         max_duration: int = 600,
+        save_recording_anchor: Callable[[str, str, dict], None] | None = None,
     ) -> None:
         self._recordings_root = Path(recordings_root).resolve()
         self._runtime_state = runtime_state
@@ -46,6 +48,7 @@ class RecordingManager:
         self._quit_timeout = quit_timeout
         self._minimum_free_bytes = minimum_free_bytes
         self._max_duration = max_duration
+        self._save_recording_anchor = save_recording_anchor
         self._lock = Lock()
         self._processes: dict[str, ManagedRecording] = {}
         self._closing = False
@@ -124,7 +127,8 @@ class RecordingManager:
                 job.worker.join(max(0, deadline - time.monotonic()))
 
     def _build_ffmpeg_command(self, record_url: str, output_path: str, duration: int | None) -> list[str]:
-        command = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning", "-y"]
+        command = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning",
+                   "-stats_period", "0.25", "-progress", "pipe:1", "-y"]
         if record_url.lower().startswith("rtsp://"):
             command.extend(["-rtsp_transport", "tcp", "-timeout", "15000000"])
         command.extend(["-i", record_url, "-map", "0:v:0", "-an", "-c:v", "copy"])
@@ -138,6 +142,7 @@ class RecordingManager:
         command = self._build_ffmpeg_command(url, str(job.staged), job.duration)
         tail = bytearray()
         drain: Thread | None = None
+        progress: Thread | None = None
         process: subprocess.Popen[bytes] | None = None
         published = False
 
@@ -150,14 +155,29 @@ class RecordingManager:
             except OSError:
                 pass
 
+        def read_progress() -> None:
+            try:
+                for line in process.stdout:
+                    if job.frame_zero_at is None and line.startswith(b"out_time_us="):
+                        try:
+                            microseconds = int(line.split(b"=", 1)[1])
+                            if microseconds > 0:
+                                job.frame_zero_at = datetime.now(timezone.utc) - timedelta(microseconds=microseconds)
+                        except (ValueError, OverflowError):
+                            continue
+            except OSError:
+                pass
+
         try:
             if job.stop.is_set():
                 raise RuntimeError("Recording cancelled before FFmpeg started")
             process = subprocess.Popen(
-                command, stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                command, stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE,
             )
             drain = Thread(target=read_stderr, daemon=True)
             drain.start()
+            progress = Thread(target=read_progress, daemon=True)
+            progress.start()
             with self._lock:
                 if not job.stop.is_set():
                     self._runtime_state.update_state(
@@ -193,6 +213,15 @@ class RecordingManager:
             validate_mp4(job.staged)
             publish_media(job.staged, job.final)
             published = True
+            progress.join(timeout=1)
+            if self._save_recording_anchor and job.frame_zero_at:
+                try:
+                    self._save_recording_anchor(camera_id, job.final.name, {
+                        "frame_zero_at": job.frame_zero_at.isoformat(),
+                        "method": "ffmpeg-progress-estimate",
+                    })
+                except OSError:
+                    LOGGER.warning("Unable to save video time anchor for %s", camera_id)
             self._runtime_state.mark_recording_stopped(
                 camera_id, last_completed_output=job.final.name, message="Recording complete",
             )
@@ -212,7 +241,9 @@ class RecordingManager:
             if process is not None:
                 if drain is not None:
                     drain.join(timeout=1)
-                for stream in (process.stdin, process.stderr):
+                if progress is not None:
+                    progress.join(timeout=1)
+                for stream in (process.stdin, process.stderr, process.stdout):
                     if stream is not None:
                         stream.close()
             try:

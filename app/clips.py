@@ -154,6 +154,15 @@ class ClipStore:
         return clip_path
 
     @_locked_review
+    def save_recording_anchor(self, camera_id: str, filename: str, anchor: dict) -> None:
+        metadata = self._load_metadata(strict=True)
+        metadata.setdefault(_metadata_key(camera_id, filename), {})["timeline_anchor"] = anchor
+        self._write_metadata(metadata)
+
+    def recording_anchor(self, camera_id: str, filename: str) -> dict | None:
+        return self._load_metadata().get(_metadata_key(camera_id, filename), {}).get("timeline_anchor")
+
+    @_locked_review
     def update_clip_metadata(
         self,
         camera_id: str,

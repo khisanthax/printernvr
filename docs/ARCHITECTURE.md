@@ -482,6 +482,13 @@ go2rtc deployment policy:
 - Printer NVR must not require go2rtc to run in the same Compose stack
 - setup/update helpers must not overwrite `config/cameras.json`, recordings, clip metadata, or review metadata without backup or confirmation
 
+## Klipper Event Timeline and Video Viewer
+
+- The recorder polls enabled printer Moonraker sources and saves observed state/layer changes in bounded per-printer JSONL under `recordings/.timeline/`. Explicit integrations can submit events via `POST /api/timeline/{printer_id}/events` with the same authenticated origin boundary as other changes.
+- Every record has UTC `received_at`, optional timezone-aware `source_at`, and optional raw `klipper_eventtime` in monotonic seconds. Polled changes use a receipt timestamp for video alignment. The raw sample clock is diagnostic and has no Unix epoch. Polling cannot reconstruct changes missed between samples.
+- The recorder stores a per-clip frame-zero estimate in the existing review sidecar using its first positive FFmpeg progress timestamp. Camera buffers, decoder latency and recorder scheduling influence accuracy. The viewer accepts a manual timezone-aware anchor and a per-view correction for known offsets and older clips.
+- The timeline viewer plays the original completed MP4 through the existing range-capable endpoint. Extraction re-encodes at most 120 seconds to a private MP4, validates it, streams it as a download, and cleans up temporary data. The original remains intact.
+
 ## Operational Notes
 
 The [procedure logbook](logbook.md) records implementation tests, deployment limitations and branch reconciliation for this repository.

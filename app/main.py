@@ -21,6 +21,7 @@ from app.api.record import router as record_router
 from app.api.status import router as status_router
 from app.api.storage import router as storage_router
 from app.api.timelapse import router as timelapse_router
+from app.api.timeline import router as timeline_router
 from app.camera_store import CameraConfigStore
 from app.clips import ClipStore
 from app.config import load_app_config
@@ -34,6 +35,7 @@ from app.services.moonraker_service import MoonrakerService
 from app.state import RuntimeStateManager
 from app.timelapse import TimelapseManager
 from app.timelapse_auto import TimelapseAutomation
+from app.timeline import Timeline, TimelineMonitor
 from app.util import configure_logging, ensure_directories
 
 LOGGER = logging.getLogger(__name__)
@@ -104,6 +106,7 @@ async def lifespan(app: FastAPI):
         on_recording_finished=enforce_retention_after_recording,
         minimum_free_bytes=loaded_config.retention.capture_reserve_mib * 1024**2,
         max_duration=loaded_config.retention.maximum_recording_seconds,
+        save_recording_anchor=clip_store.save_recording_anchor,
     )
     gopro_service = GoProService()
     gopro_recording_manager = GoProRecordingManager(
@@ -139,12 +142,16 @@ async def lifespan(app: FastAPI):
     automation = TimelapseAutomation(settings["recordings_dir"], timelapse_manager, moonraker_service,
                                      lambda: app.state.cameras)
     app.state.timelapse_automation = automation
+    app.state.timeline = Timeline(settings["recordings_dir"])
+    timeline_monitor = TimelineMonitor(app.state.timeline, moonraker_service, lambda: app.state.cameras)
+    timeline_monitor.worker.start()
     automation.thread.start()
 
     LOGGER.info("Printer NVR started with %d configured cameras", len(loaded_config.cameras))
     try:
         yield
     finally:
+        timeline_monitor.shutdown()
         automation.shutdown()
         recording_manager.shutdown()
         timelapse_manager.shutdown()
@@ -173,3 +180,4 @@ app.include_router(status_router)
 app.include_router(record_router)
 app.include_router(storage_router)
 app.include_router(timelapse_router)
+app.include_router(timeline_router)
