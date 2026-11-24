@@ -137,3 +137,54 @@ SV08 Left 1 80 (True, 27, 41) [1.0, 0.0] [-0.0, -0.0] [-4.8, -3.4]
 ```
 
 </details>
+
+## 2026-11-24 | Experimental hybrid nozzle tracking
+
+**Decision.** Use digital cropping as the reference implementation. Hybrid control is a candidate for occasional reframing when the nozzle approaches the edge of the native image. Physical-only tracking had the largest centering error. These short runs establish feasibility on existing hardware and do not qualify a long-running print tracker. [Experimental code and instructions](https://github.com/khisanthax/printernvr/tree/codex/hybrid-nozzle-tracking/experiments/nozzle)
+
+### Setup and scope
+
+- The workstation used an independent native RTSP reader. The Mercury Two relay stream was 640 × 480. Its direct main stream delivered 1280 × 960 at 15 fps. SV07, SV08 and E5P main streams probed at 1920 × 1080. Wansview 3V3 Plus delivered 2304 × 1296. Physical tracking trials used Mercury Two. The other streams were qualified for dimensions only in this experiment.
+- Guided calibration uses a rigid feature box and a nozzle-tip click in native coordinates. The tracker searches locally, then reacquires over a configurable zone and multiple scales. A centers a digital crop. B predicts target displacement and jogs one physical axis with a sensor-centered crop. C follows digitally and issues physical jogs only after sustained displacement. A manual hold suppresses new commands. Outputs use a fresh directory with a separate tracked video, timing trace and calibration.
+- The V2 adapter used authenticated DVRIP start/Stop and read angles from NetSDK. Each pulse checked recorder/timelapse state. A separate connection can issue watchdog Stop. The ONVIF adapter discovered and acknowledged Stop on E5P and Wansview. Wansview required GetCapabilities(All) to discover the PTZ address. The prior investigation covers physical ONVIF direction testing. No recorder process or production application was deployed or modified. All seven channels reported idle at final verification. No printer motion commands were issued.
+- A passive Mercury Two query returned live XYZ and zero velocity while in standby. A short socket subscription returned print-clock samples. The optional queue reader uses only objects/query and motion_report/dump_trapq. The predictor integrates the trapezoid velocity and acceleration between the estimated current and future print times and projects the delta with a configurable local calibration matrix. If either instant lacks segment coverage, it falls back to visual velocity. Future queue lead, camera/MCU clock synchronization and the projection matrix across changing poses still need validation on a moving print. The published numerical comparisons used visual prediction. [Klipper queue API](https://www.klipper3d.org/API_Server.html#motion_reportdump_trapq) and [Klipper lookahead implementation](https://www.klipper3d.org/Code_Overview.html).
+
+### Live Mercury Two measurements
+
+These were separate short runs with different toolhead appearances. Retention below counts frames with the tracker-estimated tip inside the delivered crop. RMS centering is relative to the estimate on detected frames. Digital centering of that estimate is exact whenever the crop can move freely. The matched replay below gives an independently labeled comparison.
+
+| Method | Delivered tracking samples | Estimated tip retained | RMS center error, native px | Tracking jogs / observation | Frame processing p95 | Python CPU / peak RSS |
+|---|---:|---:|---:|---|---:|---:|
+| A digital | 114 | 100% | 0 | 0 / 8 s | 7.6 ms | 23% / 70 MiB |
+| B physical | 30 | 100% | 168 | 2 / 5 s | 247 ms | 23% / 87 MiB |
+| C hybrid | 59 | 98.3% | 0 | 5 / 8 s | 414 ms | 70% / 208 MiB |
+
+- Live hybrid command dispatch to first delivered view with a registered background shift above 4 px was **692 ms**, one identifiable event. This includes software detection overhead. Camera exposure-to-screen delay and nozzle-motion-to-screen delay were not measured. Processing p95 includes native tracking and encoding, and sometimes background registration. CPU is process time divided by wall time, with 100% equal to one core. The figures exclude the external decoder and remote worker. A later B run measured 4.80 CPU seconds across the local process tree during 9.96 seconds of tracking and 360 MiB peak local-tree RSS.
+- B was inconsistent. A second eight-second run retained the estimate on only 1/48 frames and issued zero jogs. Another ten-second run retained it on 32/32 samples, issued three jogs and had 197 px RMS centering error. C's 5/8 s is a short-window rate of 37.5 jogs/min. These samples do not establish a sustained duty cycle or latency distribution.
+- B's first restoration check reported 48 px vertical residual before its last correction. Later trials added a settled post-correction measurement. C finished about 1.7 px horizontally and 3.7 px vertically from its starting background. The later B run finished within 1 px. Restoration uses scene features outside the selected toolhead region. Manual hold takes priority.
+- A narrow strand visible on the purge fixture measured a median apparent width of **2 native pixels** at half contrast over 12 scanlines, with median peak-to-background contrast 51/255. The 576 × 432 derived views crop native pixels without upscaling. Strand diameter in millimeters and deposited bead quality were not calibrated.
+
+### Matched comparisons
+
+The first replay used a 12-second stream-copy excerpt from the actual Mercury Two main feed. Eleven once-per-second nozzle locations were manually labeled. One motion-blurred sample was excluded. All three methods included the labeled location on **11/11** scored samples. RMS centering error was **28 px for A, 167 px for B and 28 px for C**. A issued zero jogs. B and C each requested one simulated jog. Simulated motion shifted the captured scene within its original field of view.
+
+The second replay used a frozen native Mercury Two frame with known translations, small rapid motion, a sustained offset and a one-second occlusion during a ten-second run. This yields exact reference coordinates. The physical response model used a 36 px step and 200 ms lag. It did not include backlash or measured network jitter. The live 692 ms observation shows why these results cannot establish real printer tracking accuracy.
+
+| Metric | A digital | B physical, simulated | C hybrid, simulated |
+|---|---:|---:|---:|
+| Visible / all frames, including occlusion | 90% | 90% | 90% |
+| RMS centering while visible | 0 px | 160 px | 0 px |
+| Jogs per 10 seconds | 0 | 7 | 4 |
+| Recovery after reveal | First frame | First frame | First frame |
+| Median encoded/source target-patch contrast metric | 0.975 | 0.975 | 0.975 |
+| Python CPU / peak RSS | 161% / 154 MiB | 162% / 152 MiB | 169% / 154 MiB |
+| Frame processing p95 during concurrent workstation activity | 131 ms | 153 ms | 133 ms |
+
+Recovery was within one 15 fps sampling interval (67 ms) in this controlled case. The contrast metric is the ratio of Laplacian variance in a 24 × 24 target patch. Reported jog counts exclude framing restoration. The independent source excerpt and the three sets of derived videos and traces were retained locally. Camera images, connection addresses and credentials were excluded from Git.
+
+### Failures and remaining limits
+
+- Native video exposed depth-dependent scale change and motion blur. Single-scale calibration lost the toolhead in a different pose. Multi-scale reacquisition and a three-second initial lock window improved recovery. Some physical sessions still correctly declined to start when the initial target could not be identified. Occlusion of the actual tip by the shroud remains possible even when a toolhead feature matches.
+- Initial OpenCV RTSP capture and an unsupported FFmpeg timeout option failed. The live reader now uses FFmpeg, its supported RTSP timeout, native dimensions and a latest-frame queue. Headless OpenCV cleanup initially aborted replay output. Calibration now uses Tk and headless runs avoid GUI cleanup.
+- An early worker-protocol failure during a DVRIP trial led to isolating diagnostic output from control replies and adding independent Stop recovery. Existing continuous recordings and printer movement were outside the experiment. A short archived SV08 clip did not provide a usable Mercury Two comparison.
+- A first benchmark incorrectly assumed a moving source clip had stationary ground truth under synthetic translation. Those scores were discarded. The controlled benchmark now freezes the reference frame, and the separate real-motion replay uses manual labels. The prototype could still lose frames under load and falsely lock at a new depth. A print-length validation needs independent tip labels, synchronized timestamps, per-axis calibration and a measured physical-response model before unattended use.
