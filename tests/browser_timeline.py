@@ -83,6 +83,47 @@ def browser_flow(base, browser, *, mobile):
     context.close()
 
 
+def clip_review_flow(base, browser):
+    context = browser.new_context(accept_downloads=True)
+    page = context.new_page()
+    page.goto(f"{base}/clips")
+    rows = page.locator(".clip-row")
+    expect(rows).to_have_count(2)
+    page.locator('[data-favorite-filename="front.mp4"]').click()
+    expect(page.locator('[data-favorite-filename="front.mp4"]')).to_have_text("Unfavorite")
+    page.locator('[data-reject-filename="side.mp4"]').click()
+    expect(rows).to_have_count(1)
+    page.locator("#clip-printer-filter").select_option("test")
+    page.locator("#clip-review-filter").select_option("rejected")
+    expect(rows).to_have_count(1)
+    expect(rows.first).to_contain_text("side.mp4")
+    page.locator("#clip-date-filter").fill("2099-01-01")
+    page.locator("#clip-date-filter").dispatch_event("change")
+    expect(rows).to_have_count(0)
+    page.locator("#clear-clip-filters-button").click()
+    page.locator("#clip-review-filter").select_option("favorites")
+    expect(rows).to_have_count(1)
+    expect(rows.first).to_contain_text("front.mp4")
+    with page.expect_download() as favorites:
+        page.locator("#download-favorites-button").click()
+    assert favorites.value.suggested_filename == "front.mp4"
+    page.locator(".clip-select-checkbox").check()
+    with page.expect_download() as keepers:
+        page.locator("#export-reviewed-button").click()
+    assert keepers.value.suggested_filename == "front.mp4"
+
+    page.goto(f"{base}/printers")
+    page.get_by_text("Clip and camera details", exact=True).click()
+    expect(page.locator('[data-printer-latest-clip-name="test"]')).to_contain_text("front.mp4")
+    page.once("dialog", lambda prompt: prompt.accept("approved.mp4"))
+    page.locator('[data-printer-latest-rename="test"]').click()
+    expect(page.locator('[data-printer-latest-clip-name="test"]')).to_contain_text("approved.mp4")
+    page.goto(f"{base}/clips?review_status=favorites")
+    expect(rows).to_have_count(1)
+    expect(rows.first).to_contain_text("approved.mp4")
+    context.close()
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="browser-test-", dir=Path.cwd()) as folder:
         root = Path(folder)
@@ -144,6 +185,8 @@ def main():
                         rows = [e for e in store.events("test") if e["origin"] == "submitted"]
                         path.write_text("".join(json.dumps(e) + "\n" for e in rows), encoding="utf-8")
                         browser_flow(base, browser, mobile=False)
+                        assert all(video.read_bytes() == original for video, original in originals.items())
+                        clip_review_flow(base, browser)
                         browser.close()
                 finally:
                     for key, value in old.items():
@@ -151,8 +194,9 @@ def main():
                             os.environ.pop(key, None)
                         else:
                             os.environ[key] = value
-                assert all(video.read_bytes() == original for video, original in originals.items())
-                print("Chromium timeline acceptance passed: desktop and 375px mobile viewport.")
+                assert (recordings / "front" / "approved.mp4").read_bytes() == originals[recordings / "front" / "front.mp4"]
+                assert (recordings / "side" / "side.mp4").read_bytes() == originals[recordings / "side" / "side.mp4"]
+                print("Chromium timeline and clip review acceptance passed (timeline desktop and 375px mobile).")
             finally:
                 server.terminate()
                 try:

@@ -278,7 +278,7 @@ Phase 12 implements timelapse sessions as a separate backend path from normal sh
 Implemented behavior:
 1. `/printers` adds a compact Timelapse section to each printer card.
 2. The root Dashboard adds a compact Timelapse section to each camera card as a shortcut into the same printer timelapse backend.
-3. The user manually starts or stops a timelapse for a printer, or enables browser-local auto-start on `/printers` so the open page starts the selected-view timelapse when Moonraker reports `printing`.
+3. The user manually starts or stops a timelapse for a printer, or enables recorder-side auto-start for a selected camera through `/printers`.
 4. The `/printers` frontend resolves the active selected/default printer camera view, while the root Dashboard uses the current camera card's camera id. The API remains printer-oriented:
 - `POST /api/timelapse/start/{printer_id}`
 - `POST /api/timelapse/stop/{printer_id}`
@@ -332,9 +332,9 @@ Phase 12 limitations:
 - Active timelapse sessions are in-memory and are not recovered as running sessions after an app restart.
 - App startup restores the latest completed timelapse MP4 per printer for linking from `/printers`.
 - Completed timelapse MP4s are not part of the normal `/clips` review grid; they are reviewed on `/timelapses`.
-- Auto-start is browser-local and requires the `/printers` page to stay open. A server-side auto-start daemon remains out of scope for this pass.
+- Auto-start runs on the recorder without an open browser. It requires a stable Moonraker history job ID for deduplication.
 
-Phase 12.1 planned layer-trigger behavior:
+Phase 12.1 uses Moonraker-reported layers with interval mode/fallback. A separate external macro trigger is deferred:
 - add a safe endpoint such as `POST /api/timelapse/capture/{printer_id}`
 - capture one frame only when a session is active
 - ignore safely when no session is active
@@ -464,17 +464,7 @@ Docker Compose single container:
 
 Environment defaults allow startup without `.env`.
 
-Current deployment remains Docker-based and manual:
-- clone or pull the repository
-- ensure config files exist
-- run `docker compose up -d --build`
-
-Planned Phase 11 deployment direction:
-- add install/update helper scripts
-- add backup helper behavior for config and metadata if practical
-- document common `.env` settings
-- clarify volume handling for `config/`, `recordings/`, and optional `exports/`
-- optionally provide a go2rtc companion container through a Compose profile, override file, or companion compose file
+Docker deployment uses the installer and fast-forward updater. The updater takes a checksum-verified metadata archive before pulling. A quiescent `scripts/backup.sh --full` additionally saves all default mounted recordings, including timelapse frames and manifests. Archives stay outside the build context. The [pilot runbook](PILOT.md) separates staged data recovery from rollback of a pinned local image; rollback does not overwrite bind-mounted state or reset Git.
 
 go2rtc deployment policy:
 - external go2rtc instances remain fully supported

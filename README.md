@@ -91,42 +91,9 @@ The default address is `127.0.0.1`. To bind to a LAN address, set `APP_BIND_ADDR
 
 Run `python -m unittest discover -s tests -v` after installing Python dependencies and FFmpeg.
 
-Current deployment is still Docker-based and manual. A future Phase 11 installer/update workflow is planned but not implemented yet.
+For an isolated real-printer trial, use the [controlled pilot runbook](docs/PILOT.md). The updater's backup does not include video; stop all writers and run `bash scripts/backup.sh --full` for the full default-volume state. Verify checksums before staged recovery. The runbook also covers rollback without overwriting local recordings.
 
-1. Ensure `config/cameras.json` exists.
-2. Ensure `config/app.json` exists.
-3. Choose one option:
-
-```bash
-# Option A (recommended)
-cp .env.example .env
-```
-
-```bash
-# Option B
-# Skip creating .env and use built-in defaults
-```
-
-4. Build and start:
-
-```bash
-docker compose up -d --build
-```
-
-The app is available at `http://localhost:8787` by default.
-If `PORT` is set in `.env`, Docker Compose uses that host port.
-Compact camera wall viewing is available at `/live`.
-Live printer monitoring is available at `/printers`.
-Printers & Cameras management is available at `/cameras`.
-Clip browsing is available at `/clips`.
-
-Static CSS and JavaScript URLs include a startup cache-busting version so browsers load updated UI code after the container is rebuilt or restarted.
-
-Planned installer direction:
-- install and update scripts for common Docker deployments
-- optional go2rtc companion container for users who want a single local stack
-- continued support for external go2rtc instances
-- migration-safe setup that does not overwrite existing config, recordings, or clip metadata without backup/confirmation
+Default pages: `/live` (camera wall), `/printers` (controls), `/cameras` (configuration), `/clips` (review), `/timelapses`, and `/timeline`.
 
 ## Config Files and Git Pulls
 

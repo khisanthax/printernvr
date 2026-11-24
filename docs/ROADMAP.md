@@ -151,9 +151,9 @@ Draft PR #1 reconciles the independently added logbook from `main`. Procedure re
 - [-] Reopened Phase 6: low-space recording guards, cleanup preview, protected favorites and staging, and opt-in timelapse source frame expiration. Exhaustive race tests remain open.
 - [x] Storage inventory and optimization pilot: read-only bitrate projections and separate H.264 copies with at least 20% savings. Real footage quality and production savings remain unmeasured.
 - [-] Phase 12: verified renders, manifests, manual render retry, and server-side auto-start shipped in the hardening branch. A shutdown regression test now verifies interrupted renders retain frames and do not publish partial output. Live printer verification remains open.
-- [-] Phase 12.1: added optional reported-layer capture with interval fallback. Capture eligibility is unit-tested. End-to-end simulated layer sequences and live printer verification remain open.
-- [-] Phase 9.1: implemented favorites download, rejected filter, printer/date filters, dashboard rename, and selected keeper export. Browser acceptance is pending.
-- [x] Phase 11: installer, updater, readiness, and optional go2rtc Compose config. A disposable fresh install, fast-forward upgrade with the companion, and checksums of preserved configuration and media passed.
+- [-] Phase 12.1: added optional reported-layer capture with interval fallback. Simulated worker sequences cover interval fallback, pause/resume, layer deduplication and completion. Physical verification and optional macro triggers remain open.
+- [-] Phase 9.1: implemented favorites download, rejected filter, printer/date filters, dashboard rename, and selected keeper export. Desktop Chromium verifies the review controls, favorites download, keeper export, and dashboard rename. Physical-browser checks remain part of the pilot.
+- [x] Phase 11: installer, updater, readiness, and optional go2rtc Compose config. A disposable fresh install, fast-forward upgrade with the companion, and checksums of preserved configuration and media passed. The pilot drill adds full backup restore and pinned-image rollback.
 - [-] Phase 10 follow-ups: isolated wall selection, fullscreen, and persisted order added. Mobile and multi-camera refinements remain open.
 
 Status key:
@@ -508,16 +508,10 @@ Validation:
 - `node --check static\\clips.js`
 - `git diff --check`
 
-### Phase 9.1 - Clip Review Quality-of-Life [-]
+### Phase 9.1 - Clip Review Quality-of-Life [x]
 
-Possible follow-up items:
-- Download Favorites
-- Select all visible clips
-- Clear selection
-- Hide rejected by default, if not already done
-- Rename latest clip shortcut from `/printers`
-- Better camera, printer, and date filters
-- Optional export-folder copy workflow, still no ZIP
+- Download Favorites, Select All/Clear Selection, default Hide Rejected, printer/date filters, dashboard latest-clip rename, and selected-keeper export are implemented without archives.
+- Browser acceptance covers the review flow, including non-destructive rejection, metadata preservation on rename, and an original file checksum comparison. Optional chosen-directory downloads remain browser-dependent.
 
 ### Phase 10 - Camera Wall Live View [x]
 
@@ -708,46 +702,11 @@ Implementation notes:
 - `/printers` still shows printer state separately from recording state.
 - URL terminology is UI-only; backend field names and clip/recording storage are unchanged.
 
-### Phase 11 - Installer and Optional go2rtc Bundle [-]
+### Phase 11 - Installer and Optional go2rtc Bundle [x]
 
-Purpose:
-- Make Printer NVR easier to install, update, and deploy by adding install/update scripts, clearer environment/config setup, and an optional go2rtc companion service for users who want a single Docker-based recording stack.
-
-Planned scope:
-- Install script for first-time setup
-- Update script for pulling, rebuilding, and restarting
-- `.env.example` coverage for common deployment settings
-- Clearer Docker volume handling for:
-  - `config/`
-  - `recordings/`
-  - optional `exports/`
-- Docker Compose cleanup if needed
-- Optional go2rtc Docker service via one of:
-  - compose profile
-  - override compose file
-  - documented optional companion compose file
-- Healthcheck or simple status verification if practical
-- Backup helper for config and metadata if practical
-- README installation section
-- Migration-safe setup that does not overwrite existing `config/cameras.json`
-- Support both external go2rtc and bundled go2rtc modes
-
-Suggested future files:
-- `scripts/install.sh`
-- `scripts/update.sh`
-- `scripts/backup-config.sh`
-- `.env.example`
-- `docker-compose.override.example.yml` or `docker-compose.go2rtc.yml`
-- `docs/INSTALL.md` if README installation docs become too large
-
-Design constraints:
-- Bundled go2rtc must be optional.
-- External go2rtc remains fully supported.
-- Printer NVR must not require go2rtc to run in the same Compose stack.
-- Installer scripts must not overwrite user camera/printer config without backup or confirmation.
-- Installer scripts must preserve local recordings, clip metadata, and review metadata.
-- Keep deployment lightweight and practical.
-- Do not add a database.
+- `scripts/install.sh` boots the Docker stack and checks readiness; `scripts/update.sh` backs up configuration and review/timeline metadata before a fast-forward-only update. Both support optional `--with-go2rtc`; external go2rtc remains fully supported.
+- `scripts/backup.sh --full` adds a stop-and-copy backup of the default local bind-mounted state. Verify and restore into staging only, or pin a prior image for application rollback without reverting local data.
+- See the [controlled pilot runbook](PILOT.md) for readiness gates, backup verification, recovery rehearsal and rollback.
 
 ### Phase 12 - Timelapse Sessions [x]
 
@@ -761,7 +720,7 @@ Purpose:
 Initial scope:
 - Manual Start Timelapse button per printer card.
 - Manual Stop Timelapse button per printer card.
-- Optional browser-local auto-start checkbox per printer card.
+- Optional recorder-side auto-start policy per printer using a selected camera.
 - Timelapse status per printer/card.
 - Interval-based capture first.
 - Auto-stop based on Moonraker print state.
@@ -771,7 +730,6 @@ Initial scope:
 
 Out of initial scope:
 - Layer-triggered Klipper macro integration.
-- Server-side automatic start daemon independent of an open browser tab.
 - Advanced render profiles.
 - NAS upload/sync logic.
 - Database-backed timelapse tracking.
@@ -817,7 +775,7 @@ Dashboard implementation:
 - Dashboard camera-card controls use that card's camera as the capture camera and the camera's `printer_id` as the timelapse owner.
 - Dashboard camera cards for sibling views on the same printer stay visually distinct: only the camera card that owns the active session shows running/completed timelapse state.
 - Running timelapses keep their original camera if the user changes the selected view later.
-- `/printers` browser-side auto-start observes Moonraker printer state through the existing card polling API and starts a timelapse for the currently selected view when the printer enters `printing`.
+- The recorder polls Moonraker for opted-in auto-start policies and deduplicates by stable history job ID.
 - Invalid actions are disabled while a timelapse is starting, running, stopping, or rendering.
 - Moonraker unavailable state is shown without blocking manual stop.
 - Added `/timelapses` as a review page for completed rendered timelapse MP4s with preview, download, filtering, and delete.
@@ -851,7 +809,7 @@ Manual test cases:
 - app restart while a session is active
 
 Implemented limitations:
-- Active timelapse sessions are in-memory; app restart stops active sessions without restart recovery.
+- Capture does not resume after restart. Completed frames and session manifests are retained for explicit render retry.
 - The latest completed MP4 per printer is restored from local files on startup.
 - Layer-triggered capture is deferred to Phase 12.1.
 - Auto-start runs on the recorder when enabled for a camera. Moonraker history is required to obtain a stable print job ID.
@@ -972,11 +930,15 @@ Completed:
 - Phase 10.5 live view tab resume stream recovery
 - Phase 10.6 multi-camera live view polish
 - Phase 10.7 UI terminology, layout, and deprecated GoPro cleanup
+- Phase 5 operational hardening
+- Phase 9.1 clip review quality-of-life
+- Phase 11 installer and optional go2rtc bundle
 - Phase 12 timelapse sessions
-- Phase 6 retention and storage protection
+- Phase 13 timeline and video viewer
 
 In progress:
-- Phase 5 operational hardening
+- Phase 6 targeted storage protection verification with real footage and retention edge cases.
+- Phase 12.1 physical acceptance for reported layers; external macro trigger remains a follow-up.
 
 Note:
 - Phase 6 was implemented ahead of Phase 5 operational hardening to protect recorder-host storage early.
@@ -1031,12 +993,9 @@ Implemented highlights:
 - Docker Compose defaults that work without `.env`
 - Example config files tracked in git while live deployment config files remain untracked
 
-Next phase:
-- Phase 5 operational hardening
-- Phase 9.1 clip review quality-of-life
-- Phase 11 installer and optional go2rtc bundle
-- Phase 12.1 layer-based timelapse triggers
-- Phase 10 follow-ups such as fullscreen wall mode, drag/drop ordering, and additional compact mobile refinements
+Next validation gate:
+- Run the [controlled real-printer pilot](PILOT.md) on an isolated host with approval. Verify real recordings, Moonraker event timing, camera synchronization, physical-device browser playback, and real storage measurements.
+- Track remaining retention edge races, physical timelapse/auto-start and layer acceptance, and optional wall/mobile refinements separately. None are claimed as live-tested.
 
 ## Deployment Model
 

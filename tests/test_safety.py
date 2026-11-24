@@ -12,13 +12,52 @@ from app.access import AccessBoundary, credentials_match
 from app.clips import ClipStore
 from app.config import resolve_camera
 from app.media import redact_diagnostic
-from app.models import CameraConfigInput, RetentionConfig, TimelapseAutoSettings
+from app.models import CameraConfigInput, PrinterStatusSnapshot, RetentionConfig, TimelapseAutoSettings, TimelapseSessionState
 from app.retention import RetentionManager
 from app.timelapse_auto import TimelapseAutomation
-from app.timelapse import TimelapseManager
+from app.timelapse import ManagedTimelapse, TimelapseManager
 
 
 class SafetyTests(unittest.TestCase):
+    def test_layer_worker_interval_fallback_pause_and_completion(self):
+        rows = iter([
+            ("printing", None), ("paused", None), ("printing", 2),
+            ("printing", 2), ("printing", 3), ("printing", 2), ("complete", 3),
+        ])
+        captured = []
+        clock = SimpleNamespace(now=0.0, stopped=False)
+
+        def fetch(_):
+            state, layer = next(rows)
+            return PrinterStatusSnapshot(monitor_state=state, current_layer=layer, printer_status_text=state)
+
+        def wait(timeout):
+            clock.now += timeout
+
+        with tempfile.TemporaryDirectory(dir=".") as folder:
+            root = Path(folder)
+            frames = root / "frames"
+            frames.mkdir()
+            manager = TimelapseManager(folder, SimpleNamespace(fetch_status=fetch), minimum_free_bytes=0)
+            session = ManagedTimelapse(
+                "printer", "Printer", "view", "View", "not-used", "http://fixture.invalid", 2,
+                "fixture", root, frames, root / "fixture.mp4",
+                state=TimelapseSessionState(printer_id="printer", session_id="fixture", capture_mode="layer"),
+                stop_event=SimpleNamespace(is_set=lambda: clock.stopped, wait=wait,
+                                           set=lambda: setattr(clock, "stopped", True)),
+            )
+
+            def capture(job):
+                captured.append((clock.now, job.current_layer))
+                return True
+
+            with patch("app.timelapse.time", SimpleNamespace(monotonic=lambda: clock.now)), \
+                    patch.object(manager, "_capture_frame", side_effect=capture), \
+                    patch.object(manager, "_render_after_stop") as render:
+                manager._run_session(session)
+            self.assertEqual(captured, [(0.0, None), (2.0, 2), (4.0, 3)])
+            render.assert_called_once_with(session, "moonraker_complete")
+
     def test_layer_capture_debounces_pause_and_old_layers(self):
         session = SimpleNamespace(printer_printing=True, layer_captured=4)
         due = TimelapseManager._layer_capture_due
