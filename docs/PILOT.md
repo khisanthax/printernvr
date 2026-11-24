@@ -55,6 +55,10 @@ Run commands from the isolated checkout only. The helper assumes the repository'
 
    Substitute the configured loopback port if changed. For a bundled companion, include its Compose file and profile and leave its state unchanged. If the old image cannot read the retained state, stop it; restore a verified snapshot into a **different** isolated checkout and storage instead. A clean `/ready` is necessary but not sufficient: reopen existing clips and check metadata and content hashes again.
 
+### Rehearsal evidence
+
+[Hosted disposable drill](https://github.com/khisanthax/printernvr/actions/runs/45396063900) verified archive extraction into staging, checksums, corruption/link rejection, and rollback to the saved image ID with bind-mount data intact. The simulated upgrade changed the image identity but did not exercise migration from an arbitrary older release. Repeat these gates on the isolated pilot host with the actual pair of images and volumes before connecting a printer. Use a distinct rollback tag for each rehearsal if retaining earlier images, and reverify the archive after copying it to the protected backup destination.
+
 ## Physical acceptance checklist
 
 | Check | Procedure and proposed pass condition | Evidence |

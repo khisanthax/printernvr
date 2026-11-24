@@ -189,7 +189,7 @@ Current phase limits:
 1. `/live` renders the same grouped printer cards as `/printers`, but through a compact viewing-only template.
 2. The page uses the existing `/api/printers/cards` endpoint for lightweight status refresh.
 3. Visibility checkboxes use a wall-specific `localStorage` key so users can choose which printers appear on the camera wall.
-4. Per-printer camera/view selection reuses the same browser-side selected-view storage as `/printers`.
+4. The wall stores camera/view selections separately from `/printers`, so wall swaps do not change a recording target.
 5. Live preview remains the dominant card area.
 6. Printer status, progress, filename, temperatures, ETA, and freshness text are rendered below the video.
 7. Recording controls, duration buttons, latest clip shortcuts, and clip review actions are intentionally omitted.
@@ -464,7 +464,7 @@ Docker Compose single container:
 
 Environment defaults allow startup without `.env`.
 
-Docker deployment uses the installer and fast-forward updater. The updater takes a checksum-verified metadata archive before pulling. A quiescent `scripts/backup.sh --full` additionally saves all default mounted recordings, including timelapse frames and manifests. Archives stay outside the build context. The [pilot runbook](PILOT.md) separates staged data recovery from rollback of a pinned local image; rollback does not overwrite bind-mounted state or reset Git.
+Docker deployment uses the installer and fast-forward updater. The updater takes a checksum-verified metadata archive before pulling. A quiescent `scripts/backup.sh --full` additionally saves all default mounted recordings, including timelapse frames and manifests. Archives stay outside the build context. The [pilot runbook](PILOT.md) separates staged data recovery from rollback of a pinned local image; rollback does not overwrite bind-mounted state or reset Git. The [disposable recovery test](https://github.com/khisanthax/printernvr/actions/runs/45396063900) verified both a staged full restore and image rollback with unchanged mounted files.
 
 go2rtc deployment policy:
 - external go2rtc instances remain fully supported

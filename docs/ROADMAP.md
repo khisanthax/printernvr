@@ -150,10 +150,10 @@ Draft PR #1 reconciles the independently added logbook from `main`. Procedure re
 - [x] Phase 5 deployment hardening: loopback binding, password protection for LAN binds, diagnostic redaction, and build exclusions. The resolved dependency audit and disposable Docker runtime checks passed.
 - [-] Reopened Phase 6: low-space recording guards, cleanup preview, protected favorites and staging, and opt-in timelapse source frame expiration. Exhaustive race tests remain open.
 - [x] Storage inventory and optimization pilot: read-only bitrate projections and separate H.264 copies with at least 20% savings. Real footage quality and production savings remain unmeasured.
-- [-] Phase 12: verified renders, manifests, manual render retry, and server-side auto-start shipped in the hardening branch. A shutdown regression test now verifies interrupted renders retain frames and do not publish partial output. Live printer verification remains open.
+- [x] Phase 12 implementation: verified renders, manifests, manual render retry, and server-side auto-start shipped in the hardening branch. A shutdown regression test now verifies interrupted renders retain frames and do not publish partial output. Live printer verification remains open.
 - [-] Phase 12.1: added optional reported-layer capture with interval fallback. Simulated worker sequences cover interval fallback, pause/resume, layer deduplication and completion. Physical verification and optional macro triggers remain open.
-- [-] Phase 9.1: implemented favorites download, rejected filter, printer/date filters, dashboard rename, and selected keeper export. Desktop Chromium verifies the review controls, favorites download, keeper export, and dashboard rename. Physical-browser checks remain part of the pilot.
-- [x] Phase 11: installer, updater, readiness, and optional go2rtc Compose config. A disposable fresh install, fast-forward upgrade with the companion, and checksums of preserved configuration and media passed. The pilot drill adds full backup restore and pinned-image rollback.
+- [x] Phase 9.1: implemented favorites download, rejected filter, printer/date filters, dashboard rename, and selected keeper export. Desktop Chromium verifies the review controls, favorites download, keeper export, and dashboard rename. Physical-browser checks remain part of the pilot.
+- [x] Phase 11: installer, updater, readiness, and optional go2rtc Compose config. A disposable fresh install, fast-forward upgrade with the companion, and checksums of preserved configuration and media passed. The [pilot drill](https://github.com/khisanthax/printernvr/actions/runs/45396063900) also passed full backup restore and pinned-image rollback.
 - [-] Phase 10 follow-ups: isolated wall selection, fullscreen, and persisted order added. Mobile and multi-camera refinements remain open.
 
 Status key:
@@ -994,7 +994,7 @@ Implemented highlights:
 - Example config files tracked in git while live deployment config files remain untracked
 
 Next validation gate:
-- Run the [controlled real-printer pilot](PILOT.md) on an isolated host with approval. Verify real recordings, Moonraker event timing, camera synchronization, physical-device browser playback, and real storage measurements.
+- Hardware acceptance is pending. Run the [controlled real-printer pilot](PILOT.md) on an isolated host with approval. Verify real recordings, Moonraker event timing, camera synchronization, physical-device browser playback, and real storage measurements.
 - Track remaining retention edge races, physical timelapse/auto-start and layer acceptance, and optional wall/mobile refinements separately. None are claimed as live-tested.
 
 ## Deployment Model
