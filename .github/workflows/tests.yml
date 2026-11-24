@@ -1,0 +1,145 @@
+name: Tests
+on: [push, pull_request]
+
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - if: runner.os == 'Windows'
+        run: choco install ffmpeg -y --no-progress
+      - run: python -m pip install -r requirements.txt
+      - run: ffprobe -version
+      - run: python -m unittest discover -s tests -v
+      - if: runner.os == 'Linux'
+        run: |
+          bash -n scripts/install.sh
+          bash -n scripts/update.sh
+          bash -n scripts/backup.sh
+          docker compose -f docker-compose.yml -f docker-compose.go2rtc.yml --profile go2rtc config --quiet
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pip-audit
+      - run: python -m pip_audit -r requirements.txt
+  timeline-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: python -m pip install -r requirements.txt playwright==1.64.1
+      - run: python -m playwright install --with-deps chromium
+      - run: python -B -m tests.browser_timeline
+  disposable-deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install, back up, update, restore and roll back
+        run: |
+          git switch -c deployment-smoke
+          git init --bare "$RUNNER_TEMP/upgrade.git"
+          git remote add smoke-upstream "$RUNNER_TEMP/upgrade.git"
+          git push --set-upstream smoke-upstream HEAD:deployment-smoke
+          git clone --branch deployment-smoke "$RUNNER_TEMP/upgrade.git" "$RUNNER_TEMP/upstream"
+          printf '\nLABEL org.opencontainers.image.revision="simulated-upgrade"\n' >> "$RUNNER_TEMP/upstream/Dockerfile"
+          git -C "$RUNNER_TEMP/upstream" -c user.email=ci@example.invalid -c user.name=CI commit -am "Simulated upgrade"
+          git -C "$RUNNER_TEMP/upstream" push
+          bash scripts/install.sh
+          curl --fail http://127.0.0.1:8787/ready
+          for path in / /live /printers /cameras /clips /timelapses /timeline; do
+            curl --fail --silent --output /dev/null "http://127.0.0.1:8787$path"
+          done
+          config_url=http://127.0.0.1:8787/api/cameras/config
+          curl --fail --silent --show-error "$config_url" \
+            | python -c 'import json, sys; print(json.dumps({"revision": json.load(sys.stdin)["revision"], "printers": [{"id": "ci", "name": "CI printer", "cameras": [{"id": "ci-camera", "name": "CI camera", "mode": "manual_urls", "record_url": "rtsp://fixture.invalid/stream"}]}]}))' \
+            | curl --fail-with-body --silent --show-error -X PUT -H 'Content-Type: application/json' --data-binary @- "$config_url"
+          curl --fail-with-body --silent --show-error -H 'Content-Type: application/json' \
+            --data '{"kind":"ci.smoke","message":"Timeline round-trip","source_at":"2026-11-23T00:00:00Z"}' \
+            http://127.0.0.1:8787/api/timeline/ci/events
+          curl --fail --silent --show-error http://127.0.0.1:8787/api/timeline/ci \
+            | python -c 'import json, sys; assert any(e["kind"] == "ci.smoke" and e["source_at"] and e["received_at"] for e in json.load(sys.stdin)["events"])'
+          docker compose exec -T printernvr ffmpeg -v error -f lavfi -i testsrc2=size=160x120:rate=15 \
+            -t 2 -c:v libx264 -threads 1 /app/recordings/ci-camera/fixture.mp4
+          sha256sum recordings/ci-camera/fixture.mp4 > "$RUNNER_TEMP/timeline-source"
+          video_url=http://127.0.0.1:8787/api/timeline/video/ci-camera/fixture.mp4
+          curl --fail --silent --show-error "$video_url" \
+            | python -c 'import json, sys; assert json.load(sys.stdin)["duration"] >= 2'
+          curl --fail --silent --show-error -H 'Content-Type: application/json' \
+            --data '{"start":0.25,"end":1.25}' "$video_url/extract" -o "$RUNNER_TEMP/segment.mp4"
+          docker compose exec -T printernvr ffprobe -v error -show_entries format=duration -of csv=p=0 -i pipe:0 \
+            < "$RUNNER_TEMP/segment.mp4" | python -c 'import sys; assert abs(float(sys.stdin.read()) - 1) < .08'
+          curl --fail-with-body --silent --show-error -X PUT -H 'Content-Type: application/json' \
+            --data '{"calibration":{"frame_zero_at":"2026-11-23T00:00:00Z","correction_seconds":0}}' "$video_url/calibration"
+          curl --fail --silent --show-error -D "$RUNNER_TEMP/export-headers" -H 'Content-Type: application/json' \
+            --data '{"start":0.25,"end":1.25,"timestamped":true}' "$video_url/extract" -o "$RUNNER_TEMP/stamped.mp4"
+          grep -i 'timeline-20261123T000000Z.mp4' "$RUNNER_TEMP/export-headers"
+          test -s "$RUNNER_TEMP/stamped.mp4"
+          sha256sum --check "$RUNNER_TEMP/timeline-source"
+          printf 'preserve this media fixture\n' > recordings/preservation.txt
+          printf '{}\n' > recordings/.timelapse-auto.json
+          mkdir -p recordings/timelapses/ci/drill/frames
+          printf 'captured frame fixture\n' > recordings/timelapses/ci/drill/frames/frame_000001.jpg
+          before_image=$(docker inspect -f '{{.Image}}' "$(docker compose ps -q printernvr)")
+          before_head=$(git rev-parse HEAD)
+          docker tag "$before_image" printernvr-pilot-rollback:ci
+          docker compose stop printernvr
+          find .env config recordings -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/before"
+          backup=$(bash scripts/backup.sh --full)
+          test "$(cat "$backup/revision")" = "$before_head"
+          (cd "$backup" && sha256sum -c SHA256SUMS)
+          mkdir "$RUNNER_TEMP/restore" "$RUNNER_TEMP/corrupt"
+          tar --extract --no-same-owner --file "$backup/state.tar" --directory "$RUNNER_TEMP/restore"
+          (cd "$RUNNER_TEMP/restore" && sha256sum --check "$RUNNER_TEMP/before")
+          cp "$backup/"{state.tar,revision,SHA256SUMS} "$RUNNER_TEMP/corrupt/"
+          printf x >> "$RUNNER_TEMP/corrupt/state.tar"
+          if (cd "$RUNNER_TEMP/corrupt" && sha256sum -c SHA256SUMS); then
+            echo 'Corrupt backup incorrectly passed checksum validation' >&2
+            exit 1
+          fi
+          metadata=$(bash scripts/backup.sh)
+          tar -tf "$metadata/state.tar" > "$RUNNER_TEMP/metadata-files"
+          grep -Fx 'recordings/.timeline/ci.jsonl' "$RUNNER_TEMP/metadata-files"
+          grep -Fx 'recordings/.clip_metadata.json' "$RUNNER_TEMP/metadata-files"
+          if grep -Fx 'recordings/ci-camera/fixture.mp4' "$RUNNER_TEMP/metadata-files"; then exit 1; fi
+          ln -s missing-input recordings/refused-fixture-link
+          if bash scripts/backup.sh --full; then
+            echo 'Backup unexpectedly accepted a linked input' >&2
+            exit 1
+          fi
+          unlink recordings/refused-fixture-link
+          bash scripts/update.sh --with-go2rtc
+          sha256sum --check "$RUNNER_TEMP/before"
+          expected=$(git -C "$RUNNER_TEMP/upstream" rev-parse HEAD)
+          test "$(git rev-parse HEAD)" = "$expected"
+          curl --fail http://127.0.0.1:8787/ready
+          upgraded_image=$(docker inspect -f '{{.Image}}' "$(docker compose ps -q printernvr)")
+          test "$upgraded_image" != "$before_image"
+          printf 'services:\n  printernvr:\n    image: printernvr-pilot-rollback:ci\n' > "$RUNNER_TEMP/rollback.yml"
+          docker compose -f docker-compose.yml -f "$RUNNER_TEMP/rollback.yml" up -d --no-deps --no-build --pull never --force-recreate --wait printernvr
+          test "$(docker inspect -f '{{.Image}}' "$(docker compose ps -q printernvr)")" = "$before_image"
+          test "$(git rev-parse HEAD)" = "$expected"
+          curl --fail http://127.0.0.1:8787/ready
+          sha256sum --check "$RUNNER_TEMP/before"
+      - if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.go2rtc.yml --profile go2rtc down

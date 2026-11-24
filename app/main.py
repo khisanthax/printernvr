@@ -9,6 +9,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.access import AccessBoundary
+
 from app.api.clips import router as clips_router
 from app.api.cameras import router as cameras_router
 from app.api.dashboard import router as dashboard_router
@@ -19,16 +21,21 @@ from app.api.record import router as record_router
 from app.api.status import router as status_router
 from app.api.storage import router as storage_router
 from app.api.timelapse import router as timelapse_router
+from app.api.timeline import router as timeline_router
 from app.camera_store import CameraConfigStore
 from app.clips import ClipStore
 from app.config import load_app_config
 from app.recorder import RecordingManager
+from app.optimizer import Optimizer
+from app.operations import camera_lock
 from app.retention import RetentionManager
 from app.services.gopro_recording_manager import GoProRecordingManager
 from app.services.gopro_service import GoProService
 from app.services.moonraker_service import MoonrakerService
 from app.state import RuntimeStateManager
 from app.timelapse import TimelapseManager
+from app.timelapse_auto import TimelapseAutomation
+from app.timeline import Timeline, TimelineMonitor
 from app.util import configure_logging, ensure_directories
 
 LOGGER = logging.getLogger(__name__)
@@ -73,27 +80,33 @@ async def lifespan(app: FastAPI):
     clip_store = ClipStore(settings["recordings_dir"])
 
     moonraker_service = MoonrakerService()
+    optimizer = Optimizer()
 
     def active_output_paths() -> set[str]:
-        return runtime_state.active_output_paths() | timelapse_manager.active_paths()
+        return runtime_state.active_output_paths() | timelapse_manager.active_paths() | optimizer.active_paths()
 
     def enforce_retention_after_recording() -> None:
-        retention_manager.enforce_retention(
-            active_output_paths(),
-            triggered_by="recording_finished",
-            manual=False,
-        )
+        with camera_lock:
+            retention_manager.enforce_retention(
+                active_output_paths(),
+                triggered_by="recording_finished",
+                manual=False,
+            )
 
     timelapse_manager = TimelapseManager(
         settings["recordings_dir"],
         moonraker_service,
         on_timelapse_finished=enforce_retention_after_recording,
+        minimum_free_bytes=loaded_config.retention.capture_reserve_mib * 1024**2,
     )
 
     recording_manager = RecordingManager(
         settings["recordings_dir"],
         runtime_state,
         on_recording_finished=enforce_retention_after_recording,
+        minimum_free_bytes=loaded_config.retention.capture_reserve_mib * 1024**2,
+        max_duration=loaded_config.retention.maximum_recording_seconds,
+        save_recording_anchor=clip_store.save_recording_anchor,
     )
     gopro_service = GoProService()
     gopro_recording_manager = GoProRecordingManager(
@@ -123,13 +136,26 @@ async def lifespan(app: FastAPI):
     app.state.gopro_recording_manager = gopro_recording_manager
     app.state.retention_manager = retention_manager
     app.state.clip_store = clip_store
+    app.state.optimizer = optimizer
     app.state.app_config = loaded_config
     app.state.camera_store = CameraConfigStore(settings["camera_config_path"])
+    app.state.printers = app.state.camera_store.list_printers()[0]
+    automation = TimelapseAutomation(settings["recordings_dir"], timelapse_manager, moonraker_service,
+                                     lambda: app.state.cameras)
+    app.state.timelapse_automation = automation
+    app.state.timeline = Timeline(settings["recordings_dir"])
+    timeline_monitor = TimelineMonitor(
+        app.state.timeline, moonraker_service, lambda: app.state.cameras, lambda: app.state.printers,
+    )
+    timeline_monitor.worker.start()
+    automation.thread.start()
 
     LOGGER.info("Printer NVR started with %d configured cameras", len(loaded_config.cameras))
     try:
         yield
     finally:
+        timeline_monitor.shutdown()
+        automation.shutdown()
         recording_manager.shutdown()
         timelapse_manager.shutdown()
         gopro_recording_manager.shutdown()
@@ -144,6 +170,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(AccessBoundary)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(health_router)
@@ -156,3 +183,4 @@ app.include_router(status_router)
 app.include_router(record_router)
 app.include_router(storage_router)
 app.include_router(timelapse_router)
+app.include_router(timeline_router)

@@ -199,7 +199,7 @@ class RuntimeStateManager:
             return {
                 state.output_path
                 for state in self._states.values()
-                if state.recording and state.output_path
+                if state.status in {"starting", "recording", "stopping"} and state.output_path
             }
 
     def _require_state(self, camera_id: str) -> CameraRuntimeState:

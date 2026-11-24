@@ -196,6 +196,7 @@ class PrinterConfigInput(BaseModel):
 
 
 class CameraConfigFile(BaseModel):
+    revision: str | None = None
     cameras: list[CameraConfigInput] = Field(default_factory=list)
     printers: list[PrinterConfigInput] = Field(default_factory=list)
 
@@ -270,6 +271,9 @@ class RetentionConfig(BaseModel):
     max_age_days: int | None = Field(default=None, ge=1)
     max_total_gb: float | None = Field(default=None, gt=0)
     minimum_free_gb: float | None = Field(default=None, gt=0)
+    capture_reserve_mib: int = Field(default=64, ge=1)
+    maximum_recording_seconds: int = Field(default=600, ge=1, le=86400)
+    timelapse_frame_age_days: int | None = Field(default=None, ge=1)
 
 
 class AppSettingsFile(BaseModel):
@@ -309,6 +313,11 @@ class RecordStartRequest(BaseModel):
 class TimelapseStartRequest(BaseModel):
     camera_id: str | None = None
     interval_seconds: int = Field(default=10, ge=1, le=300)
+    capture_mode: Literal["interval", "layer"] = "interval"
+
+
+class TimelapseAutoSettings(TimelapseStartRequest):
+    enabled: bool = False
 
 
 class TimelapseSessionState(BaseModel):
@@ -318,6 +327,8 @@ class TimelapseSessionState(BaseModel):
     camera_name: str | None = None
     status: TimelapseStatus = "idle"
     interval_seconds: int | None = None
+    capture_mode: Literal["interval", "layer"] = "interval"
+    print_job_id: str | None = None
     frame_count: int = 0
     started_at: datetime | None = None
     stopped_at: datetime | None = None
@@ -451,6 +462,8 @@ class ClipRenameRequest(BaseModel):
 
 
 class PrinterStatusSnapshot(BaseModel):
+    klipper_eventtime: float | None = None
+    current_layer: int | None = None
     connection_state: PrinterConnectionState = "unknown"
     printer_status_text: str = "Status unavailable"
     monitor_state: PrinterMonitorState = "unavailable"

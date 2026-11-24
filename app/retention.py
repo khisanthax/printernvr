@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from threading import Lock
+from threading import RLock
+
+from app.media import MEDIA_SUFFIXES, validate_mp4
 
 from app.models import CleanupSummary, RetentionConfig, StorageStatus
 
@@ -33,7 +36,24 @@ class RetentionManager:
         self._recordings_root = Path(recordings_root)
         self._config = config
         self._last_cleanup_summary: CleanupSummary | None = None
-        self._lock = Lock()
+        self._lock = RLock()
+
+    def preview(self, active_output_paths: set[str]) -> dict:
+        files = self._scan_recording_files()
+        plan = self._build_cleanup_plan(
+            files, sum(item.size_bytes for item in files),
+            shutil.disk_usage(self._recordings_root).free, active_output_paths,
+        )
+        frame_batches = self._expired_frames(active_output_paths)
+        frames = [frame for _, batch in frame_batches for frame in batch]
+        return {
+            "eligible_files": len(plan) + len(frames),
+            "reclaimable_bytes": sum(item.file.size_bytes for item in plan) + sum(frame.stat().st_size for frame in frames),
+            "categories": (["completed ordinary clips"] if plan else []) + (["rendered timelapse frames"] if frames else []),
+            "reasons": sorted({item.reason for item in plan} | ({"timelapse_frame_age_days"} if frames else set())),
+            "excluded_files": len(files) - len(self._eligible(files, active_output_paths)),
+            "cleanup_mode": self._config.cleanup_mode,
+        }
 
     def get_storage_status(self, active_output_paths: set[str]) -> StorageStatus:
         files = self._scan_recording_files()
@@ -62,6 +82,12 @@ class RetentionManager:
         triggered_by: str,
         manual: bool = False,
     ) -> CleanupSummary | None:
+        with self._lock:
+            return self._enforce_retention(active_output_paths, triggered_by, manual)
+
+    def _enforce_retention(
+        self, active_output_paths: set[str], triggered_by: str, manual: bool,
+    ) -> CleanupSummary | None:
         if not self._config.enabled:
             if manual:
                 raise ValueError("Manual cleanup is disabled")
@@ -85,7 +111,8 @@ class RetentionManager:
             cleanup_mode=self._config.cleanup_mode,
         )
 
-        if not plan:
+        frame_batches = self._expired_frames(active_output_paths)
+        if not plan and not frame_batches:
             with self._lock:
                 self._last_cleanup_summary = summary
             return summary
@@ -96,6 +123,11 @@ class RetentionManager:
         for planned in plan:
             file_path = planned.file.path
             try:
+                if not self._eligible([planned.file], active_output_paths):
+                    continue
+                stat = file_path.stat()
+                if stat.st_size != planned.file.size_bytes or datetime.utcfromtimestamp(stat.st_mtime) != planned.file.modified_at:
+                    continue
                 file_path.unlink(missing_ok=True)
                 if not file_path.exists():
                     summary.deleted_files += 1
@@ -113,6 +145,25 @@ class RetentionManager:
                 summary.errors.append(error)
                 LOGGER.warning("Retention delete failed: %s", error)
 
+        for output, frames in frame_batches:
+            try:
+                validate_mp4(output)
+            except (ValueError, OSError):
+                continue
+            for frame in frames:
+                try:
+                    if frame.resolve() != frame:
+                        continue
+                    size = frame.stat().st_size
+                    frame.unlink()
+                    summary.deleted_files += 1
+                    summary.deleted_bytes += size
+                    summary.deleted_paths.append(str(frame))
+                    if "timelapse_frame_age_days" not in summary.reasons:
+                        summary.reasons.append("timelapse_frame_age_days")
+                    LOGGER.info("Expired timelapse source frame %s", frame)
+                except OSError as exc:
+                    summary.errors.append(str(exc))
         summary.deleted_gb = self._to_gb(summary.deleted_bytes)
         with self._lock:
             self._last_cleanup_summary = summary
@@ -155,12 +206,7 @@ class RetentionManager:
         if not self._config.enabled or self._config.cleanup_mode == "disabled":
             return []
 
-        normalized_active = {str(Path(path).resolve()) for path in active_output_paths}
-        eligible = [
-            item
-            for item in sorted(files, key=lambda entry: entry.modified_at)
-            if str(item.path.resolve()) not in normalized_active
-        ]
+        eligible = sorted(self._eligible(files, active_output_paths), key=lambda entry: entry.modified_at)
 
         if not eligible:
             return []
@@ -203,15 +249,60 @@ class RetentionManager:
 
         return planned
 
+    def _eligible(self, files: list[RecordingFile], active_output_paths: set[str]) -> list[RecordingFile]:
+        root = self._recordings_root.resolve()
+        active = {Path(path).resolve() for path in active_output_paths}
+        try:
+            metadata = json.loads((root / ".clip_metadata.json").read_text(encoding="utf-8"))
+            favorites = {key.split("::", 1)[-1] for key, value in metadata.items() if value.get("favorite")}
+        except FileNotFoundError:
+            favorites = set()
+        except (OSError, ValueError, AttributeError):
+            return []
+        eligible = []
+        for item in files:
+            path = item.path.absolute()
+            parts = path.relative_to(root).parts
+            if (len(parts) == 2 and parts[0].lower() != "timelapses"
+                    and path.suffix.lower() in MEDIA_SUFFIXES and path.name not in favorites
+                    and path.resolve() == path and path not in active):
+                eligible.append(item)
+        return eligible
+
+    def _expired_frames(self, active_output_paths: set[str]) -> list:
+        days = self._config.timelapse_frame_age_days
+        if not self._config.enabled or self._config.cleanup_mode == "disabled" or days is None:
+            return []
+        cutoff = (datetime.now().astimezone() - timedelta(days=days)).timestamp()
+        root = self._recordings_root.resolve() / "timelapses"
+        active = {Path(path).resolve() for path in active_output_paths}
+        batches = []
+        for manifest in root.glob("*/*/session.json"):
+            try:
+                if manifest.resolve() != manifest:
+                    continue
+                state = json.loads(manifest.read_text(encoding="utf-8"))
+                output = manifest.parent / f"{manifest.parent.name}.mp4"
+                if (state.get("status") != "complete" or state.get("render_status") != "complete"
+                        or output in active or output.resolve() != output or output.stat().st_mtime > cutoff):
+                    continue
+                frames = [path for path in (manifest.parent / "frames").glob("frame_*.jpg")
+                          if path.is_file() and path.resolve() == path and path not in active]
+                if frames:
+                    batches.append((output, frames))
+            except (OSError, ValueError, AttributeError):
+                continue
+        return batches
+
     def _scan_recording_files(self) -> list[RecordingFile]:
         if not self._recordings_root.exists():
             return []
 
         files: list[RecordingFile] = []
-        for path in self._recordings_root.rglob("*"):
+        for path in self._recordings_root.resolve().rglob("*"):
             if not path.is_file():
                 continue
-            if path.name in CLIP_METADATA_FILENAMES:
+            if path.name in CLIP_METADATA_FILENAMES or path.resolve() != path:
                 continue
             try:
                 stat_result = path.stat()

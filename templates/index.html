@@ -16,6 +16,7 @@
         <a href="/cameras">Printers & Cameras</a>
         <a href="/clips">Clips</a>
         <a href="/timelapses">Timelapses</a>
+        <a href="/timeline">Event Timeline</a>
       </nav>
       <h1>Printer NVR</h1>
       <p>Recording dashboard for local 3D printer camera capture.</p>
@@ -43,6 +44,11 @@
       </dl>
       <p id="storage-warning" class="storage-warning" hidden></p>
       <p id="storage-cleanup-summary" class="storage-summary"></p>
+      <details id="storage-inventory">
+        <summary>Recording inventory and projections</summary>
+        <button type="button" id="load-storage-inventory" class="control-button">Measure recordings</button>
+        <div id="storage-inventory-result" role="status"></div>
+      </details>
     </section>
   </header>
 

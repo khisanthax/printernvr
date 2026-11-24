@@ -1,0 +1,9 @@
+services:
+  go2rtc:
+    image: alexxit/go2rtc:1.9.14
+    profiles: [go2rtc]
+    ports:
+      - "${GO2RTC_BIND_ADDRESS:-127.0.0.1}:1984:1984"
+    volumes:
+      - ./config/go2rtc.yaml:/config/go2rtc.yaml:ro
+    restart: unless-stopped

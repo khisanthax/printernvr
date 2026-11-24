@@ -1,4 +1,5 @@
 let printers = [];
+let configurationRevision = null;
 let editingPrinterId = null;
 let editingCameraId = null;
 let idTouched = false;
@@ -549,12 +550,16 @@ function validateId(value, label) {
 }
 
 async function saveConfig() {
-  const payload = { printers: printers.map((printer) => ({ ...printer, cameras: printer.cameras || [] })) };
+  const payload = {
+    revision: configurationRevision,
+    printers: printers.map((printer) => ({ ...printer, cameras: printer.cameras || [] })),
+  };
   const response = await fetchJson("/api/cameras/config", {
     method: "PUT",
     body: JSON.stringify(payload),
   });
   printers = response.printers || [];
+  configurationRevision = response.revision;
   renderPrinterList();
 }
 
@@ -680,6 +685,7 @@ async function loadConfig() {
   try {
     clearError(configError);
     const payload = await fetchJson("/api/cameras/config");
+    configurationRevision = payload.revision;
     printers = payload.printers || [];
     printers.forEach((printer) => {
       printer.cameras = printer.cameras || [];

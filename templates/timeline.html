@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Klipper Event Timeline | Printer NVR</title>
+  <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
+  <script defer src="/static/timeline.js?v={{ asset_version }}"></script>
+</head>
+<body class="timeline-document">
+  <header class="page-header page-header--single">
+    <nav class="page-nav">
+      <a href="/">Dashboard</a>
+      <a href="/printers">Printers</a>
+      <a href="/clips">Clips</a>
+      <a href="/timeline" aria-current="page">Event Timeline</a>
+    </nav>
+    <h1>Klipper Event Timeline</h1>
+  </header>
+  <main class="page-main">
+    <section class="clips-page timeline-page">
+      <div class="clips-toolbar">
+        <label>Printer <select id="timeline-printer">
+          {% for id, name in printers %}<option value="{{ id }}">{{ name }}</option>{% endfor %}
+        </select></label>
+        <label>Camera <select id="timeline-camera"></select></label>
+        <label>Recording <select id="timeline-clip"></select></label>
+        <button type="button" class="control-button" id="timeline-refresh">Refresh events</button>
+      </div>
+      <p id="timeline-feedback" role="status"></p>
+      <div class="timeline-stage" id="timeline-stage" hidden>
+        <video id="timeline-player" class="clip-preview-player" controls playsinline preload="metadata"></video>
+        <div class="timeline-overlay" id="timeline-overlay" hidden></div>
+      </div>
+      <div class="clips-toolbar">
+        <label>Frame zero (ISO timestamp with timezone) <input id="timeline-anchor" placeholder="2026-11-23T10:00:00Z"></label>
+        <label>Video correction (seconds) <input id="timeline-correction" type="number" step="0.1" value="0"></label>
+        <label>Event clock <select id="timeline-clock">
+          <option value="source">Source time when available</option>
+          <option value="received">Recorder receipt time</option>
+        </select></label>
+        <button type="button" class="control-button" id="timeline-save" disabled>Save alignment</button>
+        <button type="button" class="control-button" id="timeline-reset" disabled>Reset alignment</button>
+        <label><input type="checkbox" id="timeline-show-overlay" checked> Show timestamp overlay</label>
+      </div>
+      <p id="timeline-anchor-note">Choose a completed MP4 to align events.</p>
+      <div class="clips-toolbar">
+        <label>Clip in (seconds) <input id="timeline-in" type="number" min="0" step="0.01" value="0"></label>
+        <button type="button" class="control-button" id="timeline-mark-in">Set in at playhead</button>
+        <label>Clip out (seconds) <input id="timeline-out" type="number" min="0" step="0.01"></label>
+        <button type="button" class="control-button" id="timeline-mark-out">Set out at playhead</button>
+        <button type="button" class="control-button" id="timeline-extract" disabled>Download segment</button>
+        <label><input type="checkbox" id="timeline-timestamped"> Burn timestamps into download</label>
+      </div>
+      <details class="timeline-import">
+        <summary>Import a Klipper log excerpt</summary>
+        <p>Use a UTF-8 klippy.log excerpt (up to 2 MiB) that includes the session's startup clock line. Only recognized diagnostic markers are retained.</p>
+        <label>Klipper log <input type="file" id="timeline-log" accept=".log,.txt,text/plain"></label>
+        <button type="button" class="control-button" id="timeline-import">Import log</button>
+      </details>
+      <div class="clips-toolbar">
+        <label>Event type <select id="timeline-kind"><option value="">All types</option></select></label>
+        <label>Origin <select id="timeline-origin"><option value="">All origins</option></select></label>
+        <label>Search events <input type="search" id="timeline-search"></label>
+        <label><input type="checkbox" id="timeline-overlap"> Only in this clip</label>
+      </div>
+      <p id="timeline-count" role="status"></p>
+      <div class="clips-table-wrap">
+        <table class="clips-table">
+          <thead><tr><th>Event</th><th>Source time</th><th>Recorder received</th><th>Klipper clock (s)</th><th>Video</th></tr></thead>
+          <tbody id="timeline-events"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

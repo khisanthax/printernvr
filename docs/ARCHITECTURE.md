@@ -189,7 +189,7 @@ Current phase limits:
 1. `/live` renders the same grouped printer cards as `/printers`, but through a compact viewing-only template.
 2. The page uses the existing `/api/printers/cards` endpoint for lightweight status refresh.
 3. Visibility checkboxes use a wall-specific `localStorage` key so users can choose which printers appear on the camera wall.
-4. Per-printer camera/view selection reuses the same browser-side selected-view storage as `/printers`.
+4. The wall stores camera/view selections separately from `/printers`, so wall swaps do not change a recording target.
 5. Live preview remains the dominant card area.
 6. Printer status, progress, filename, temperatures, ETA, and freshness text are rendered below the video.
 7. Recording controls, duration buttons, latest clip shortcuts, and clip review actions are intentionally omitted.
@@ -232,6 +232,8 @@ Page roles:
 
 ## Recording Flow
 
+FFmpeg writes to a private `.mp4.part` file. The recorder holds the camera claim while stopping, verifying and publishing. Stop sends FFmpeg `q` and applies bounded escalation. FFprobe checks video and duration before no-overwrite publication on the same filesystem. Diagnostics use a bounded, redacted tail. `retention.capture_reserve_mib` and `retention.maximum_recording_seconds` default to 64 MiB and 600 seconds.
+
 1. Client calls `POST /api/record/start/{camera_id}` from either the camera dashboard or the selected view on a printer card.
 2. Backend validates camera existence, enabled state, and current recording state.
 3. `RecordingManager` creates `/app/recordings/<output_subdir>/<camera_id>_YYYYMMDD_HHMMSS.mp4`, where `output_subdir` defaults to the camera id.
@@ -269,12 +271,14 @@ This recording profile is intentionally conservative for printer cameras:
 
 ## Timelapse Flow
 
+Session manifests support retrying interrupted renders from retained frames. The recorder publishes a render after FFprobe validation. Auto-start stores an explicit camera preference and a claimed Moonraker history job ID in `recordings/.timelapse-auto.json`. Layer mode polls Klipper's reported current layer and uses the capture interval when layer data is missing.
+
 Phase 12 implements timelapse sessions as a separate backend path from normal short-clip recording.
 
 Implemented behavior:
 1. `/printers` adds a compact Timelapse section to each printer card.
 2. The root Dashboard adds a compact Timelapse section to each camera card as a shortcut into the same printer timelapse backend.
-3. The user manually starts or stops a timelapse for a printer, or enables browser-local auto-start on `/printers` so the open page starts the selected-view timelapse when Moonraker reports `printing`.
+3. The user manually starts or stops a timelapse for a printer, or enables recorder-side auto-start for a selected camera through `/printers`.
 4. The `/printers` frontend resolves the active selected/default printer camera view, while the root Dashboard uses the current camera card's camera id. The API remains printer-oriented:
 - `POST /api/timelapse/start/{printer_id}`
 - `POST /api/timelapse/stop/{printer_id}`
@@ -328,9 +332,9 @@ Phase 12 limitations:
 - Active timelapse sessions are in-memory and are not recovered as running sessions after an app restart.
 - App startup restores the latest completed timelapse MP4 per printer for linking from `/printers`.
 - Completed timelapse MP4s are not part of the normal `/clips` review grid; they are reviewed on `/timelapses`.
-- Auto-start is browser-local and requires the `/printers` page to stay open. A server-side auto-start daemon remains out of scope for this pass.
+- Auto-start runs on the recorder without an open browser. It requires a stable Moonraker history job ID for deduplication.
 
-Phase 12.1 planned layer-trigger behavior:
+Phase 12.1 uses Moonraker-reported layers with interval mode/fallback. A separate external macro trigger is deferred:
 - add a safe endpoint such as `POST /api/timelapse/capture/{printer_id}`
 - capture one frame only when a session is active
 - ignore safely when no session is active
@@ -424,6 +428,8 @@ Clip browser safety rules:
 
 ## Retention Flow
 
+Cleanup preview reports candidate files and bytes. Automatic deletion requires `delete_oldest` and manual deletion requires confirmation. Ordinary cleanup excludes favorites, staging, active jobs and timelapse session files. `retention.timelapse_frame_age_days` optionally expires frames after a verified render and preserves the MP4. On-demand inventory reports observed bitrate and projections. Optimization publishes a separate validated H.264 copy only when it saves at least 20%.
+
 1. `RetentionManager` scans the local recordings directory only.
 2. It computes:
 - total recordings size
@@ -458,17 +464,7 @@ Docker Compose single container:
 
 Environment defaults allow startup without `.env`.
 
-Current deployment remains Docker-based and manual:
-- clone or pull the repository
-- ensure config files exist
-- run `docker compose up -d --build`
-
-Planned Phase 11 deployment direction:
-- add install/update helper scripts
-- add backup helper behavior for config and metadata if practical
-- document common `.env` settings
-- clarify volume handling for `config/`, `recordings/`, and optional `exports/`
-- optionally provide a go2rtc companion container through a Compose profile, override file, or companion compose file
+Docker deployment uses the installer and fast-forward updater. The updater takes a checksum-verified metadata archive before pulling. A quiescent `scripts/backup.sh --full` additionally saves all default mounted recordings, including timelapse frames and manifests. Archives stay outside the build context. The [pilot runbook](PILOT.md) separates staged data recovery from rollback of a pinned local image; rollback does not overwrite bind-mounted state or reset Git. The [disposable recovery test](https://github.com/khisanthax/printernvr/actions/runs/45396063900) verified both a staged full restore and image rollback with unchanged mounted files.
 
 go2rtc deployment policy:
 - external go2rtc instances remain fully supported
@@ -476,7 +472,20 @@ go2rtc deployment policy:
 - Printer NVR must not require go2rtc to run in the same Compose stack
 - setup/update helpers must not overwrite `config/cameras.json`, recordings, clip metadata, or review metadata without backup or confirmation
 
+## Klipper Event Timeline and Video Viewer
+
+- The recorder polls enabled printer Moonraker sources and saves observed state/layer changes in bounded per-printer JSONL under `recordings/.timeline/`. Explicit integrations can submit events via `POST /api/timeline/{printer_id}/events` with the same authenticated origin boundary as other changes.
+- Every record has UTC `received_at`, optional timezone-aware `source_at`, and optional raw `klipper_eventtime` in monotonic seconds. Polled changes use a receipt timestamp for video alignment. The raw sample clock is diagnostic and has no Unix epoch. Polling cannot reconstruct changes missed between samples.
+- The recorder stores a per-clip frame-zero estimate in the existing review sidecar using its first positive FFmpeg progress timestamp. Camera buffers, decoder latency and recorder scheduling influence accuracy. The viewer accepts a manual timezone-aware anchor and a per-view correction for known offsets and older clips.
+- `POST /api/timeline/{printer_id}/klipper-log` accepts up to 2 MiB of UTF-8 plain text. The importer maps recognized samples from Klipper's [startup host and reactor clock pair](https://github.com/Klipper3d/klipper/blob/master/klippy/klippy.py), restarts correlation at each new session anchor and deduplicates retained events by stable identity. Shutdown times use the preceding sample as an estimate. Only predefined messages and clock data are retained; raw log lines and configuration are discarded. Imports are explicit, not a remote log tail. All import and annotation writes share the timeline store lock.
+- The timeline viewer plays the original completed MP4 through the range-capable preview endpoint. A user can filter events, toggle the timestamp overlay, and switch camera angles while preserving the common UTC playhead when there is an overlapping aligned recording. Each clip retains its own calibration and unknown overlap is not guessed.
+- Extraction re-encodes a maximum of 120 seconds to a validated temporary MP4. The optional burn-in shows aligned video UTC and the active event's source and receipt times; the download name uses segment-start UTC. The container bundles a font to render subtitle text. Browser-native fullscreen or picture-in-picture may hide the page overlay; burned exports include it in the actual pixels.
+- One export encoder is admitted at a time. A short camera transaction pins the source by hard link or opens a disk-checked copy snapshot if links are unavailable. The transaction releases before copying/encoding, so configuration and clip operations are not blocked for the full render. Active captures prevent a new export from starting, and the original source and its calibration are never changed by export.
+- Playwright runs the timeline flow with synthetic H.264 footage, isolated config and loopback endpoints. CI uses Chromium desktop and touch/mobile emulation, not a physical phone or printer.
+
 ## Operational Notes
+
+The [procedure logbook](logbook.md) records implementation tests, deployment limitations and branch reconciliation for this repository.
 
 - App can start with zero cameras configured.
 - Camera failures should set error state without crashing the app.
@@ -484,3 +493,29 @@ go2rtc deployment policy:
 - No database, queue, scheduler, or NAS logic is included.
 - Timelapse sessions remain local-filesystem based and separate from the normal recording manager.
 - GoPro support remains deprecated compatibility code, not an active architectural direction.
+
+### Timelapse shutdown
+
+App shutdown closes admission to the timelapse manager and interrupts its FFmpeg/ffprobe processes. Completed source frames and session manifests remain local for manual render retry; interrupted output is not published. Manual Stop still renders normally.
+
+### Configuration and monitoring
+
+Configured printers without a camera still have cards and can supply Moonraker timeline events. Capture remains disabled until a camera is configured.
+
+Camera compatibility endpoints mutate nested configuration directly for printer-first files; deleting or moving a camera does not delete its former printer record.
+
+### Clip storage and timeline integrity
+
+Timeline alignment edits are stored alongside, not in place of, the original recorder timing estimate in the clip review sidecar. They follow a clip rename and can be reset in the viewer.
+
+Unclaimed output folders keep their folder-name identity in the clip browser. When that name collides with a configured camera ID, the browser uses an explicit `archive:` alias. Internal hidden directories are excluded. Clip modification timestamps are returned in UTC.
+
+The event store compacts to a recent window when a printer log reaches approximately 8 MiB. The recorder publishes verified media even if its optional timing sidecar cannot be written.
+
+When Moonraker is offline or returns incomplete print state, monitoring retains prior successful readings and their timestamp without claiming fresh metadata. Timeline observations use only the current response's Klipper clock.
+
+The [isolated verification run](https://github.com/khisanthax/printernvr/actions/runs/45199452133) exercised revision-checked config, event ingestion, MP4 extraction and original-media preservation. It did not measure clock alignment on physical cameras or printers.
+
+The export request can carry the current, unsaved viewer alignment without modifying the saved clip calibration. Catalog quotas are per camera (250 completed clips at most), so a busy view does not hide clips on quieter cameras. Recording output path validation occurs within the recording manager's claim lock to avoid Windows directory-creation races.
+
+[Expanded acceptance CI](https://github.com/khisanthax/printernvr/actions/runs/45210307754) verifies both clean and burned-in extracts over HTTP in disposable Docker and drives desktop/mobile-emulated Chromium against synthetic recordings.

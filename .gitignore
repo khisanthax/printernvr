@@ -19,6 +19,8 @@ recordings/*
 !recordings/.gitkeep
 config/cameras.json
 config/app.json
+config/go2rtc.yaml
+backups/
 
 # OS/editor
 .DS_Store

@@ -16,6 +16,7 @@
         <a href="/cameras">Printers & Cameras</a>
         <a href="/clips">Clips</a>
         <a href="/timelapses">Timelapses</a>
+        <a href="/timeline">Event Timeline</a>
       </nav>
       <h1>Live Printers</h1>
       <p>Monitor printer cards with live camera views and printer details beneath each preview.</p>
@@ -241,7 +242,12 @@
                 <input type="checkbox" data-printer-timelapse-auto="{{ printer.printer_id }}">
                 <span>Auto start when printing</span>
               </label>
+              <label class="printer-timelapse__auto">
+                <input type="checkbox" data-printer-timelapse-layer="{{ printer.printer_id }}">
+                <span>Capture per layer when available</span>
+              </label>
             </div>
+            <p class="printer-recording__message" data-printer-timelapse-auto-status="{{ printer.printer_id }}"></p>
             <dl class="printer-timelapse__stats">
               <div>
                 <dt>Frames</dt>
@@ -299,6 +305,7 @@
                 <a class="control-button control-button--secondary table-link" href="/clips?camera_id={{ printer.default_camera_id or '' }}" data-printer-latest-all="{{ printer.printer_id }}">
                   View All
                 </a>
+                <button type="button" class="control-button control-button--secondary" data-printer-latest-rename="{{ printer.printer_id }}" disabled>Rename</button>
               </div>
             </section>
 

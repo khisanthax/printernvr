@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: printernvr
     ports:
-      - "${PORT:-8787}:8787"
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:${PORT:-8787}:8787"
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       APP_CONFIG_PATH: ${APP_CONFIG_PATH:-/app/config/cameras.json}
@@ -13,8 +13,17 @@ services:
       APP_RECORDINGS_DIR: ${APP_RECORDINGS_DIR:-/app/recordings}
       APP_LOGS_DIR: ${APP_LOGS_DIR:-/app/logs}
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-}
+      APP_ACCESS_PASSWORD: ${APP_ACCESS_PASSWORD:-}
+      APP_BIND_ADDRESS: ${APP_BIND_ADDRESS:-127.0.0.1}
     volumes:
       - ./config:/app/config
       - ./recordings:/app/recordings
       - ./logs:/app/logs
     restart: unless-stopped
+    stop_grace_period: 45s
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/ready', timeout=3).close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

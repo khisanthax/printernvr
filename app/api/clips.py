@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import mimetypes
+from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 
 from app.models import ClipItem, ClipMetadataUpdate, ClipRenameRequest
+from app.operations import camera_transaction
 
 router = APIRouter(prefix="/api/clips", tags=["clips"])
 
@@ -17,6 +19,8 @@ def get_clips(
     camera_id: str | None = Query(default=None),
     review_status: str = Query(default="all"),
     q: str | None = Query(default=None),
+    printer_id: str | None = Query(default=None),
+    from_date: date | None = Query(default=None),
 ) -> dict:
     clip_store = request.app.state.clip_store
     runtime_state = request.app.state.runtime_state
@@ -28,6 +32,11 @@ def get_clips(
         camera_id=camera_id,
     )
     clips = _filter_clips(clips, review_status=review_status, query=q)
+    if printer_id:
+        camera_ids = {camera.id for camera in cameras if camera.printer_id == printer_id}
+        clips = [clip for clip in clips if clip.camera_id in camera_ids]
+    if from_date:
+        clips = [clip for clip in clips if clip.created_at.date() >= from_date]
     return {"clips": [clip.model_dump(mode="json") for clip in clips]}
 
 
@@ -47,6 +56,27 @@ def get_latest_clip(camera_id: str, request: Request) -> dict:
         camera_id=camera_id,
     )
     return latest.model_dump(mode="json")
+
+
+@router.get("/optimization")
+def get_optimization(request: Request) -> dict:
+    return request.app.state.optimizer.status()
+
+
+@router.post("/optimize/{camera_id}/{filename}", status_code=202, dependencies=[Depends(camera_transaction)])
+def optimize_clip(camera_id: str, filename: str, request: Request, crf: int = 22) -> dict:
+    state = request.app.state
+    clip = _resolve_clip_path(camera_id, filename, request)
+    if state.runtime_state.active_output_paths() or state.timelapse_manager.active_paths():
+        raise HTTPException(status_code=409, detail="Stop capture before optimizing clips")
+    try:
+        state.optimizer.start(
+            clip, state.app_config.retention.capture_reserve_mib * 1024**2, crf,
+            state.clip_store, camera_id,
+        )
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return state.optimizer.status()
 
 
 @router.get("/download/{camera_id}/{filename}")
@@ -80,7 +110,7 @@ def _resolve_clip_path(camera_id: str, filename: str, request: Request) -> Path:
     return clip_path
 
 
-@router.patch("/{camera_id}/{filename}/metadata")
+@router.patch("/{camera_id}/{filename}/metadata", dependencies=[Depends(camera_transaction)])
 def update_clip_metadata(
     camera_id: str,
     filename: str,
@@ -114,7 +144,7 @@ def update_clip_metadata(
     }
 
 
-@router.post("/{camera_id}/{filename}/rename")
+@router.post("/{camera_id}/{filename}/rename", dependencies=[Depends(camera_transaction)])
 def rename_clip(
     camera_id: str,
     filename: str,
@@ -126,7 +156,7 @@ def rename_clip(
     runtime_state = request.app.state.runtime_state
 
     clip_path = _resolve_clip_path(camera_id, filename, request)
-    _raise_if_active(clip_path, runtime_state.active_output_paths())
+    _raise_if_active(clip_path, runtime_state.active_output_paths() | request.app.state.optimizer.active_paths())
 
     try:
         renamed_path = clip_store.rename_clip(camera_id, filename, payload.filename, cameras)
@@ -147,7 +177,7 @@ def rename_clip(
     }
 
 
-@router.delete("/{camera_id}/{filename}")
+@router.delete("/{camera_id}/{filename}", dependencies=[Depends(camera_transaction)])
 def delete_clip(camera_id: str, filename: str, request: Request) -> dict:
     clip_store = request.app.state.clip_store
     cameras = request.app.state.cameras
@@ -158,7 +188,7 @@ def delete_clip(camera_id: str, filename: str, request: Request) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    active_paths = runtime_state.active_output_paths()
+    active_paths = runtime_state.active_output_paths() | request.app.state.optimizer.active_paths()
     _raise_if_active(clip_path, active_paths)
 
     try:

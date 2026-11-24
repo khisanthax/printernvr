@@ -1,26 +1,66 @@
 from __future__ import annotations
 
 import logging
+import math
+import time
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
+from threading import Lock
 
 import httpx
 
 from app.models import PrinterStatusSnapshot
+from app.media import redact_diagnostic
 
 LOGGER = logging.getLogger(__name__)
+LAST_READING_FIELDS = {
+    "current_file_name", "progress_percent", "extruder_current_temp", "extruder_target_temp",
+    "bed_current_temp", "bed_target_temp", "last_metadata_success_at",
+}
 
 
 class MoonrakerService:
     def __init__(self, timeout_seconds: float = 3.0) -> None:
         self._client = httpx.Client(timeout=timeout_seconds)
+        self._status_lock = Lock()
+        self._snapshots: dict[str, tuple[float, PrinterStatusSnapshot]] = {}
 
     def shutdown(self) -> None:
         self._client.close()
 
+    def active_job_id(self, moonraker_url: str) -> str | None:
+        try:
+            endpoint = _query_url(moonraker_url).split("/printer/objects/query?", 1)[0]
+            response = self._client.get(f"{endpoint}/server/history/list", params={"limit": 1, "order": "desc"})
+            response.raise_for_status()
+            job = response.json()["result"]["jobs"][0]
+            if job.get("status") == "in_progress" and job.get("job_id") and job.get("start_time"):
+                return f"{job['job_id']}:{job['start_time']}"
+        except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError, AttributeError):
+            pass
+        return None
+
     def fetch_status(self, moonraker_url: str | None) -> PrinterStatusSnapshot:
         if not moonraker_url:
             return PrinterStatusSnapshot()
+        with self._status_lock:
+            cached = self._snapshots.get(moonraker_url)
+            if cached and time.monotonic() - cached[0] < 0.8:
+                return cached[1].model_copy()
+        status = self._read_status(moonraker_url)
+        with self._status_lock:
+            latest = self._snapshots.get(moonraker_url)
+            if latest:
+                previous = latest[1]
+                if (previous.last_metadata_attempt_at and status.last_metadata_attempt_at
+                        and previous.last_metadata_attempt_at > status.last_metadata_attempt_at):
+                    return previous.model_copy()
+                if not status.metadata_available:
+                    status = status.model_copy(update=previous.model_dump(include=LAST_READING_FIELDS))
+            self._snapshots[moonraker_url] = (time.monotonic(), status)
+        return status.model_copy()
+
+    def _read_status(self, moonraker_url: str) -> PrinterStatusSnapshot:
 
         attempted_at = datetime.now(timezone.utc)
 
@@ -31,29 +71,33 @@ class MoonrakerService:
             payload = response.json()
         except Exception as exc:
             request_url = moonraker_url
-            LOGGER.warning("Moonraker status request failed for %s: %s", request_url, exc)
+            error = redact_diagnostic(str(exc), request_url)
+            LOGGER.warning("Moonraker status request failed: %s", error)
             return PrinterStatusSnapshot(
                 connection_state="offline",
                 printer_status_text="Offline",
                 monitor_state="offline",
-                error_message=str(exc),
+                error_message=error,
                 has_metadata_source=True,
                 last_metadata_attempt_at=attempted_at,
             )
 
-        status_payload = payload.get("result", {}).get("status", {})
-        if not isinstance(status_payload, dict):
+        result = _as_dict(_as_dict(payload).get("result"))
+        status_payload = _as_dict(result.get("status"))
+        eventtime = _as_number(result.get("eventtime"))
+        print_stats = _as_dict(status_payload.get("print_stats"))
+        state = str(print_stats.get("state") or "").strip().lower()
+        if _monitor_state(state) == "unavailable":
             return PrinterStatusSnapshot(
                 connection_state="online",
                 printer_status_text="Status unavailable",
                 monitor_state="unavailable",
                 has_metadata_source=True,
-                metadata_available=True,
+                metadata_available=False,
                 last_metadata_attempt_at=attempted_at,
-                last_metadata_success_at=attempted_at,
             )
 
-        print_stats = _as_dict(status_payload.get("print_stats"))
+        layer = _as_dict(print_stats.get("info")).get("current_layer")
         extruder = _as_dict(status_payload.get("extruder"))
         heater_bed = _as_dict(status_payload.get("heater_bed"))
         virtual_sdcard = _as_dict(status_payload.get("virtual_sdcard"))
@@ -64,7 +108,6 @@ class MoonrakerService:
             progress_ratio = _as_number(virtual_sdcard.get("progress"))
         progress_percent = round(progress_ratio * 100.0, 1) if progress_ratio is not None else None
 
-        state = str(print_stats.get("state") or "").strip().lower()
         printer_status_text = _normalize_state_text(state)
 
         filename = str(print_stats.get("filename") or "").strip() or None
@@ -81,6 +124,8 @@ class MoonrakerService:
             eta_text = _format_eta(remaining_seconds)
 
         return PrinterStatusSnapshot(
+            klipper_eventtime=eventtime if eventtime is not None and eventtime >= 0 else None,
+            current_layer=layer if type(layer) is int and layer > 0 else None,
             connection_state="online",
             printer_status_text=printer_status_text,
             monitor_state=_monitor_state(state),
@@ -125,7 +170,8 @@ def _as_number(value: object) -> float | None:
     if value is None:
         return None
     try:
-        return float(value)
+        number = float(value)
+        return number if math.isfinite(number) else None
     except (TypeError, ValueError):
         return None
 

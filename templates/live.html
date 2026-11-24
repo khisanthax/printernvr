@@ -25,6 +25,15 @@
         <button type="button" id="live-select-all" class="live-wall-button">Select All</button>
         <button type="button" id="live-clear-all" class="live-wall-button">Clear All</button>
         <button type="button" id="live-refresh-streams" class="live-wall-button">Refresh Streams</button>
+        <button type="button" id="live-fullscreen" class="live-wall-button">Fullscreen</button>
+        <label for="live-order-printer">Card order</label>
+        <select id="live-order-printer">
+          {% for printer in printers %}
+          <option value="{{ printer.printer_id }}">{{ printer.printer_name }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" id="live-move-up" class="live-wall-button">Earlier</button>
+        <button type="button" id="live-move-down" class="live-wall-button">Later</button>
         <span id="live-stream-refresh-status" class="live-wall-stream-status" hidden></span>
       </div>
       <div class="live-wall-toggle-list">

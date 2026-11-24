@@ -1,4 +1,5 @@
 const POLL_INTERVAL_MS = 4000;
+let lastStorageRefresh = 0;
 const TIMELAPSE_POLL_INTERVAL_MS = 5000;
 const timelapseStates = new Map();
 const localTimelapseErrors = new Map();
@@ -424,7 +425,9 @@ async function refreshTimelapses() {
 }
 
 async function refreshStorage() {
+  if (Date.now() - lastStorageRefresh < 30000) return;
   const payload = await fetchJson("/api/storage/status");
+  lastStorageRefresh = Date.now();
   updateStorageStatus(payload);
 }
 
@@ -480,9 +483,40 @@ async function stopTimelapse(printerId) {
   updateAllDashboardTimelapseCards();
 }
 
+bySelector("#load-storage-inventory")?.addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  const panel = bySelector("#storage-inventory-result");
+  button.disabled = true;
+  panel.textContent = "Measuring completed recordings…";
+  try {
+    const inventory = await fetchJson("/api/storage/inventory");
+    const mb = (bytes = 0) => `${(bytes / 1e6).toFixed(1)} MB`;
+    const totals = inventory.totals;
+    panel.replaceChildren();
+    const rows = [
+      `Clips: ${mb(totals.clip_bytes)} | Timelapse MP4s: ${mb(totals.timelapse_mp4_bytes)} | Frames: ${mb(totals.timelapse_frame_bytes)} | Staging: ${mb(totals.temporary_bytes)} | Free: ${mb(inventory.free_bytes)}`,
+      ...inventory.cameras.map((camera) =>
+        `${camera.camera_id}: ${camera.count} clips, ${mb(camera.bytes)}. Estimated at observed bitrate: ${Object.entries(camera.projection_bytes).map(([hours, bytes]) => `${hours}h ${mb(bytes)}`).join(", ") || "unavailable"}.`),
+    ];
+    for (const row of rows) {
+      const line = document.createElement("p");
+      line.textContent = row;
+      panel.append(line);
+    }
+  } catch (error) {
+    panel.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
 async function manualCleanup() {
   try {
-    const payload = await fetchJson("/api/storage/cleanup", { method: "POST" });
+    const preview = await fetchJson("/api/storage/cleanup/preview");
+    if (!preview.eligible_files) return;
+    const mb = (preview.reclaimable_bytes / 1e6).toFixed(1);
+    if (!window.confirm(`Delete ${preview.eligible_files} files (${preview.categories.join(", ")}) and reclaim about ${mb} MB?`)) return;
+    const payload = await fetchJson("/api/storage/cleanup?confirm=true", { method: "POST" });
     if (payload.status) {
       updateStorageStatus(payload.status);
     }

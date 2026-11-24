@@ -3,12 +3,31 @@ from __future__ import annotations
 import mimetypes
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from app.operations import camera_transaction
 from fastapi.responses import FileResponse
 
-from app.models import ResolvedCamera, TimelapseStartRequest
+from app.models import ResolvedCamera, TimelapseAutoSettings, TimelapseStartRequest
 
 router = APIRouter(prefix="/api/timelapse", tags=["timelapse"])
+
+
+@router.get("/auto/{printer_id}")
+def timelapse_auto_status(printer_id: str, request: Request) -> dict:
+    return request.app.state.timelapse_automation.status(printer_id)
+
+
+@router.put("/auto/{printer_id}", dependencies=[Depends(camera_transaction)])
+def configure_timelapse_auto(printer_id: str, payload: TimelapseAutoSettings, request: Request) -> dict:
+    camera = request.app.state.camera_index.get(payload.camera_id)
+    if not any(item.printer_id == printer_id for item in request.app.state.cameras):
+        raise HTTPException(status_code=404, detail="Unknown printer")
+    if payload.enabled and (
+        not camera or not camera.enabled or camera.printer_id != printer_id
+        or not camera.record_url or not camera.moonraker_url
+    ):
+        raise HTTPException(status_code=400, detail="Auto-start requires an enabled camera and Moonraker URL")
+    return request.app.state.timelapse_automation.configure(printer_id, payload)
 
 
 @router.get("/status")
@@ -20,10 +39,19 @@ def get_timelapse_status(request: Request) -> dict:
 @router.get("/outputs")
 def get_timelapse_outputs(request: Request) -> dict:
     manager = request.app.state.timelapse_manager
-    return {"timelapses": manager.list_outputs()}
+    return {"timelapses": manager.list_outputs(), "recoverable": manager.recoverable_sessions()}
 
 
-@router.post("/start/{printer_id}")
+@router.post("/retry/{printer_id}/{session_id}", dependencies=[Depends(camera_transaction)])
+def retry_timelapse(printer_id: str, session_id: str, request: Request) -> dict:
+    try:
+        state = request.app.state.timelapse_manager.retry_render(printer_id, session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"timelapse": state.model_dump(mode="json")}
+
+
+@router.post("/start/{printer_id}", dependencies=[Depends(camera_transaction)])
 def start_timelapse(
     printer_id: str,
     request: Request,
@@ -61,6 +89,7 @@ def start_timelapse(
             camera=camera,
             interval_seconds=payload.interval_seconds,
             moonraker_url=moonraker_url,
+            capture_mode=payload.capture_mode,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -117,7 +146,7 @@ def preview_timelapse(
     return FileResponse(path=output_path, media_type=_guess_media_type(output_path))
 
 
-@router.delete("/{printer_id}/{session_id}/{filename}")
+@router.delete("/{printer_id}/{session_id}/{filename}", dependencies=[Depends(camera_transaction)])
 def delete_timelapse(
     printer_id: str,
     session_id: str,
